@@ -1,3 +1,4 @@
+use num_traits::{Bounded, FromPrimitive, NumCast};
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
@@ -27,7 +28,6 @@ where
 
     if partial.can_concrete() {
         // Extract errors and clone partial before consuming it
-        let errors = helper.into_inner(&source);
         Ok(partial
             .to_concrete()
             .expect("can_concrete() returned true; qed"))
@@ -185,7 +185,7 @@ impl ToConcrete<Output> for PartialOutput {
             // opt_a_f64: self.opt_a_f64.unwrap(),
             // opt_a_string: self.opt_a_string.unwrap(),
             // opt_a_bool: self.opt_a_bool.unwrap(),
-            // verified_i16: self.verified_i16.unwrap(),
+            verified_i16: self.verified_i16.unwrap(),
             // defaulted_i16: self.defaulted_i16.unwrap(),
         })
     }
@@ -478,7 +478,22 @@ trait FromTomlItem {
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self;
 }
 
-impl FromTomlItem for TomlValue<u8> {
+trait TaggedForTomlValue {}
+impl TaggedForTomlValue for u8 {}
+impl TaggedForTomlValue for i16 {}
+impl TaggedForTomlValue for i64 {}
+
+impl<T> FromTomlItem for TomlValue<T>
+where
+    T: NumCast
+        + Bounded
+        + Display
+        + FromPrimitive
+        + Copy
+        + TaggedForTomlValue
+        + TryFrom<i64>
+        + Into<i64>,
+{
     fn is_optional() -> bool {
         true
     }
@@ -494,7 +509,7 @@ impl FromTomlItem for TomlValue<u8> {
             },
             toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
                 let value_i64 = *formatted.value();
-                if value_i64 < u8::MIN as i64 || value_i64 > u8::MAX as i64 {
+                if value_i64 < T::min_value().into() || value_i64 > T::max_value().into() {
                     TomlValue {
                         required: true,
                         value: None,
@@ -506,7 +521,10 @@ impl FromTomlItem for TomlValue<u8> {
                 } else {
                     TomlValue {
                         required: true,
-                        value: Some(value_i64 as u8),
+                        value: Some(match value_i64.try_into() {
+                            Ok(v) => v,
+                            Err(_) => unreachable!(),
+                        }),
                         state: TomlValueState::Ok {
                             span: formatted.span().unwrap_or(parent_span.clone()),
                         },
@@ -544,79 +562,14 @@ impl FromTomlItem for TomlValue<u8> {
     }
 }
 
-impl FromTomlItem for TomlValue<i64> {
-    fn is_optional() -> bool {
-        true
-    }
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
-        match item {
-            toml_edit::Item::None => TomlValue {
-                value: None,
-                required: true,
-                state: TomlValueState::Missing {
-                    key: "".to_string(),
-                    parent_span,
-                },
-            },
-            toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
-                let value_i64 = *formatted.value();
-                if value_i64 < i64::MIN as i64 || value_i64 > i64::MAX as i64 {
-                    TomlValue {
-                        value: None,
-                        required: true,
-                        state: TomlValueState::WrongType {
-                            span: formatted.span().unwrap_or(parent_span.clone()),
-                            expected: "u8",
-                            found: "integer out of range. Accepted: 0..255",
-                        },
-                    }
-                } else {
-                    TomlValue {
-                        required: true,
-                        value: Some(value_i64),
-                        state: TomlValueState::Ok {
-                            span: formatted.span().unwrap_or(parent_span.clone()),
-                        },
-                    }
-                }
-            }
-            toml_edit::Item::Value(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "u8",
-                    found: value.type_name(),
-                },
-            },
-            toml_edit::Item::Table(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "u8",
-                    found: "table",
-                },
-            },
-            toml_edit::Item::ArrayOfTables(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "u8",
-                    found: "array of tables",
-                },
-            },
-        }
-    }
-}
-
-impl FromTomlItem for TomlValue<Option<u8>> {
+impl <T>FromTomlItem for TomlValue<Option<T>> 
+    where T: NumCast + Bounded + std::fmt::Display + FromPrimitive + Copy + TaggedForTomlValue + TryFrom<i64> + Into<i64>
+{
     fn is_optional() -> bool {
         false
     }
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
-        let mut res: TomlValue<u8> = FromTomlItem::from_toml_item(item, parent_span);
+        let mut res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
         res.required = false;
         match res.state {
             TomlValueState::Ok { span } => TomlValue {
@@ -638,32 +591,6 @@ impl FromTomlItem for TomlValue<Option<u8>> {
     }
 }
 
-impl FromTomlItem for TomlValue<Option<i64>> {
-    fn is_optional() -> bool {
-        false
-    }
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
-        let mut res: TomlValue<i64> = FromTomlItem::from_toml_item(item, parent_span);
-        res.required = false;
-        match res.state {
-            TomlValueState::Ok { span } => TomlValue {
-                required: false,
-                value: Some(res.value),
-                state: TomlValueState::Ok { span },
-            },
-            TomlValueState::Missing { .. } => TomlValue {
-                required: false,
-                value: Some(None),
-                state: TomlValueState::Ok { span: 0..0 },
-            },
-            _ => TomlValue {
-                value: None,
-                required: false,
-                state: res.state,
-            },
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct TomlValue<T> {
@@ -727,6 +654,26 @@ impl<T> TomlValue<T> {
             TomlValueState::Ok { .. } => {}
         }
     }
+
+    fn verify<F>(self, verification_func: F) -> TomlValue<T>
+    where
+        F: FnOnce(&T) -> Result<(), String>,
+    {
+        match &self.state {
+            TomlValueState::Ok { span } => match verification_func(self.value.as_ref().unwrap()) {
+                Ok(()) => self,
+                Err(msg) => TomlValue {
+                    value: None,
+                    required: self.required,
+                    state: TomlValueState::ValidationFailed {
+                        span: span.clone(),
+                        message: msg,
+                    },
+                },
+            },
+            _ => self,
+        }
+    }
 }
 
 /// The actual state of the value, separated from the error collection.
@@ -771,7 +718,7 @@ struct Output {
     // opt_a_string: Option<String>,
     // opt_a_bool: Option<bool>,
     //
-    // verified_i16: i16,
+    verified_i16: i16,
     // defaulted_i16: i16,
 }
 
@@ -787,8 +734,7 @@ struct PartialOutput {
     // opt_a_f64: TomlValue<Option<f64>>,
     // opt_a_string: TomlValue<Option<String>>,
     // opt_a_bool: TomlValue<Option<bool>>,
-
-    // verified_i16: TomlValue<i16>,
+    verified_i16: TomlValue<i16>,
     // defaulted_i16: TomlValue<i16>,
 }
 //
@@ -806,9 +752,13 @@ impl FromTomlTable<()> for PartialOutput {
             //  opt_a_f64: helper.get("opt_f64"),
             // opt_a_string: helper.get("opt_string"),
             // opt_a_bool: helper.get("opt_bool"),
-            // verified_i16: helper
-            //     .get("verified_i16")
-            //     .verify(|v: &i16| *v > 5, "Too small"),
+            verified_i16: helper.get("verified_i16").verify(|v: &i16| {
+                if *v > 5 {
+                    Ok(())
+                } else {
+                    Err("Too small".to_string())
+                }
+            }),
             // defaulted_i16: helper.get("defaulted_i16").or_default(42),
         }
     }
@@ -829,7 +779,7 @@ fn test_happy_path() {
             # opt_a_string = 'Optional String'
             # opt_a_bool = false
             #
-            # verified_i16 = 10
+            verified_i16 = 10
             # defaulted_i16 = 100
         ";
 
@@ -843,11 +793,11 @@ fn test_happy_path() {
         // assert_eq!(output.a_string, "Hello, World!");
         // assert_eq!(output.a_bool, true);
         assert_eq!(output.opt_a_u8, Some(128));
-        // assert_eq!(output.opt_a_i64, Some(-456));
+         assert_eq!(output.opt_a_i64, Some(-456));
         // assert_eq!(output.opt_a_f64, Some(2.71));
         // assert_eq!(output.opt_a_string, Some("Optional String".to_string()));
         // assert_eq!(output.opt_a_bool, Some(false));
-        // assert_eq!(output.verified_i16, 10);
+         assert_eq!(output.verified_i16, 10);
         // assert_eq!(output.defaulted_i16, 100);
     }
 }
@@ -866,7 +816,7 @@ fn test_missing() {
             # opt_a_string = 'Optional String'
             # opt_a_bool = false
             #
-            # verified_i16 = 10
+            verified_i16 = 10
             # defaulted_i16 = 100
         ";
 
@@ -876,7 +826,7 @@ fn test_missing() {
         assert_eq!(output.a_u8.into_option(), None);
         assert_eq!(output.a_i64.into_option(), Some(-123));
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].inner.spans[0].msg , "Missing required key: a_u8");
+        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: a_u8");
     } else {
         panic!("wrong result")
     }
