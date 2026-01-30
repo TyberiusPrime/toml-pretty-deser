@@ -1,10 +1,10 @@
-use num_traits::{Bounded, FromPrimitive, NumCast};
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-//main entry point
+pub use toml_pretty_deser_macros::make_partial;
+
 pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
     P: FromTomlTable<()> + ToConcrete<T>,
@@ -27,7 +27,6 @@ where
     }
 
     if partial.can_concrete() {
-        // Extract errors and clone partial before consuming it
         Ok(partial
             .to_concrete()
             .expect("can_concrete() returned true; qed"))
@@ -39,7 +38,6 @@ where
     }
 }
 
-/// Helper for suggesting alternative keys when a key is not found.
 fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> String {
     if current.is_empty() {
         let mut sorted: Vec<&str> = available.iter().map(AsRef::as_ref).collect::<Vec<&str>>();
@@ -84,16 +82,10 @@ fn format_quoted_list(items: &[&str]) -> String {
     }
 }
 
-/// Main error type for deserialization failures.
 #[derive(Debug)]
 pub enum DeserError<P> {
-    /// TOML parsing failed (syntax error)
     ParsingFailure(TomlError),
-
-    /// Deserialization failed with errors collected during parsing
     DeserFailure(Vec<HydratedAnnotatedError>, P),
-
-    /// Some required fields are still missing
     StillIncomplete(Vec<HydratedAnnotatedError>, P),
 }
 
@@ -126,86 +118,30 @@ impl<P> From<TomlError> for DeserError<P> {
     }
 }
 
-/// Trait for types that can be deserialized from a TOML table.
-///
-///A these get derived from a make_partial proc
 pub trait FromTomlTable<T> {
-    /// Deserialize from a TOML table.
-    ///
-    /// The `partial` parameter allows nested structs to access parent data
-    /// for computed fields.
     fn from_toml_table(helper: &mut TomlHelper<'_>, partial: &T) -> Self
     where
         Self: Sized;
 }
 
-/// Trait for converting a Partial struct to its concrete form.
-///
-/// The Partial struct holds `TomlValue<T>` fields which may be in various
-/// error states. This trait checks if all required fields are `Ok` and
-/// performs the conversion.
 pub trait ToConcrete<T> {
-    /// Check if all required fields are present and valid.
-    ///
-    /// Returns true only if all `TomlValue` fields are in the `Ok` state.
     fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>);
     fn can_concrete(&self) -> bool;
-
-    /// Convert to the concrete type.
-    ///
-    /// Returns `Some(T)` if all required fields are valid, `None` otherwise.
-    /// This should only be called after `can_concrete()` returns true.
     fn to_concrete(self) -> Option<T>;
 }
 
-impl ToConcrete<Output> for PartialOutput {
-    fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
-        self.a_u8.register_error(errors);
-        self.a_i64.register_error(errors);
-    }
-
-    fn can_concrete(&self) -> bool {
-        self.a_u8.has_value() && self.a_i64.has_value()
-        // && self.a_f64.has_value()
-        // && self.a_string.has_value()
-        // && self.a_bool.has_value()
-        // && self.verified_i16.has_value()
-        // && self.defaulted_i16.has_value()
-    }
-
-    fn to_concrete(self) -> Option<Output> {
-        Some(Output {
-            a_u8: self.a_u8.unwrap(),
-            a_i64: self.a_i64.unwrap(),
-            // a_f64: self.a_f64.unwrap(),
-            // a_string: self.a_string.unwrap(),
-            // a_bool: self.a_bool.unwrap(),
-            opt_a_u8: self.opt_a_u8.unwrap(),
-            opt_a_i64: self.opt_a_i64.unwrap(),
-            // opt_a_f64: self.opt_a_f64.unwrap(),
-            // opt_a_string: self.opt_a_string.unwrap(),
-            // opt_a_bool: self.opt_a_bool.unwrap(),
-            verified_i16: self.verified_i16.unwrap(),
-            // defaulted_i16: self.defaulted_i16.unwrap(),
-        })
-    }
-}
-
-/// An error with location information in the source text.
 #[derive(Debug, Clone)]
 pub struct AnnotatedError {
     pub spans: Vec<SpannedMessage>,
     pub help: Option<String>,
 }
 
-/// A message associated with a specific span in the source.
 #[derive(Debug, Clone)]
 pub struct SpannedMessage {
     pub span: Range<usize>,
     pub msg: String,
 }
 
-/// An annotated error with access to the source text for pretty printing.
 #[derive(Debug)]
 pub struct HydratedAnnotatedError {
     pub source: Rc<RefCell<String>>,
@@ -213,7 +149,6 @@ pub struct HydratedAnnotatedError {
 }
 
 impl AnnotatedError {
-    /// Create an error without a specific location.
     pub fn unplaced(help: &str) -> Self {
         AnnotatedError {
             spans: vec![],
@@ -221,7 +156,6 @@ impl AnnotatedError {
         }
     }
 
-    /// Create an error at a specific location.
     pub fn placed(span: Range<usize>, msg: &str, help: &str) -> Self {
         AnnotatedError {
             spans: vec![SpannedMessage {
@@ -233,7 +167,6 @@ impl AnnotatedError {
     }
 }
 
-/// Extension trait for adding additional spans to errors.
 pub trait AnnotatedErrorExt {
     fn add_span(&mut self, span: Range<usize>, msg: &str);
 }
@@ -248,7 +181,6 @@ impl AnnotatedErrorExt for AnnotatedError {
 }
 
 impl HydratedAnnotatedError {
-    /// Generate a pretty-printed error message.
     pub fn pretty(&self, source_name: &str) -> String {
         use bstr::{BStr, ByteSlice};
         use codesnake::{Block, CodeWidth, Label, LineIndex};
@@ -358,7 +290,6 @@ impl HydratedAnnotatedError {
     }
 }
 
-/// Main helper for parsing TOML tables.
 pub struct TomlHelper<'a> {
     table: &'a toml_edit::Table,
     expected: Vec<String>,
@@ -367,7 +298,6 @@ pub struct TomlHelper<'a> {
 }
 
 impl<'a> TomlHelper<'a> {
-    /// Create a new helper for the given table.
     pub fn new(table: &'a toml_edit::Table, errors: Rc<RefCell<Vec<AnnotatedError>>>) -> Self {
         Self {
             table,
@@ -377,7 +307,6 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    /// Convert errors into hydrated errors with source text.
     pub fn into_inner(self, source: &Rc<RefCell<String>>) -> Vec<HydratedAnnotatedError> {
         self.errors
             .borrow_mut()
@@ -389,7 +318,7 @@ impl<'a> TomlHelper<'a> {
             .collect()
     }
 
-    fn get<T>(&mut self, key: &str) -> TomlValue<T>
+    pub fn get<T>(&mut self, key: &str) -> TomlValue<T>
     where
         TomlValue<T>: FromTomlItem,
     {
@@ -401,31 +330,34 @@ impl<'a> TomlHelper<'a> {
                 let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
                 match &res.state {
                     TomlValueState::NotSet => unreachable!(),
-                    TomlValueState::Missing { .. } => {
-                        //nothing
-                    }
+                    TomlValueState::Missing { .. } => {}
                     _ => {
                         self.allowed.push(key.to_string());
                     }
                 }
                 res
             }
-            None => TomlValue {
-                value: None,
-                required: TomlValue::<T>::is_optional(),
-                state: TomlValueState::Missing {
-                    key: key.to_string(),
-                    parent_span,
-                },
-            },
+            None => {
+                // For missing keys, call from_toml_item with Item::None
+                // so that optional types can handle it appropriately
+                let key_str = key.to_string();
+                let mut res: TomlValue<T> =
+                    FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
+                // Update the key in the Missing state if needed
+                if let TomlValueState::Missing { ref mut key, .. } = res.state {
+                    if key.is_empty() {
+                        *key = key_str;
+                    }
+                }
+                res
+            }
         }
     }
-    /// Add an error to the collection.
+
     pub fn add_err(&self, err: AnnotatedError) {
         self.errors.borrow_mut().push(err);
     }
 
-    /// Add an error by key.
     pub fn add_err_by_key(&self, key: &str, msg: &str, help: &str) {
         let span = self
             .table
@@ -435,14 +367,12 @@ impl<'a> TomlHelper<'a> {
         self.add_err_by_span(span.clone(), msg, help);
     }
 
-    /// Add an error by span.
     pub fn add_err_by_span(&self, span: Range<usize>, msg: &str, help: &str) {
         self.errors
             .borrow_mut()
             .push(AnnotatedError::placed(span.clone(), msg, help));
     }
 
-    /// Report errors for unknown keys in the table.
     pub fn deny_unknown(&self) {
         let expected_set: HashSet<String> = self.expected.iter().cloned().collect();
 
@@ -473,30 +403,95 @@ impl<'a> TomlHelper<'a> {
     }
 }
 
-trait FromTomlItem {
+pub trait FromTomlItem {
     fn is_optional() -> bool;
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self;
 }
 
-trait TaggedForTomlValue {}
-impl TaggedForTomlValue for u8 {}
-impl TaggedForTomlValue for i16 {}
-impl TaggedForTomlValue for i64 {}
+macro_rules! impl_from_toml_item_integer {
+    ($ty:ty, $name:expr) => {
+        impl FromTomlItem for TomlValue<$ty> {
+            fn is_optional() -> bool {
+                true
+            }
 
-impl<T> FromTomlItem for TomlValue<T>
-where
-    T: NumCast
-        + Bounded
-        + Display
-        + FromPrimitive
-        + Copy
-        + TaggedForTomlValue
-        + TryFrom<i64>
-        + Into<i64>,
-{
+            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+                match item {
+                    toml_edit::Item::None => TomlValue {
+                        value: None,
+                        required: true,
+                        state: TomlValueState::Missing {
+                            key: "".to_string(),
+                            parent_span,
+                        },
+                    },
+                    toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
+                        let value_i64 = *formatted.value();
+                        if value_i64 < <$ty>::MIN as i64 || value_i64 > <$ty>::MAX as i64 {
+                            TomlValue {
+                                required: true,
+                                value: None,
+                                state: TomlValueState::ValidationFailed {
+                                    span: formatted.span().unwrap_or(parent_span.clone()),
+                                    message: format!(
+                                        "integer out of range. Accepted: {}..{}",
+                                        <$ty>::MIN,
+                                        <$ty>::MAX
+                                    ),
+                                },
+                            }
+                        } else {
+                            TomlValue {
+                                required: true,
+                                value: Some(value_i64 as $ty),
+                                state: TomlValueState::Ok {
+                                    span: formatted.span().unwrap_or(parent_span.clone()),
+                                },
+                            }
+                        }
+                    }
+                    toml_edit::Item::Value(value) => TomlValue {
+                        required: true,
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: $name,
+                            found: value.type_name(),
+                        },
+                    },
+                    toml_edit::Item::Table(value) => TomlValue {
+                        required: true,
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: $name,
+                            found: "table",
+                        },
+                    },
+                    toml_edit::Item::ArrayOfTables(value) => TomlValue {
+                        required: true,
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: $name,
+                            found: "array of tables",
+                        },
+                    },
+                }
+            }
+        }
+    };
+}
+
+impl_from_toml_item_integer!(u8, "u8");
+impl_from_toml_item_integer!(i16, "i16");
+impl_from_toml_item_integer!(i64, "i64");
+
+impl FromTomlItem for TomlValue<f64> {
     fn is_optional() -> bool {
         true
     }
+
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
             toml_edit::Item::None => TomlValue {
@@ -507,28 +502,24 @@ where
                     parent_span,
                 },
             },
+            toml_edit::Item::Value(toml_edit::Value::Float(formatted)) => {
+                let value = *formatted.value();
+                TomlValue {
+                    required: true,
+                    value: Some(value),
+                    state: TomlValueState::Ok {
+                        span: formatted.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
             toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
-                let value_i64 = *formatted.value();
-                if value_i64 < T::min_value().into() || value_i64 > T::max_value().into() {
-                    TomlValue {
-                        required: true,
-                        value: None,
-                        state: TomlValueState::ValidationFailed {
-                            span: formatted.span().unwrap_or(parent_span.clone()),
-                            message: "integer out of range. Accepted: 0..255".to_string(),
-                        },
-                    }
-                } else {
-                    TomlValue {
-                        required: true,
-                        value: Some(match value_i64.try_into() {
-                            Ok(v) => v,
-                            Err(_) => unreachable!(),
-                        }),
-                        state: TomlValueState::Ok {
-                            span: formatted.span().unwrap_or(parent_span.clone()),
-                        },
-                    }
+                let value = *formatted.value() as f64;
+                TomlValue {
+                    required: true,
+                    value: Some(value),
+                    state: TomlValueState::Ok {
+                        span: formatted.span().unwrap_or(parent_span.clone()),
+                    },
                 }
             }
             toml_edit::Item::Value(value) => TomlValue {
@@ -536,7 +527,7 @@ where
                 value: None,
                 state: TomlValueState::WrongType {
                     span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "u8",
+                    expected: "f64",
                     found: value.type_name(),
                 },
             },
@@ -545,7 +536,7 @@ where
                 value: None,
                 state: TomlValueState::WrongType {
                     span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "u8",
+                    expected: "f64",
                     found: "table",
                 },
             },
@@ -554,7 +545,7 @@ where
                 value: None,
                 state: TomlValueState::WrongType {
                     span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "u8",
+                    expected: "f64",
                     found: "array of tables",
                 },
             },
@@ -562,35 +553,156 @@ where
     }
 }
 
-impl <T>FromTomlItem for TomlValue<Option<T>> 
-    where T: NumCast + Bounded + std::fmt::Display + FromPrimitive + Copy + TaggedForTomlValue + TryFrom<i64> + Into<i64>
-{
+impl FromTomlItem for TomlValue<bool> {
     fn is_optional() -> bool {
-        false
+        true
     }
+
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
-        let mut res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
-        res.required = false;
-        match res.state {
-            TomlValueState::Ok { span } => TomlValue {
-                required: false,
-                value: Some(res.value),
-                state: TomlValueState::Ok { span },
-            },
-            TomlValueState::Missing { .. } => TomlValue {
-                required: false,
-                value: Some(None),
-                state: TomlValueState::Ok { span: 0..0 },
-            },
-            _ => TomlValue {
+        match item {
+            toml_edit::Item::None => TomlValue {
                 value: None,
-                required: false,
-                state: res.state,
+                required: true,
+                state: TomlValueState::Missing {
+                    key: "".to_string(),
+                    parent_span,
+                },
+            },
+            toml_edit::Item::Value(toml_edit::Value::Boolean(formatted)) => {
+                let value = *formatted.value();
+                TomlValue {
+                    required: true,
+                    value: Some(value),
+                    state: TomlValueState::Ok {
+                        span: formatted.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
+            toml_edit::Item::Value(value) => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "bool",
+                    found: value.type_name(),
+                },
+            },
+            toml_edit::Item::Table(value) => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "bool",
+                    found: "table",
+                },
+            },
+            toml_edit::Item::ArrayOfTables(value) => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "bool",
+                    found: "array of tables",
+                },
             },
         }
     }
 }
 
+impl FromTomlItem for TomlValue<String> {
+    fn is_optional() -> bool {
+        true
+    }
+
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        match item {
+            toml_edit::Item::None => TomlValue {
+                value: None,
+                required: true,
+                state: TomlValueState::Missing {
+                    key: "".to_string(),
+                    parent_span,
+                },
+            },
+            toml_edit::Item::Value(toml_edit::Value::String(formatted)) => {
+                let value = formatted.value().to_string();
+                TomlValue {
+                    required: true,
+                    value: Some(value),
+                    state: TomlValueState::Ok {
+                        span: formatted.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
+            toml_edit::Item::Value(value) => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "string",
+                    found: value.type_name(),
+                },
+            },
+            toml_edit::Item::Table(value) => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "string",
+                    found: "table",
+                },
+            },
+            toml_edit::Item::ArrayOfTables(value) => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "string",
+                    found: "array of tables",
+                },
+            },
+        }
+    }
+}
+
+macro_rules! impl_from_toml_item_option {
+    ($ty:ty) => {
+        impl FromTomlItem for TomlValue<Option<$ty>> {
+            fn is_optional() -> bool {
+                false
+            }
+
+            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+                let mut res: TomlValue<$ty> = FromTomlItem::from_toml_item(item, parent_span);
+                res.required = false;
+                match res.state {
+                    TomlValueState::Ok { span } => TomlValue {
+                        required: false,
+                        value: Some(res.value),
+                        state: TomlValueState::Ok { span },
+                    },
+                    TomlValueState::Missing { .. } => TomlValue {
+                        required: false,
+                        value: Some(None),
+                        state: TomlValueState::Ok { span: 0..0 },
+                    },
+                    _ => TomlValue {
+                        value: None,
+                        required: false,
+                        state: res.state,
+                    },
+                }
+            }
+        }
+    };
+}
+
+impl_from_toml_item_option!(u8);
+impl_from_toml_item_option!(i16);
+impl_from_toml_item_option!(i64);
+impl_from_toml_item_option!(f64);
+impl_from_toml_item_option!(bool);
+impl_from_toml_item_option!(String);
 
 #[derive(Debug, Clone)]
 pub struct TomlValue<T> {
@@ -600,28 +712,25 @@ pub struct TomlValue<T> {
 }
 
 impl<T> TomlValue<T> {
-    fn has_value(&self) -> bool {
-        match self.state {
-            TomlValueState::Ok { .. } => true,
-            _ => false,
-        }
+    pub fn has_value(&self) -> bool {
+        matches!(self.state, TomlValueState::Ok { .. })
     }
 
-    fn into_option(self) -> Option<T> {
+    pub fn into_option(self) -> Option<T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value,
             _ => None,
         }
     }
 
-    fn unwrap(self) -> T {
+    pub fn unwrap(self) -> T {
         match self.state {
             TomlValueState::Ok { .. } => self.value.unwrap(),
             _ => panic!("Called unwrap on a TomlValue that is not Ok"),
         }
     }
 
-    fn register_error(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
+    pub fn register_error(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
         match &self.state {
             TomlValueState::NotSet => {}
             TomlValueState::Missing { key, parent_span } => {
@@ -655,7 +764,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    fn verify<F>(self, verification_func: F) -> TomlValue<T>
+    pub fn verify<F>(self, verification_func: F) -> TomlValue<T>
     where
         F: FnOnce(&T) -> Result<(), String>,
     {
@@ -674,160 +783,36 @@ impl<T> TomlValue<T> {
             _ => self,
         }
     }
+
+    pub fn or_default(self, default: T) -> TomlValue<T> {
+        match &self.state {
+            TomlValueState::Missing { .. } => TomlValue {
+                value: Some(default),
+                required: false,
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => self,
+        }
+    }
 }
 
-/// The actual state of the value, separated from the error collection.
 #[derive(Debug, Clone)]
 pub enum TomlValueState {
     NotSet,
-    /// The key was not found in the TOML document
     Missing {
         key: String,
         parent_span: Range<usize>,
     },
-    /// The value had the wrong type (e.g., string instead of integer)
     WrongType {
         span: Range<usize>,
         expected: &'static str,
         found: &'static str,
     },
-    /// The value failed validation (e.g., out of range)
     ValidationFailed {
         span: Range<usize>,
         message: String,
     },
-    /// The value was successfully parsed and validated
     Ok {
         span: Range<usize>,
     },
-}
-
-//this get's implemented by the user
-
-#[derive(Debug)]
-struct Output {
-    a_u8: u8,
-    a_i64: i64,
-    // a_f64: f64,
-    // a_string: String,
-    // a_bool: bool,
-    //
-    opt_a_u8: Option<u8>,
-    opt_a_i64: Option<i64>,
-    // opt_a_f64: Option<f64>,
-    // opt_a_string: Option<String>,
-    // opt_a_bool: Option<bool>,
-    //
-    verified_i16: i16,
-    // defaulted_i16: i16,
-}
-
-#[derive(Debug)]
-struct PartialOutput {
-    a_u8: TomlValue<u8>,
-    a_i64: TomlValue<i64>,
-    // a_f64: TomlValue<f64>,
-    // a_string: TomlValue<String>,
-    // a_bool: TomlValue<bool>,
-    opt_a_u8: TomlValue<Option<u8>>,
-    opt_a_i64: TomlValue<Option<i64>>,
-    // opt_a_f64: TomlValue<Option<f64>>,
-    // opt_a_string: TomlValue<Option<String>>,
-    // opt_a_bool: TomlValue<Option<bool>>,
-    verified_i16: TomlValue<i16>,
-    // defaulted_i16: TomlValue<i16>,
-}
-//
-//
-impl FromTomlTable<()> for PartialOutput {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        PartialOutput {
-            a_u8: helper.get("a_u8"),
-            a_i64: helper.get("a_i64"),
-            // a_f64: helper.get("f64"),
-            // a_string: helper.get("string"),
-            // a_bool: helper.get("bool"),
-            opt_a_u8: helper.get("opt_a_u8"),
-            opt_a_i64: helper.get("opt_a_i64"),
-            //  opt_a_f64: helper.get("opt_f64"),
-            // opt_a_string: helper.get("opt_string"),
-            // opt_a_bool: helper.get("opt_bool"),
-            verified_i16: helper.get("verified_i16").verify(|v: &i16| {
-                if *v > 5 {
-                    Ok(())
-                } else {
-                    Err("Too small".to_string())
-                }
-            }),
-            // defaulted_i16: helper.get("defaulted_i16").or_default(42),
-        }
-    }
-}
-
-#[test]
-fn test_happy_path() {
-    let toml = "
-            a_u8 = 255
-            a_i64 = -123
-            # a_f64 = 3.14
-            # a_string = 'Hello, World!'
-            # a_bool = true
-
-            opt_a_u8 = 128
-            opt_a_i64 = -456
-            # opt_a_f64 = 2.71
-            # opt_a_string = 'Optional String'
-            # opt_a_bool = false
-            #
-            verified_i16 = 10
-            # defaulted_i16 = 100
-        ";
-
-    let result: Result<_, _> = deserialize::<PartialOutput, Output>(toml);
-    dbg!(&result);
-    assert!(result.is_ok());
-    if let Ok(output) = result {
-        assert_eq!(output.a_u8, 255);
-        assert_eq!(output.a_i64, -123);
-        // assert_eq!(output.a_f64, 3.14);
-        // assert_eq!(output.a_string, "Hello, World!");
-        // assert_eq!(output.a_bool, true);
-        assert_eq!(output.opt_a_u8, Some(128));
-         assert_eq!(output.opt_a_i64, Some(-456));
-        // assert_eq!(output.opt_a_f64, Some(2.71));
-        // assert_eq!(output.opt_a_string, Some("Optional String".to_string()));
-        // assert_eq!(output.opt_a_bool, Some(false));
-         assert_eq!(output.verified_i16, 10);
-        // assert_eq!(output.defaulted_i16, 100);
-    }
-}
-#[test]
-fn test_missing() {
-    let toml = "
-            # a_u8 = 255
-            a_i64 = -123
-            # a_f64 = 3.14
-            # a_string = 'Hello, World!'
-            # a_bool = true
-
-            opt_a_u8 = 128
-            opt_a_i64 = -456
-            # opt_a_f64 = 2.71
-            # opt_a_string = 'Optional String'
-            # opt_a_bool = false
-            #
-            verified_i16 = 10
-            # defaulted_i16 = 100
-        ";
-
-    let result: Result<_, _> = deserialize::<PartialOutput, Output>(toml);
-    dbg!(&result);
-    if let Err(DeserError::DeserFailure(errors, output)) = result {
-        assert_eq!(output.a_u8.into_option(), None);
-        assert_eq!(output.a_i64.into_option(), Some(-123));
-        assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: a_u8");
-    } else {
-        panic!("wrong result")
-    }
 }

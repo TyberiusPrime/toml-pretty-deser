@@ -141,7 +141,17 @@ dependencies = [
  "memchr",
  "num-traits",
  "strsim",
+ "toml-pretty-deser-macros",
  "toml_edit",
+]
+
+[[package]]
+name = "toml-pretty-deser-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
