@@ -3,7 +3,282 @@ use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-pub use toml_pretty_deser_macros::make_partial;
+pub use toml_pretty_deser_macros::{make_partial, StringNamedEnum};
+
+pub trait StringNamedEnum: Sized + Clone {
+    fn all_variant_names() -> &'static [&'static str];
+    fn from_str(s: &str) -> Option<Self>;
+}
+
+pub trait AsEnum<E>: Sized {
+    fn as_enum(self) -> TomlValue<E>;
+}
+
+impl<E: StringNamedEnum> AsEnum<E> for TomlValue<String> {
+    fn as_enum(self) -> TomlValue<E> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref s) = self.value {
+                    match E::from_str(s) {
+                        Some(enum_val) => TomlValue {
+                            value: Some(enum_val),
+                            required: self.required,
+                            state: TomlValueState::Ok { span: span.clone() },
+                        },
+                        None => {
+                            let valid_names = E::all_variant_names().join(", ");
+                            TomlValue {
+                                value: None,
+                                required: self.required,
+                                state: TomlValueState::ValidationFailed {
+                                    span: span.clone(),
+                                    message: format!(
+                                        "Invalid enum variant '{}'. Valid variants are: {}",
+                                        s, valid_names
+                                    ),
+                                },
+                            }
+                        }
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to enum".to_string(),
+                        },
+                    }
+                }
+            }
+            TomlValueState::Missing { key, parent_span } => TomlValue {
+                value: None,
+                required: self.required,
+                state: TomlValueState::Missing {
+                    key: key.clone(),
+                    parent_span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+impl<E: StringNamedEnum> AsEnum<Option<E>> for TomlValue<Option<String>> {
+    fn as_enum(self) -> TomlValue<Option<E>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref opt_s) = self.value {
+                    if let Some(s) = opt_s {
+                        match E::from_str(&s) {
+                            Some(enum_val) => TomlValue {
+                                value: Some(Some(enum_val)),
+                                required: self.required,
+                                state: TomlValueState::Ok { span: span.clone() },
+                            },
+                            None => {
+                                let valid_names = E::all_variant_names().join(", ");
+                                TomlValue {
+                                    value: None,
+                                    required: self.required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: format!(
+                                            "Invalid enum variant '{}'. Valid variants are: {}",
+                                            s, valid_names
+                                        ),
+                                    },
+                                }
+                            }
+                        }
+                    } else {
+                        // None value is valid for Option<E>
+                        TomlValue {
+                            value: Some(None),
+                            required: self.required,
+                            state: TomlValueState::Ok { span: span.clone() },
+                        }
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to enum".to_string(),
+                        },
+                    }
+                }
+            }
+            TomlValueState::Missing {
+                key: _,
+                parent_span,
+            } => TomlValue {
+                value: Some(None),
+                required: self.required,
+                state: TomlValueState::Ok {
+                    span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+impl<E: StringNamedEnum> AsEnum<Vec<E>> for TomlValue<Vec<String>> {
+    fn as_enum(self) -> TomlValue<Vec<E>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref strings) = self.value {
+                    let mut values = Vec::with_capacity(strings.len());
+                    let mut has_error = false;
+                    let mut error_message = String::new();
+
+                    for s in strings {
+                        match E::from_str(s) {
+                            Some(enum_val) => values.push(enum_val),
+                            None => {
+                                has_error = true;
+                                let valid_names = E::all_variant_names().join(", ");
+                                error_message = format!(
+                                    "Invalid enum variant '{}'. Valid variants are: {}",
+                                    s, valid_names
+                                );
+                                break;
+                            }
+                        }
+                    }
+
+                    if has_error {
+                        TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: TomlValueState::ValidationFailed {
+                                span: span.clone(),
+                                message: error_message,
+                            },
+                        }
+                    } else {
+                        TomlValue {
+                            value: Some(values),
+                            required: self.required,
+                            state: TomlValueState::Ok { span: span.clone() },
+                        }
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to enum".to_string(),
+                        },
+                    }
+                }
+            }
+            TomlValueState::Missing { key, parent_span } => TomlValue {
+                value: None,
+                required: self.required,
+                state: TomlValueState::Missing {
+                    key: key.clone(),
+                    parent_span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+impl<E: StringNamedEnum> AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>>> {
+    fn as_enum(self) -> TomlValue<Option<Vec<E>>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref opt_strings) = self.value {
+                    if let Some(strings) = opt_strings {
+                        let mut values = Vec::with_capacity(strings.len());
+                        let mut has_error = false;
+                        let mut error_message = String::new();
+
+                        for s in strings {
+                            match E::from_str(&s) {
+                                Some(enum_val) => values.push(enum_val),
+                                None => {
+                                    has_error = true;
+                                    let valid_names = E::all_variant_names().join(", ");
+                                    error_message = format!(
+                                        "Invalid enum variant '{}'. Valid variants are: {}",
+                                        s, valid_names
+                                    );
+                                    break;
+                                }
+                            }
+                        }
+
+                        if has_error {
+                            TomlValue {
+                                value: None,
+                                required: self.required,
+                                state: TomlValueState::ValidationFailed {
+                                    span: span.clone(),
+                                    message: error_message,
+                                },
+                            }
+                        } else {
+                            TomlValue {
+                                value: Some(Some(values)),
+                                required: self.required,
+                                state: TomlValueState::Ok { span: span.clone() },
+                            }
+                        }
+                    } else {
+                        // None value is valid for Option<Vec<E>>
+                        TomlValue {
+                            value: Some(None),
+                            required: self.required,
+                            state: TomlValueState::Ok { span: span.clone() },
+                        }
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to enum".to_string(),
+                        },
+                    }
+                }
+            }
+            TomlValueState::Missing {
+                key: _,
+                parent_span,
+            } => TomlValue {
+                value: Some(None),
+                required: self.required,
+                state: TomlValueState::Ok {
+                    span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
 
 pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where

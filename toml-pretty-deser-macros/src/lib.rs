@@ -2,6 +2,52 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, Data, DeriveInput, Fields};
 
+#[proc_macro_derive(StringNamedEnum)]
+pub fn derive_string_named_enum(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let enum_name = &input.ident;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let variants = match &input.data {
+        Data::Enum(data) => &data.variants,
+        _ => panic!("StringNamedEnum can only be derived for enums"),
+    };
+
+    let variant_names: Vec<_> = variants
+        .iter()
+        .map(|v| {
+            let name = &v.ident;
+            name.to_string()
+        })
+        .collect();
+
+    let from_str_arms = variants.iter().map(|v| {
+        let name = &v.ident;
+        let name_str = name.to_string();
+        quote! {
+            #name_str => Some(#enum_name::#name)
+        }
+    });
+
+    let expanded = quote! {
+        impl #impl_generics StringNamedEnum for #enum_name #ty_generics #where_clause {
+            fn all_variant_names() -> &'static [&'static str] {
+                &[#(#variant_names),*]
+            }
+
+            fn from_str(s: &str) -> Option<Self> {
+                match s {
+                    #(#from_str_arms,)*
+                    _ => None,
+                }
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
 #[proc_macro_attribute]
 pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
