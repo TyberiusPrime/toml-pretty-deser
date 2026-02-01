@@ -1,9 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    deserialize, AnnotatedError, DeserError, FromTomlTable, ToConcrete, TomlHelper, TomlValue,
+    AnnotatedError, DeserError, FromTomlTable, ToConcrete, TomlHelper, TomlValue, deserialize, make_partial
 };
 
 #[derive(Debug)]
+#[make_partial]
 struct Output {
     a_u8: u8,
     a_i64: i64,
@@ -19,21 +20,21 @@ struct Output {
     defaulted_i16: i16,
 }
 
-#[derive(Debug)]
-struct PartialOutput {
-    a_u8: TomlValue<u8>,
-    a_i64: TomlValue<i64>,
-    a_f64: TomlValue<f64>,
-    a_string: TomlValue<String>,
-    a_bool: TomlValue<bool>,
-    opt_a_u8: TomlValue<Option<u8>>,
-    opt_a_i64: TomlValue<Option<i64>>,
-    opt_a_f64: TomlValue<Option<f64>>,
-    opt_a_string: TomlValue<Option<String>>,
-    opt_a_bool: TomlValue<Option<bool>>,
-    verified_i16: TomlValue<i16>,
-    defaulted_i16: TomlValue<i16>,
-}
+// #[derive(Debug)]
+// struct PartialOutput {
+//     a_u8: TomlValue<u8>,
+//     a_i64: TomlValue<i64>,
+//     a_f64: TomlValue<f64>,
+//     a_string: TomlValue<String>,
+//     a_bool: TomlValue<bool>,
+//     opt_a_u8: TomlValue<Option<u8>>,
+//     opt_a_i64: TomlValue<Option<i64>>,
+//     opt_a_f64: TomlValue<Option<f64>>,
+//     opt_a_string: TomlValue<Option<String>>,
+//     opt_a_bool: TomlValue<Option<bool>>,
+//     verified_i16: TomlValue<i16>,
+//     defaulted_i16: TomlValue<i16>,
+// }
 
 impl FromTomlTable<()> for PartialOutput {
     fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
@@ -59,45 +60,45 @@ impl FromTomlTable<()> for PartialOutput {
         }
     }
 }
-
-impl ToConcrete<Output> for PartialOutput {
-    fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
-        self.a_u8.register_error(errors);
-        self.a_i64.register_error(errors);
-        self.a_f64.register_error(errors);
-        self.a_string.register_error(errors);
-        self.a_bool.register_error(errors);
-        self.verified_i16.register_error(errors);
-        self.defaulted_i16.register_error(errors);
-    }
-
-    fn can_concrete(&self) -> bool {
-        self.a_u8.has_value()
-            && self.a_i64.has_value()
-            && self.a_f64.has_value()
-            && self.a_string.has_value()
-            && self.a_bool.has_value()
-            && self.verified_i16.has_value()
-            && self.defaulted_i16.has_value()
-    }
-
-    fn to_concrete(self) -> Option<Output> {
-        Some(Output {
-            a_u8: self.a_u8.unwrap(),
-            a_i64: self.a_i64.unwrap(),
-            a_f64: self.a_f64.unwrap(),
-            a_string: self.a_string.unwrap(),
-            a_bool: self.a_bool.unwrap(),
-            opt_a_u8: self.opt_a_u8.unwrap(),
-            opt_a_i64: self.opt_a_i64.unwrap(),
-            opt_a_f64: self.opt_a_f64.unwrap(),
-            opt_a_string: self.opt_a_string.unwrap(),
-            opt_a_bool: self.opt_a_bool.unwrap(),
-            verified_i16: self.verified_i16.unwrap(),
-            defaulted_i16: self.defaulted_i16.unwrap(),
-        })
-    }
-}
+//
+// impl ToConcrete<Output> for PartialOutput {
+//     fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
+//         self.a_u8.register_error(errors);
+//         self.a_i64.register_error(errors);
+//         self.a_f64.register_error(errors);
+//         self.a_string.register_error(errors);
+//         self.a_bool.register_error(errors);
+//         self.verified_i16.register_error(errors);
+//         self.defaulted_i16.register_error(errors);
+//     }
+//
+//     fn can_concrete(&self) -> bool {
+//         self.a_u8.has_value()
+//             && self.a_i64.has_value()
+//             && self.a_f64.has_value()
+//             && self.a_string.has_value()
+//             && self.a_bool.has_value()
+//             && self.verified_i16.has_value()
+//             && self.defaulted_i16.has_value()
+//     }
+//
+//     fn to_concrete(self) -> Option<Output> {
+//         Some(Output {
+//             a_u8: self.a_u8.unwrap(),
+//             a_i64: self.a_i64.unwrap(),
+//             a_f64: self.a_f64.unwrap(),
+//             a_string: self.a_string.unwrap(),
+//             a_bool: self.a_bool.unwrap(),
+//             opt_a_u8: self.opt_a_u8.unwrap(),
+//             opt_a_i64: self.opt_a_i64.unwrap(),
+//             opt_a_f64: self.opt_a_f64.unwrap(),
+//             opt_a_string: self.opt_a_string.unwrap(),
+//             opt_a_bool: self.opt_a_bool.unwrap(),
+//             verified_i16: self.verified_i16.unwrap(),
+//             defaulted_i16: self.defaulted_i16.unwrap(),
+//         })
+//     }
+// }
 
 #[test]
 fn test_happy_path() {
@@ -285,5 +286,133 @@ fn test_range_validation() {
         assert!(errors[0].inner.spans[0].msg.contains("out of range"));
     } else {
         panic!("wrong result")
+    }
+}
+
+
+// Test nested struct
+#[derive(Debug)]
+#[make_partial]
+struct Nested {
+    name: String,
+    value: i32,
+}
+
+impl FromTomlTable<()> for PartialNested {
+    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        PartialNested {
+            name: helper.get("name"),
+            value: helper.get("value"),
+        }
+    }
+}
+
+// Test struct with arrays and nested structs
+#[make_partial]
+#[derive(Debug)]
+struct ComplexOutput {
+    items: Vec<String>,
+    numbers: Vec<i64>,
+    nested: Nested,
+    opt_items: Option<Vec<String>>,
+}
+
+
+impl FromTomlTable<()> for PartialComplexOutput {
+    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        PartialComplexOutput {
+            items: helper.get("items"),
+            numbers: helper.get("numbers"),
+            nested: helper.get("nested"),
+            opt_items: helper.get("opt_items"),
+        }
+    }
+}
+
+#[test]
+fn test_arrays_and_nested() {
+    let toml = "
+            items = ['a', 'b', 'c']
+            numbers = [1, 2, 3, 4, 5]
+            
+            [nested]
+            name = 'Inner Struct'
+            value = 42
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.items, vec!["a", "b", "c"]);
+        assert_eq!(output.numbers, vec![1, 2, 3, 4, 5]);
+        assert_eq!(output.nested.name, "Inner Struct");
+        assert_eq!(output.nested.value, 42);
+        assert_eq!(output.opt_items, None);
+    }
+}
+
+#[test]
+fn test_arrays_with_optional() {
+    let toml = "
+            items = ['x', 'y']
+            numbers = [10, 20]
+            opt_items = ['optional', 'items']
+            
+            [nested]
+            name = 'Test'
+            value = 100
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.items, vec!["x", "y"]);
+        assert_eq!(output.numbers, vec![10, 20]);
+        assert_eq!(
+            output.opt_items,
+            Some(vec!["optional".to_string(), "items".to_string()])
+        );
+    }
+}
+
+#[test]
+fn test_nested_missing() {
+    let toml = "
+            items = ['a']
+            numbers = [1]
+            # missing [nested] section
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("nested")));
+    } else {
+        panic!("Expected failure due to missing nested struct")
+    }
+}
+
+#[test]
+fn test_array_wrong_element_type() {
+    let toml = "
+            items = [1, 2, 3]  # wrong type - should be strings
+            numbers = [1, 2, 3]
+            
+            [nested]
+            name = 'Test'
+            value = 100
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(errors.len() >= 1);
+        // Should have errors about wrong type in array
+    } else {
+        panic!("Expected failure due to wrong array element type")
     }
 }

@@ -30,16 +30,16 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect();
 
-    let from_toml_fields: Vec<_> = fields
-        .iter()
-        .map(|f| {
-            let name = &f.ident;
-            let name_str = name.as_ref().unwrap().to_string();
-            quote! {
-                #name: helper.get(#name_str)
-            }
-        })
-        .collect();
+    // let from_toml_fields: Vec<_> = fields
+    //     .iter()
+    //     .map(|f| {
+    //         let name = &f.ident;
+    //         let name_str = name.as_ref().unwrap().to_string();
+    //         quote! {
+    //             #name: helper.get(#name_str)
+    //         }
+    //     })
+    //     .collect();
 
     let collect_errors_fields: Vec<_> = fields
         .iter()
@@ -72,7 +72,7 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .collect();
 
     let expanded = quote! {
-        #[derive(Debug)]
+        //#[derive(Debug)]
         #input
 
         #[derive(Debug)]
@@ -80,13 +80,13 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
             #(#partial_fields,)*
         }
 
-        impl #impl_generics FromTomlTable<()> for #partial_name #ty_generics #where_clause {
-            fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-                #partial_name {
-                    #(#from_toml_fields,)*
-                }
-            }
-        }
+        // impl #impl_generics FromTomlTable<()> for #partial_name #ty_generics #where_clause {
+        //     fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        //         #partial_name {
+        //             #(#from_toml_fields,)*
+        //         }
+        //     }
+        // }
 
         impl #impl_generics ToConcrete<#struct_name #ty_generics> for #partial_name #ty_generics #where_clause {
             fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
@@ -104,13 +104,13 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
 
-        impl #impl_generics Default for #partial_name #ty_generics #where_clause {
-            fn default() -> Self {
-                Self {
-                    #(#from_toml_fields,)*
-                }
-            }
-        }
+        // impl #impl_generics Default for #partial_name #ty_generics #where_clause {
+        //     fn default() -> Self {
+        //         Self {
+        //             #(#from_toml_fields,)*
+        //         }
+        //     }
+        // }
 
         impl #impl_generics PartialEq for #partial_name #ty_generics #where_clause {
             fn eq(&self, other: &Self) -> bool {

@@ -483,9 +483,13 @@ macro_rules! impl_from_toml_item_integer {
     };
 }
 
+impl_from_toml_item_integer!(i8, "i8");
 impl_from_toml_item_integer!(u8, "u8");
 impl_from_toml_item_integer!(i16, "i16");
+impl_from_toml_item_integer!(i32, "i32");
+impl_from_toml_item_integer!(u32, "u32");
 impl_from_toml_item_integer!(i64, "i64");
+impl_from_toml_item_integer!(u64, "u64");
 
 impl FromTomlItem for TomlValue<f64> {
     fn is_optional() -> bool {
@@ -699,6 +703,7 @@ macro_rules! impl_from_toml_item_option {
 
 impl_from_toml_item_option!(u8);
 impl_from_toml_item_option!(i16);
+impl_from_toml_item_option!(i32);
 impl_from_toml_item_option!(i64);
 impl_from_toml_item_option!(f64);
 impl_from_toml_item_option!(bool);
