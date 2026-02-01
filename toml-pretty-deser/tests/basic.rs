@@ -515,6 +515,9 @@ impl FromTomlTable<()> for PartialNested {
 struct Outer {
     #[nested]
     nested: Nested,
+
+    #[nested]
+    opt_nested: Option<Nested>,
 }
 
 impl FromTomlTable<()> for PartialOuter {
@@ -523,6 +526,9 @@ impl FromTomlTable<()> for PartialOuter {
         PartialOuter {
             nested: helper
                 .get::<toml_edit::Item>("nested")
+                .as_nested(&helper.errors),
+            opt_nested: helper
+                .get::<Option<toml_edit::Item>>("opt_nested")
                 .as_nested(&helper.errors),
         }
     }
@@ -534,6 +540,10 @@ fn test_nested_happy() {
         [nested]
             name = 'a'
             value = 1
+
+        [opt_nested]
+            name = 'b'
+            value = 2
         ";
 
     let result: Result<_, _> = deserialize::<PartialOuter, Outer>(toml);
@@ -542,6 +552,8 @@ fn test_nested_happy() {
     if let Ok(output) = result {
         assert_eq!(output.nested.name, "a");
         assert_eq!(output.nested.value, 1);
+        assert_eq!(output.opt_nested.as_ref().unwrap().name, "b");
+        assert_eq!(output.opt_nested.as_ref().unwrap().value, 2);
     }
 }
 
@@ -555,12 +567,15 @@ fn test_nested_happy_half() {
     let result: Result<_, _> = deserialize::<PartialOuter, Outer>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, output)) = result {
-        assert_eq!(&output.nested.as_ref().unwrap().name.as_ref().unwrap(), &&"a".to_string());
+        assert_eq!(
+            &output.nested.as_ref().unwrap().name.as_ref().unwrap(),
+            &&"a".to_string()
+        );
         assert!(&output.nested.as_ref().unwrap().value.as_ref().is_none());
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: value");
+        assert!(output.opt_nested.as_ref().unwrap().is_none());
     } else {
         panic!();
     }
 }
-

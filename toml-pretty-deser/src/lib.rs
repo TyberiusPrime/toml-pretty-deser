@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial};
+pub use toml_pretty_deser_macros::{make_partial, StringNamedEnum};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
@@ -1027,6 +1027,35 @@ impl_from_toml_item_option!(f64);
 impl_from_toml_item_option!(bool);
 impl_from_toml_item_option!(String);
 
+// Special implementation for Option<toml_edit::Item> to support optional nested structs
+impl FromTomlItem for TomlValue<Option<toml_edit::Item>> {
+    fn is_optional() -> bool {
+        false
+    }
+
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        let mut res: TomlValue<toml_edit::Item> = FromTomlItem::from_toml_item(item, parent_span);
+        res.required = false;
+        match res.state {
+            TomlValueState::Ok { span } => TomlValue {
+                required: false,
+                value: Some(res.value),
+                state: TomlValueState::Ok { span },
+            },
+            TomlValueState::Missing { .. } => TomlValue {
+                required: false,
+                value: Some(None),
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => TomlValue {
+                value: None,
+                required: false,
+                state: res.state,
+            },
+        }
+    }
+}
+
 macro_rules! impl_from_toml_item_vec {
     ($ty:ty, $name:expr) => {
         impl FromTomlItem for TomlValue<Vec<$ty>> {
@@ -1333,6 +1362,100 @@ where
                 state: TomlValueState::Missing {
                     key: key.clone(),
                     parent_span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+impl<P> AsNested<Option<P>> for TomlValue<Option<toml_edit::Item>>
+where
+    P: FromTomlTable<()>,
+{
+    fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<Option<P>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref opt_item) = self.value {
+                    if let Some(item) = opt_item {
+                        match item {
+                            toml_edit::Item::Table(table) => {
+                                let error_count_before = errors.borrow().len();
+                                let mut helper = TomlHelper::new(table, errors.clone());
+                                let partial = P::from_toml_table(&mut helper, &());
+                                helper.deny_unknown();
+
+                                let error_count_after = errors.borrow().len();
+
+                                if error_count_after > error_count_before {
+                                    TomlValue {
+                                        value: Some(Some(partial)),
+                                        required: self.required,
+                                        state: TomlValueState::ValidationFailed {
+                                            span: span.clone(),
+                                            message: "Nested struct has errors".to_string(),
+                                        },
+                                    }
+                                } else {
+                                    TomlValue {
+                                        value: Some(Some(partial)),
+                                        required: self.required,
+                                        state: TomlValueState::Ok { span: span.clone() },
+                                    }
+                                }
+                            }
+                            toml_edit::Item::Value(toml_edit::Value::InlineTable(_table)) => {
+                                TomlValue {
+                                    value: None,
+                                    required: self.required,
+                                    state: TomlValueState::WrongType {
+                                        span: span.clone(),
+                                        expected: "table",
+                                        found: "inline table (not supported for nested structs)",
+                                    },
+                                }
+                            }
+                            _ => TomlValue {
+                                value: None,
+                                required: self.required,
+                                state: TomlValueState::WrongType {
+                                    span: span.clone(),
+                                    expected: "table",
+                                    found: "other type",
+                                },
+                            },
+                        }
+                    } else {
+                        // None value is valid for Option<P>
+                        TomlValue {
+                            value: Some(None),
+                            required: self.required,
+                            state: TomlValueState::Ok { span: span.clone() },
+                        }
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to nested struct".to_string(),
+                        },
+                    }
+                }
+            }
+            TomlValueState::Missing {
+                key: _,
+                parent_span,
+            } => TomlValue {
+                value: Some(None),
+                required: self.required,
+                state: TomlValueState::Ok {
+                    span: parent_span.clone(),
                 },
             },
             _ => TomlValue {
