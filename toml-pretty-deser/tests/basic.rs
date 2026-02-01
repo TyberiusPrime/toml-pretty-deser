@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    deserialize, make_partial, AnnotatedError, AsEnum, DeserError, FromTomlTable, StringNamedEnum,
-    ToConcrete, TomlHelper, TomlValue,
+    AnnotatedError, AsEnum, DeserError, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper,
+    TomlValue, deserialize, make_partial,
 };
 
 #[derive(Debug)]
@@ -357,9 +357,11 @@ fn test_vec_missing() {
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("numbers")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("numbers"))
+        );
     } else {
         panic!("Expected failure due to missing numbers field")
     }
@@ -467,9 +469,11 @@ fn test_enum_invalid_variant() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
+        );
     } else {
         panic!("Expected failure due to invalid enum variant")
     }
@@ -485,9 +489,11 @@ fn test_enum_missing_required() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("an_enum")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("an_enum"))
+        );
     } else {
         panic!("Expected failure due to missing required enum field")
     }
@@ -518,17 +524,19 @@ struct Outer {
 
     #[nested]
     opt_nested: Option<Nested>,
+
+    #[nested]
+    vec_nested: Vec<Nested>,
 }
 
 impl FromTomlTable<()> for PartialOuter {
     fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
         use toml_pretty_deser::AsNested;
         PartialOuter {
-            nested: helper
-                .get::<toml_edit::Item>("nested")
-                .as_nested(&helper.errors),
-            opt_nested: helper
-                .get::<Option<toml_edit::Item>>("opt_nested")
+            nested: helper.get("nested").as_nested(&helper.errors),
+            opt_nested: helper.get("opt_nested").as_nested(&helper.errors),
+            vec_nested: helper
+                .get::<Vec<toml_edit::Item>>("vec_nested")
                 .as_nested(&helper.errors),
         }
     }
@@ -544,6 +552,15 @@ fn test_nested_happy() {
         [opt_nested]
             name = 'b'
             value = 2
+
+        [[vec_nested]]
+            name = 'c1'
+            value = 31
+
+        [[vec_nested]]
+            name = 'c2'
+            value = 32
+
         ";
 
     let result: Result<_, _> = deserialize::<PartialOuter, Outer>(toml);
@@ -554,6 +571,9 @@ fn test_nested_happy() {
         assert_eq!(output.nested.value, 1);
         assert_eq!(output.opt_nested.as_ref().unwrap().name, "b");
         assert_eq!(output.opt_nested.as_ref().unwrap().value, 2);
+        assert_eq!(output.vec_nested.len(), 2);
+        assert_eq!(output.vec_nested[0].name, "c1");
+        assert_eq!(output.vec_nested[0].name, "c1");
     }
 }
 
