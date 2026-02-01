@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-pub use toml_pretty_deser_macros::{make_partial, StringNamedEnum};
+pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
@@ -569,7 +569,7 @@ pub struct TomlHelper<'a> {
     table: &'a toml_edit::Table,
     expected: Vec<String>,
     allowed: Vec<String>,
-    pub(crate) errors: Rc<RefCell<Vec<AnnotatedError>>>,
+    pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
 }
 
 impl<'a> TomlHelper<'a> {
@@ -944,6 +944,49 @@ impl FromTomlItem for TomlValue<String> {
     }
 }
 
+// Implementation for raw toml_edit::Item - used for nested struct deserialization
+impl FromTomlItem for TomlValue<toml_edit::Item> {
+    fn is_optional() -> bool {
+        true
+    }
+
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        match item {
+            toml_edit::Item::None => TomlValue {
+                value: None,
+                required: true,
+                state: TomlValueState::Missing {
+                    key: "".to_string(),
+                    parent_span,
+                },
+            },
+            toml_edit::Item::Table(table) => TomlValue {
+                required: true,
+                value: Some(toml_edit::Item::Table(table.clone())),
+                state: TomlValueState::Ok {
+                    span: table.span().unwrap_or(parent_span.clone()),
+                },
+            },
+            toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => TomlValue {
+                required: true,
+                value: Some(toml_edit::Item::Value(toml_edit::Value::InlineTable(
+                    table.clone(),
+                ))),
+                state: TomlValueState::Ok {
+                    span: table.span().unwrap_or(parent_span.clone()),
+                },
+            },
+            _ => TomlValue {
+                required: true,
+                value: Some(item.clone()),
+                state: TomlValueState::Ok {
+                    span: item.span().unwrap_or(parent_span.clone()),
+                },
+            },
+        }
+    }
+}
+
 macro_rules! impl_from_toml_item_option {
     ($ty:ty) => {
         impl FromTomlItem for TomlValue<Option<$ty>> {
@@ -1113,7 +1156,7 @@ impl_from_toml_item_vec!(String, "string");
 
 #[derive(Debug, Clone)]
 pub struct TomlValue<T> {
-    pub(crate) value: Option<T>,
+    pub value: Option<T>,
     pub(crate) state: TomlValueState,
     pub(crate) required: bool,
 }
@@ -1126,6 +1169,13 @@ impl<T> TomlValue<T> {
     pub fn into_option(self) -> Option<T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value,
+            _ => None,
+        }
+    }
+
+    pub fn as_ref(&self) -> Option<&T> {
+        match self.state {
+            TomlValueState::Ok { .. } => self.value.as_ref(),
             _ => None,
         }
     }
@@ -1199,6 +1249,97 @@ impl<T> TomlValue<T> {
                 state: TomlValueState::Ok { span: 0..0 },
             },
             _ => self,
+        }
+    }
+}
+
+pub trait AsNested<P>: Sized {
+    fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<P>;
+}
+
+impl<P> AsNested<P> for TomlValue<toml_edit::Item>
+where
+    P: FromTomlTable<()>,
+{
+    fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<P> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref item) = self.value {
+                    match item {
+                        toml_edit::Item::Table(table) => {
+                            let error_count_before = errors.borrow().len();
+                            let mut helper = TomlHelper::new(table, errors.clone());
+                            let partial = P::from_toml_table(&mut helper, &());
+                            helper.deny_unknown();
+
+                            // Collect any new errors from the nested deserialization
+                            let error_count_after = errors.borrow().len();
+
+                            if error_count_after > error_count_before {
+                                // There were errors during nested deserialization
+                                TomlValue {
+                                    value: Some(partial),
+                                    required: self.required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: "Nested struct has errors".to_string(),
+                                    },
+                                }
+                            } else {
+                                TomlValue {
+                                    value: Some(partial),
+                                    required: self.required,
+                                    state: TomlValueState::Ok { span: span.clone() },
+                                }
+                            }
+                        }
+                        toml_edit::Item::Value(toml_edit::Value::InlineTable(_table)) => {
+                            // For now, inline tables are not supported for nested structs
+                            // They would need special handling since InlineTable is a different type
+                            TomlValue {
+                                value: None,
+                                required: self.required,
+                                state: TomlValueState::WrongType {
+                                    span: span.clone(),
+                                    expected: "table",
+                                    found: "inline table (not supported for nested structs)",
+                                },
+                            }
+                        }
+                        _ => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: TomlValueState::WrongType {
+                                span: span.clone(),
+                                expected: "table or inline table",
+                                found: "other type",
+                            },
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to nested struct".to_string(),
+                        },
+                    }
+                }
+            }
+            TomlValueState::Missing { key, parent_span } => TomlValue {
+                value: None,
+                required: self.required,
+                state: TomlValueState::Missing {
+                    key: key.clone(),
+                    parent_span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
         }
     }
 }

@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Type, TypePath};
 
 #[proc_macro_derive(StringNamedEnum)]
 pub fn derive_string_named_enum(input: TokenStream) -> TokenStream {
@@ -48,6 +48,20 @@ pub fn derive_string_named_enum(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+fn is_nested_field(field: &syn::Field) -> bool {
+    field
+        .attrs
+        .iter()
+        .any(|attr| attr.path().is_ident("nested"))
+}
+
+fn extract_type_name(ty: &Type) -> Option<syn::Ident> {
+    match ty {
+        Type::Path(TypePath { path, .. }) => path.get_ident().cloned(),
+        _ => None,
+    }
+}
+
 #[proc_macro_attribute]
 pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
@@ -65,34 +79,55 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
         _ => panic!("make_partial only supports structs"),
     };
 
+    // Create a version of the input struct with #[nested] attributes stripped
+    let mut cleaned_input = input.clone();
+    if let Data::Struct(ref mut data) = cleaned_input.data {
+        if let Fields::Named(ref mut fields) = data.fields {
+            for field in fields.named.iter_mut() {
+                field.attrs.retain(|attr| !attr.path().is_ident("nested"));
+            }
+        }
+    }
+
     let partial_fields: Vec<_> = fields
         .iter()
         .map(|f| {
             let name = &f.ident;
             let ty = &f.ty;
-            quote! {
-                #name: TomlValue<#ty>
+
+            if is_nested_field(f) {
+                // For nested fields, use Partial{Type}
+                if let Some(type_name) = extract_type_name(ty) {
+                    let partial_type = format_ident!("Partial{}", type_name);
+                    quote! {
+                        #name: TomlValue<#partial_type>
+                    }
+                } else {
+                    panic!("nested attribute requires a simple type name");
+                }
+            } else {
+                quote! {
+                    #name: TomlValue<#ty>
+                }
             }
         })
         .collect();
-
-    // let from_toml_fields: Vec<_> = fields
-    //     .iter()
-    //     .map(|f| {
-    //         let name = &f.ident;
-    //         let name_str = name.as_ref().unwrap().to_string();
-    //         quote! {
-    //             #name: helper.get(#name_str)
-    //         }
-    //     })
-    //     .collect();
 
     let collect_errors_fields: Vec<_> = fields
         .iter()
         .map(|f| {
             let name = &f.ident;
-            quote! {
-                self.#name.register_error(errors)
+            if is_nested_field(f) {
+                // For nested fields, recursively collect errors from the partial
+                quote! {
+                    if let Some(ref partial) = self.#name.value {
+                        partial.collect_errors(errors);
+                    }
+                }
+            } else {
+                quote! {
+                    self.#name.register_error(errors)
+                }
             }
         })
         .collect();
@@ -101,8 +136,15 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .iter()
         .map(|f| {
             let name = &f.ident;
-            quote! {
-                self.#name.has_value()
+            if is_nested_field(f) {
+                // For nested fields, check if the partial can become concrete
+                quote! {
+                    self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
+                }
+            } else {
+                quote! {
+                    self.#name.has_value()
+                }
             }
         })
         .collect();
@@ -111,28 +153,26 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .iter()
         .map(|f| {
             let name = &f.ident;
-            quote! {
-                #name: self.#name.unwrap()
+            if is_nested_field(f) {
+                // For nested fields, recursively convert the partial to concrete
+                quote! {
+                    #name: self.#name.value.and_then(|p| p.to_concrete()).unwrap()
+                }
+            } else {
+                quote! {
+                    #name: self.#name.unwrap()
+                }
             }
         })
         .collect();
 
     let expanded = quote! {
-        //#[derive(Debug)]
-        #input
+        #cleaned_input
 
         #[derive(Debug)]
         struct #partial_name #generics #where_clause {
             #(#partial_fields,)*
         }
-
-        // impl #impl_generics FromTomlTable<()> for #partial_name #ty_generics #where_clause {
-        //     fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        //         #partial_name {
-        //             #(#from_toml_fields,)*
-        //         }
-        //     }
-        // }
 
         impl #impl_generics ToConcrete<#struct_name #ty_generics> for #partial_name #ty_generics #where_clause {
             fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
@@ -149,14 +189,6 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 })
             }
         }
-
-        // impl #impl_generics Default for #partial_name #ty_generics #where_clause {
-        //     fn default() -> Self {
-        //         Self {
-        //             #(#from_toml_fields,)*
-        //         }
-        //     }
-        // }
 
         impl #impl_generics PartialEq for #partial_name #ty_generics #where_clause {
             fn eq(&self, other: &Self) -> bool {
