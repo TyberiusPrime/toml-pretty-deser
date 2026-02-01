@@ -399,3 +399,34 @@ fn test_array_wrong_element_type() {
         panic!("Expected failure due to wrong array element type")
     }
 }
+
+
+#[derive(StringNamedEnum, Debug)]
+enum Example {
+    One,
+    TwoThree,
+    Four,
+}
+
+
+// Test struct with arrays and nested structs
+#[make_partial]
+#[derive(Debug)]
+struct EnumOutput {
+    an_enum: Example,
+    opt_enum: Option<Example>,
+    vec_enum: Vec<Example>,
+    opt_vec_enum: Option<Vec<Example>>
+}
+
+impl FromTomlTable<()> for PartialEnumOutput {
+    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        PartialEnumOutput {
+            an_enum: helper.get("enum").as_enum(),
+            opt_enum: helper.get("opt_enum").as_enum(),
+            vec_enum: helper.get("vec_enum").as_enum(),
+            opt_vec_enum: helper.get("opt_vec_enum").as_enum(),
+        }
+    }
+}
+
