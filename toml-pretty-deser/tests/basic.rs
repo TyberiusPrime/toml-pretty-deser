@@ -521,6 +521,8 @@ impl FromTomlTable<()> for PartialNested {
 struct Outer {
     #[nested]
     nested: Nested,
+    #[nested]
+    inline_nested: Nested,
 
     #[nested]
     opt_nested: Option<Nested>,
@@ -533,6 +535,7 @@ impl FromTomlTable<()> for PartialOuter {
     fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
         use toml_pretty_deser::AsNested;
         PartialOuter {
+            inline_nested: helper.get("inline_nested").as_nested(&helper.errors),
             nested: helper.get("nested").as_nested(&helper.errors),
             opt_nested: helper.get("opt_nested").as_nested(&helper.errors),
             vec_nested: helper
@@ -545,6 +548,10 @@ impl FromTomlTable<()> for PartialOuter {
 #[test]
 fn test_nested_happy() {
     let toml = "
+        inline_nested = {
+            name = 'd',
+            value = 4
+        }
         [nested]
             name = 'a'
             value = 1
