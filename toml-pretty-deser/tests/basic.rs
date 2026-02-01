@@ -536,7 +536,7 @@ impl FromTomlTable<()> for PartialOuter {
             nested: helper.get("nested").as_nested(&helper.errors),
             opt_nested: helper.get("opt_nested").as_nested(&helper.errors),
             vec_nested: helper
-                .get::<Vec<toml_edit::Item>>("vec_nested")
+                .get("vec_nested")
                 .as_nested(&helper.errors),
         }
     }

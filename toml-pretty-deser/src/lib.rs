@@ -987,6 +987,61 @@ impl FromTomlItem for TomlValue<toml_edit::Item> {
     }
 }
 
+impl FromTomlItem for TomlValue<Vec<toml_edit::Item>> {
+    fn is_optional() -> bool {
+        true
+    }
+
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        match item {
+            toml_edit::Item::None => TomlValue {
+                value: None,
+                required: true,
+                state: TomlValueState::Missing {
+                    key: "".to_string(),
+                    parent_span,
+                },
+            },
+            toml_edit::Item::ArrayOfTables(array) => {
+                let items: Vec<toml_edit::Item> = array
+                    .iter()
+                    .map(|table| toml_edit::Item::Table(table.clone()))
+                    .collect();
+                TomlValue {
+                    required: true,
+                    value: Some(items),
+                    state: TomlValueState::Ok {
+                        span: array.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
+            toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
+                // Also support regular arrays with inline tables
+                let items: Vec<toml_edit::Item> = array
+                    .iter()
+                    .map(|val| toml_edit::Item::Value(val.clone()))
+                    .collect();
+                TomlValue {
+                    required: true,
+                    value: Some(items),
+                    state: TomlValueState::Ok {
+                        span: array.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
+            _ => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: item.span().unwrap_or(parent_span.clone()),
+                    expected: "array of tables",
+                    found: "other type",
+                },
+            },
+        }
+    }
+}
+
 macro_rules! impl_from_toml_item_option {
     ($ty:ty) => {
         impl FromTomlItem for TomlValue<Option<$ty>> {
@@ -1456,6 +1511,94 @@ where
                 required: self.required,
                 state: TomlValueState::Ok {
                     span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+impl<P> AsNested<Vec<P>> for TomlValue<Vec<toml_edit::Item>>
+where
+    P: FromTomlTable<()>,
+{
+    fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<Vec<P>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref items) = self.value {
+                    let mut results = Vec::with_capacity(items.len());
+                    let error_count_before = errors.borrow().len();
+
+                    for item in items.iter() {
+                        match item {
+                            toml_edit::Item::Table(table) => {
+                                let item_error_count_before = errors.borrow().len();
+                                let mut helper = TomlHelper::new(table, errors.clone());
+                                let partial = P::from_toml_table(&mut helper, &());
+                                helper.deny_unknown();
+
+                                let item_error_count_after = errors.borrow().len();
+
+                                if item_error_count_after > item_error_count_before {
+                                    // There were errors during this item's deserialization
+                                    // but we still push it to results so we can report all errors
+                                    results.push(partial);
+                                } else {
+                                    results.push(partial);
+                                }
+                            }
+                            _ => {
+                                // Non-table item in array
+                                errors.borrow_mut().push(AnnotatedError::placed(
+                                    span.clone(),
+                                    "Expected table in array",
+                                    "Only table items are supported in nested struct arrays",
+                                ));
+                            }
+                        }
+                    }
+
+                    let error_count_after = errors.borrow().len();
+
+                    if error_count_after > error_count_before {
+                        // There were errors during nested deserialization
+                        TomlValue {
+                            value: Some(results),
+                            required: self.required,
+                            state: TomlValueState::ValidationFailed {
+                                span: span.clone(),
+                                message: "Array of nested structs has errors".to_string(),
+                            },
+                        }
+                    } else {
+                        TomlValue {
+                            value: Some(results),
+                            required: self.required,
+                            state: TomlValueState::Ok { span: span.clone() },
+                        }
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to array of nested structs"
+                                .to_string(),
+                        },
+                    }
+                }
+            }
+            TomlValueState::Missing { key, parent_span } => TomlValue {
+                value: None,
+                required: self.required,
+                state: TomlValueState::Missing {
+                    key: key.clone(),
+                    parent_span: parent_span.clone(),
                 },
             },
             _ => TomlValue {

@@ -101,6 +101,43 @@ fn is_option_type(ty: &Type) -> bool {
     }
 }
 
+fn extract_vec_inner_type(ty: &Type) -> Option<syn::Ident> {
+    // Check if this is a Vec<T> type
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            // Check if the path ends with "Vec"
+            if let Some(segment) = path.segments.last() {
+                if segment.ident == "Vec" {
+                    // Extract the inner type from the angle brackets
+                    match &segment.arguments {
+                        PathArguments::AngleBracketed(args) => {
+                            if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
+                                return extract_type_name(&inner_ty);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn is_vec_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if let Some(segment) = path.segments.last() {
+                segment.ident == "Vec"
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
 #[proc_macro_attribute]
 pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
@@ -136,6 +173,10 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 if extract_option_inner_type(ty).is_none() {
                     panic!("nested attribute on Option field requires a simple inner type name");
                 }
+            } else if is_vec_type(ty) {
+                if extract_vec_inner_type(ty).is_none() {
+                    panic!("nested attribute on Vec field requires a simple inner type name");
+                }
             } else if extract_type_name(ty).is_none() {
                 panic!("nested attribute requires a simple type name");
             }
@@ -149,13 +190,20 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let ty = &f.ty;
 
             if is_nested_field(f) {
-                // Check if this is Option<InnerType> or just InnerType
+                // Check if this is Option<InnerType>, Vec<InnerType>, or just InnerType
                 if is_option_type(ty) {
                     // For Option<Nested> fields, use Option<PartialType>
                     let inner_type_name = extract_option_inner_type(ty).unwrap();
                     let partial_type = format_ident!("Partial{}", inner_type_name);
                     quote! {
                         #name: TomlValue<Option<#partial_type>>
+                    }
+                } else if is_vec_type(ty) {
+                    // For Vec<Nested> fields, use Vec<PartialType>
+                    let inner_type_name = extract_vec_inner_type(ty).unwrap();
+                    let partial_type = format_ident!("Partial{}", inner_type_name);
+                    quote! {
+                        #name: TomlValue<Vec<#partial_type>>
                     }
                 } else {
                     // For regular nested fields, use Partial{Type}
@@ -178,12 +226,21 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .map(|f| {
             let name = &f.ident;
             if is_nested_field(f) {
-                // For nested fields (including Option<Nested>), recursively collect errors
+                // For nested fields (including Option<Nested> and Vec<Nested>), recursively collect errors
                 if is_option_type(&f.ty) {
                     // For Option<Nested>, value is Option<Option<PartialType>>
                     quote! {
                         if let Some(Some(ref partial)) = self.#name.value {
                             partial.collect_errors(errors);
+                        }
+                    }
+                } else if is_vec_type(&f.ty) {
+                    // For Vec<Nested>, value is Option<Vec<PartialType>>
+                    quote! {
+                        if let Some(ref partials) = self.#name.value {
+                            for partial in partials.iter() {
+                                partial.collect_errors(errors);
+                            }
                         }
                     }
                 } else {
@@ -214,6 +271,13 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
                         }).unwrap_or(false)
                     }
+                } else if is_vec_type(&f.ty) {
+                    // For Vec<Nested>, all items must be concrete
+                    quote! {
+                        self.#name.value.as_ref().map(|vec| {
+                            vec.iter().all(|p| p.can_concrete())
+                        }).unwrap_or(false)
+                    }
                 } else {
                     quote! {
                         self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
@@ -238,6 +302,13 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     // We need to flatten it and then convert
                     quote! {
                         #name: self.#name.value.flatten().and_then(|p| p.to_concrete())
+                    }
+                } else if is_vec_type(&f.ty) {
+                    // For Vec<Nested>, convert each partial in Vec<Partial> to Vec<Concrete>
+                    quote! {
+                        #name: self.#name.value.map(|vec| {
+                            vec.into_iter().filter_map(|p| p.to_concrete()).collect()
+                        }).unwrap()
                     }
                 } else {
                     // For regular nested fields, convert Partial to Concrete
