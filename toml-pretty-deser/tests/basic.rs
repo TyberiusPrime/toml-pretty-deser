@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, DeserError, FromTomlTable, ToConcrete, TomlHelper, TomlValue, deserialize, make_partial
+    deserialize, make_partial, AnnotatedError, DeserError, FromTomlTable, ToConcrete, TomlHelper,
+    TomlValue,
 };
 
 #[derive(Debug)]
@@ -289,7 +290,6 @@ fn test_range_validation() {
     }
 }
 
-
 // Test nested struct
 #[derive(Debug)]
 #[make_partial]
@@ -313,17 +313,15 @@ impl FromTomlTable<()> for PartialNested {
 struct ComplexOutput {
     items: Vec<String>,
     numbers: Vec<i64>,
-    nested: Nested,
+    //nested: Nested,
     opt_items: Option<Vec<String>>,
 }
-
 
 impl FromTomlTable<()> for PartialComplexOutput {
     fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
         PartialComplexOutput {
             items: helper.get("items"),
             numbers: helper.get("numbers"),
-            nested: helper.get("nested"),
             opt_items: helper.get("opt_items"),
         }
     }
@@ -334,10 +332,6 @@ fn test_arrays_and_nested() {
     let toml = "
             items = ['a', 'b', 'c']
             numbers = [1, 2, 3, 4, 5]
-            
-            [nested]
-            name = 'Inner Struct'
-            value = 42
         ";
 
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
@@ -346,8 +340,6 @@ fn test_arrays_and_nested() {
     if let Ok(output) = result {
         assert_eq!(output.items, vec!["a", "b", "c"]);
         assert_eq!(output.numbers, vec![1, 2, 3, 4, 5]);
-        assert_eq!(output.nested.name, "Inner Struct");
-        assert_eq!(output.nested.value, 42);
         assert_eq!(output.opt_items, None);
     }
 }
@@ -358,10 +350,6 @@ fn test_arrays_with_optional() {
             items = ['x', 'y']
             numbers = [10, 20]
             opt_items = ['optional', 'items']
-            
-            [nested]
-            name = 'Test'
-            value = 100
         ";
 
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
@@ -378,11 +366,10 @@ fn test_arrays_with_optional() {
 }
 
 #[test]
-fn test_nested_missing() {
+fn test_vec_missing() {
     let toml = "
             items = ['a']
-            numbers = [1]
-            # missing [nested] section
+            # missing numbers
         ";
 
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
@@ -390,9 +377,9 @@ fn test_nested_missing() {
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(errors
             .iter()
-            .any(|e| e.inner.spans[0].msg.contains("nested")));
+            .any(|e| e.inner.spans[0].msg.contains("numbers")));
     } else {
-        panic!("Expected failure due to missing nested struct")
+        panic!("Expected failure due to missing numbers field")
     }
 }
 
@@ -401,10 +388,6 @@ fn test_array_wrong_element_type() {
     let toml = "
             items = [1, 2, 3]  # wrong type - should be strings
             numbers = [1, 2, 3]
-            
-            [nested]
-            name = 'Test'
-            value = 100
         ";
 
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);

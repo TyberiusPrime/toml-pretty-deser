@@ -709,6 +709,133 @@ impl_from_toml_item_option!(f64);
 impl_from_toml_item_option!(bool);
 impl_from_toml_item_option!(String);
 
+macro_rules! impl_from_toml_item_vec {
+    ($ty:ty, $name:expr) => {
+        impl FromTomlItem for TomlValue<Vec<$ty>> {
+            fn is_optional() -> bool {
+                true
+            }
+
+            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+                match item {
+                    toml_edit::Item::None => TomlValue {
+                        value: None,
+                        required: true,
+                        state: TomlValueState::Missing {
+                            key: "".to_string(),
+                            parent_span,
+                        },
+                    },
+                    toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
+                        let mut values = Vec::with_capacity(array.len());
+                        let mut has_error = false;
+
+                        for item in array.iter() {
+                            let item_span = item.span().unwrap_or(parent_span.clone());
+                            let wrapped_item = toml_edit::Item::Value(item.clone());
+                            let element: TomlValue<$ty> =
+                                FromTomlItem::from_toml_item(&wrapped_item, item_span.clone());
+
+                            match &element.state {
+                                TomlValueState::Ok { .. } => {
+                                    if let Some(val) = element.value {
+                                        values.push(val);
+                                    }
+                                }
+                                _ => {
+                                    has_error = true;
+                                }
+                            }
+                        }
+
+                        if has_error {
+                            TomlValue {
+                                required: true,
+                                value: None,
+                                state: TomlValueState::ValidationFailed {
+                                    span: array.span().unwrap_or(parent_span.clone()),
+                                    message: "Array contains invalid elements".to_string(),
+                                },
+                            }
+                        } else {
+                            TomlValue {
+                                required: true,
+                                value: Some(values),
+                                state: TomlValueState::Ok {
+                                    span: array.span().unwrap_or(parent_span.clone()),
+                                },
+                            }
+                        }
+                    }
+                    toml_edit::Item::Value(value) => TomlValue {
+                        required: true,
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: "array",
+                            found: value.type_name(),
+                        },
+                    },
+                    toml_edit::Item::Table(value) => TomlValue {
+                        required: true,
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: "array",
+                            found: "table",
+                        },
+                    },
+                    toml_edit::Item::ArrayOfTables(value) => TomlValue {
+                        required: true,
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: "array",
+                            found: "array of tables",
+                        },
+                    },
+                }
+            }
+        }
+
+        impl FromTomlItem for TomlValue<Option<Vec<$ty>>> {
+            fn is_optional() -> bool {
+                false
+            }
+
+            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+                let mut res: TomlValue<Vec<$ty>> = FromTomlItem::from_toml_item(item, parent_span);
+                res.required = false;
+                match res.state {
+                    TomlValueState::Ok { span } => TomlValue {
+                        required: false,
+                        value: Some(res.value),
+                        state: TomlValueState::Ok { span },
+                    },
+                    TomlValueState::Missing { .. } => TomlValue {
+                        required: false,
+                        value: Some(None),
+                        state: TomlValueState::Ok { span: 0..0 },
+                    },
+                    _ => TomlValue {
+                        value: None,
+                        required: false,
+                        state: res.state,
+                    },
+                }
+            }
+        }
+    };
+}
+
+impl_from_toml_item_vec!(u8, "u8");
+impl_from_toml_item_vec!(i16, "i16");
+impl_from_toml_item_vec!(i32, "i32");
+impl_from_toml_item_vec!(i64, "i64");
+impl_from_toml_item_vec!(f64, "f64");
+impl_from_toml_item_vec!(bool, "bool");
+impl_from_toml_item_vec!(String, "string");
+
 #[derive(Debug, Clone)]
 pub struct TomlValue<T> {
     pub(crate) value: Option<T>,
