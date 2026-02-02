@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
@@ -106,15 +106,9 @@ mod tests {
     fn test_normalize_no_case() {
         assert_eq!(normalize_to_no_case("snake_case"), "snakecase");
         assert_eq!(normalize_to_no_case("camelCase"), "camelcase");
-        assert_eq!(
-            normalize_to_no_case("UpperCamelCase"),
-            "uppercamelcase"
-        );
+        assert_eq!(normalize_to_no_case("UpperCamelCase"), "uppercamelcase");
         assert_eq!(normalize_to_no_case("kebab-case"), "kebabcase");
-        assert_eq!(
-            normalize_to_no_case("SHOUTY_SNAKE_CASE"),
-            "shoutysnakecase"
-        );
+        assert_eq!(normalize_to_no_case("SHOUTY_SNAKE_CASE"), "shoutysnakecase");
         assert_eq!(normalize_to_no_case("Train-Case"), "traincase");
         assert_eq!(
             normalize_to_no_case("mixed_Case-Variant"),
@@ -122,10 +116,7 @@ mod tests {
         );
         assert_eq!(normalize_to_no_case("already_snake"), "alreadysnake");
         assert_eq!(normalize_to_no_case("HTMLParser"), "htmlparser");
-        assert_eq!(
-            normalize_to_no_case("getHTTPResponse"),
-            "gethttpresponse"
-        );
+        assert_eq!(normalize_to_no_case("getHTTPResponse"), "gethttpresponse");
     }
 
     #[test]
@@ -612,6 +603,15 @@ impl AnnotatedErrorExt for AnnotatedError {
     }
 }
 
+impl AnnotatedErrorExt for Rc<RefCell<AnnotatedError>> {
+    fn add_span(&mut self, span: Range<usize>, msg: &str) {
+        self.borrow_mut().spans.push(SpannedMessage {
+            span,
+            msg: msg.to_string(),
+        });
+    }
+}
+
 impl HydratedAnnotatedError {
     pub fn pretty(&self, source_name: &str) -> String {
         use bstr::{BStr, ByteSlice};
@@ -771,8 +771,8 @@ pub struct TomlHelper<'a> {
     expected: Vec<FieldInfo>,
     /// Normalized names that were actually observed (matched against table keys)
     observed: Vec<String>,
-    /// Original field names that were allowed
-    allowed: Vec<String>,
+    /// Original field names that were allowed to the keys observed
+    allowed: HashMap<String, String>,
     pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
     pub match_mode: FieldMatchMode,
 }
@@ -788,7 +788,7 @@ impl<'a> TomlHelper<'a> {
             inline_table: None,
             expected: vec![],
             observed: vec![],
-            allowed: vec![],
+            allowed: HashMap::new(),
             errors,
             match_mode,
         }
@@ -804,7 +804,7 @@ impl<'a> TomlHelper<'a> {
             inline_table: Some(inline_table),
             expected: vec![],
             observed: vec![],
-            allowed: vec![],
+            allowed: HashMap::new(),
             errors,
             match_mode,
         }
@@ -832,11 +832,12 @@ impl<'a> TomlHelper<'a> {
     }
 
     /// Find a key in the table that matches the given field name (considering aliases and match mode)
-    fn find_matching_key(
+    fn find_matching_keys(
         &self,
         name: &str,
         aliases: &[&'static str],
-    ) -> Option<(String, Option<toml_edit::Item>)> {
+    ) -> Vec<(String, toml_edit::Item)> {
+        let mut result = Vec::new();
         let _normalized_target = self.match_mode.normalize(name);
         let candidates = std::iter::once(name.to_string())
             .chain(aliases.iter().map(|x| x.to_string()))
@@ -852,57 +853,39 @@ impl<'a> TomlHelper<'a> {
         };
 
         // Try to find a match
-        for candidate in &candidates {
-            let _normalized_candidate = self.match_mode.normalize(candidate);
-
-            // First try exact match (faster)
-            if self.match_mode == FieldMatchMode::Exact {
-                if let Some(table) = self.table {
-                    if let Some(item) = table.get(candidate) {
-                        return Some((candidate.clone(), Some(item.clone())));
-                    }
-                } else if let Some(inline_table) = self.inline_table {
-                    if let Some(value) = inline_table.get(candidate) {
-                        return Some((
-                            candidate.clone(),
-                            Some(toml_edit::Item::Value(value.clone())),
-                        ));
-                    }
-                }
-            } else {
-                // For non-exact modes, compare normalized names
-                for table_key in &table_keys {
-                    if self.match_mode.matches(candidate, table_key) {
-                        if let Some(table) = self.table {
-                            if let Some(item) = table.get(table_key) {
-                                return Some((table_key.clone(), Some(item.clone())));
-                            }
-                        } else if let Some(inline_table) = self.inline_table {
-                            if let Some(value) = inline_table.get(table_key) {
-                                return Some((
-                                    table_key.clone(),
-                                    Some(toml_edit::Item::Value(value.clone())),
-                                ));
-                            }
+        for table_key in &table_keys {
+            for candidate in &candidates {
+                if self.match_mode.matches(candidate, table_key) {
+                    if let Some(table) = self.table {
+                        if let Some(item) = table.get(table_key) {
+                            result.push((table_key.clone(), item.clone()));
+                            break;
+                        }
+                    } else if let Some(inline_table) = self.inline_table {
+                        if let Some(value) = inline_table.get(table_key) {
+                            result.push((table_key.clone(), toml_edit::Item::Value(value.clone())));
+                            break;
                         }
                     }
                 }
             }
         }
 
-        None
+        result
     }
 
     pub fn get<T>(&mut self, key: &str) -> TomlValue<T>
     where
         TomlValue<T>: FromTomlItem,
+        T: std::fmt::Debug,
     {
         self.get_with_aliases(key, vec![])
     }
 
-    pub fn get_with_aliases<T>(&mut self, key: &str, aliases: Vec<&'static str>) -> TomlValue<T>
+    pub fn get_with_aliases<T>(&mut self, query_key: &str, aliases: Vec<&'static str>) -> TomlValue<T>
     where
         TomlValue<T>: FromTomlItem,
+        T:std::fmt::Debug,
     {
         let parent_span = if let Some(table) = self.table {
             table.span().unwrap_or(0..0)
@@ -913,33 +896,54 @@ impl<'a> TomlHelper<'a> {
         };
 
         // Register this field as expected
-        self.expect_field(key, &aliases);
+        self.expect_field(query_key, &aliases);
 
         // Try to find a matching key (considering aliases and match mode)
-        match self.find_matching_key(key, &aliases) {
-            Some((matched_key, Some(item))) => {
-                let res: TomlValue<T> = FromTomlItem::from_toml_item(&item, parent_span);
-                match &res.state {
-                    TomlValueState::NotSet => unreachable!(),
-                    TomlValueState::Missing { .. } => {}
-                    _ => {
-                        self.allowed.push(key.to_string());
-                        self.observed.push(self.match_mode.normalize(&matched_key));
+        let found_keys = self.find_matching_keys(query_key, &aliases);
+
+        match found_keys.len() {
+            0 => {
+                // No match found
+                let mut res: TomlValue<T> = //todo: refactor into new_empty_missing...
+                    FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span.clone());
+                if let TomlValueState::Missing { ref mut key, .. } = res.state {
+                    if key.is_empty() {
+                        *key = query_key.to_string().clone();
                     }
                 }
                 res
             }
+            1 => {
+                let (matched_key, item) = found_keys.iter().next().unwrap();
+                let res: TomlValue<T> = FromTomlItem::from_toml_item(&item, parent_span);
+                self.observed.push(self.match_mode.normalize(&matched_key));
+                res
+            }
             _ => {
-                // No match found
-                let key_str = key.to_string();
+                let spans = found_keys
+                    .iter()
+                    .map(|(_matched_key, item)| item.span().unwrap_or(0..0))
+                    .collect();
+
                 let mut res: TomlValue<T> =
                     FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
-                if let TomlValueState::Missing { ref mut key, .. } = res.state {
-                    if key.is_empty() {
-                        *key = key_str;
-                    }
-                }
+                res.state = TomlValueState::MultiDefined {
+                    key: query_key.to_string(),
+                    spans,
+                };
                 res
+                // let res = TomlValue<T> =
+                // let iter = found_keys.iter();
+                // let first = iter.next().unwrap();
+                // let first_span = first[1].span().unwrap_or(0..0);
+                // let mut err = AnnotatedError::placed(
+                //     first_span,
+                //     &format!("Key/alias conflict with key."),
+                //     "Use only one of the keys involved",
+                // );
+                // for (_matched_key, item) in iter {
+                //     err.add_span(item.span().unwrap_or(0..0), "Also defined here");
+                // }
             }
         }
     }
@@ -948,22 +952,25 @@ impl<'a> TomlHelper<'a> {
         self.errors.borrow_mut().push(err);
     }
 
-    pub fn add_err_by_key(&self, key: &str, msg: &str, help: &str) {
-        let span = if let Some(table) = self.table {
+    fn span_from_key(&self, key: &str) -> Range<usize> {
+        if let Some(table) = self.table {
             table.key(key).and_then(|item| item.span()).unwrap_or(0..0)
         } else if let Some(inline_table) = self.inline_table {
             // For inline tables, we can't easily get the key span, so use the table span
             inline_table.span().unwrap_or(0..0)
         } else {
             0..0
-        };
-        self.add_err_by_span(span.clone(), msg, help);
+        }
+    }
+
+    pub fn add_err_by_key(&self, key: &str, msg: &str, help: &str) {
+        let span = self.span_from_key(key);
+        self.add_err_by_span(span, msg, help);
     }
 
     pub fn add_err_by_span(&self, span: Range<usize>, msg: &str, help: &str) {
-        self.errors
-            .borrow_mut()
-            .push(AnnotatedError::placed(span.clone(), msg, help));
+        let err = AnnotatedError::placed(span.clone(), msg, help);
+        self.errors.borrow_mut().push(err);
     }
 
     pub fn deny_unknown(&self) {
@@ -1624,6 +1631,17 @@ impl<T> TomlValue<T> {
                     ));
                 }
             }
+            TomlValueState::MultiDefined { key, spans } => {
+                let mut err = AnnotatedError::placed(
+                    spans[0].clone(),
+                    "Key/alias conflict (defined multiple times)",
+                    &format!("Use only one of the keys involved. Canonical is '{}'", key),
+                );
+                for span in spans.iter().skip(1) {
+                    err.add_span(span.clone(), "Also defined here");
+                }
+                errors.borrow_mut().push(err);
+            }
             TomlValueState::WrongType {
                 span,
                 expected,
@@ -2005,6 +2023,10 @@ pub enum TomlValueState {
     Missing {
         key: String,
         parent_span: Range<usize>,
+    },
+    MultiDefined {
+        key: String,
+        spans: Vec<Range<usize>>,
     },
     WrongType {
         span: Range<usize>,

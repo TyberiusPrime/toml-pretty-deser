@@ -999,10 +999,11 @@ fn test_complex_mixed_case_key_reused() {
     let result: Result<_, _> =
         deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase);
     dbg!(&result);
-    assert!(result.is_ok());
-    if let Ok(output) = result {
-        assert_eq!(output.api_key, "shouty alias");
-        assert_eq!(output.html_parser, "consecutive caps");
-        assert_eq!(output.get_http_response, 42);
+    if let Err(DeserError::DeserFailure(errors, output)) = result {
+        assert!(output.api_key.as_ref().is_none());
+        assert!(output.html_parser.as_ref().is_none());
+        assert_eq!(*output.get_http_response.as_ref().unwrap(), 42);
+    } else {
+        panic!("should have been a DeserFailure");
     }
 }
