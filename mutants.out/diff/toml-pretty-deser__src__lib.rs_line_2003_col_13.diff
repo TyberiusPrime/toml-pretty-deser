@@ -1,0 +1,28 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm TomlValueState::Missing{key, parent_span} in <impl AsNested<Vec<P>> for TomlValue<Vec<toml_edit::Item>>>::as_nested
+@@ -1995,24 +1995,17 @@
+                         state: TomlValueState::ValidationFailed {
+                             span: span.clone(),
+                             message: "Cannot convert empty value to array of nested structs"
+                                 .to_string(),
+                         },
+                     }
+                 }
+             }
+-            TomlValueState::Missing { key, parent_span } => TomlValue {
+-                value: None,
+-                required: self.required,
+-                state: TomlValueState::Missing {
+-                    key: key.clone(),
+-                    parent_span: parent_span.clone(),
+-                },
+-            },
++             /* ~ changed by cargo-mutants ~ */
+             _ => TomlValue {
+                 value: None,
+                 required: self.required,
+                 state: self.state.clone(),
+             },
+         }
+     }
+ }

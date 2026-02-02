@@ -1,0 +1,27 @@
+--- toml-pretty-deser-macros/src/lib.rs
++++ delete match arm Type::Path(TypePath{path, ..}) in is_vec_type
+@@ -165,23 +165,17 @@
+             None
+         }
+         _ => None,
+     }
+ }
+ 
+ fn is_vec_type(ty: &Type) -> bool {
+     match ty {
+-        Type::Path(TypePath { path, .. }) => {
+-            if let Some(segment) = path.segments.last() {
+-                segment.ident == "Vec"
+-            } else {
+-                false
+-            }
+-        }
++         /* ~ changed by cargo-mutants ~ */
+         _ => false,
+     }
+ }
+ 
+ #[proc_macro_attribute]
+ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
+     // Parse the boolean argument (default to true)
+     let generate_verify = if attr.is_empty() {

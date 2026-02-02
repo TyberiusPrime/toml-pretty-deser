@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace FieldMatchMode::matches -> bool with false
+@@ -29,17 +29,17 @@
+             FieldMatchMode::Exact => name.to_string(),
+             FieldMatchMode::UpperLower => name.to_lowercase(),
+             FieldMatchMode::AnyCase => normalize_to_no_case(name),
+         }
+     }
+ 
+     /// Check if two names match under this mode
+     pub fn matches(&self, a: &str, b: &str) -> bool {
+-        self.normalize(a) == self.normalize(b)
++        false /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Convert any case variant to snake_case for comparison
+ /// Supports: camelCase, UpperCamelCase, snake_case, kebab-case, SHOUTY_SNAKE_CASE, Train-Case
+ pub fn normalize_to_no_case(s: &str) -> String {
+     s.chars()
+         .filter_map(|c| match c {

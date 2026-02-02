@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    deserialize, deserialize_with_mode, make_partial, AnnotatedError, AsEnum, AsNested, DeserError,
-    FieldMatchMode, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper, TomlValue,
-    VerifyFromToml,
+    AnnotatedError, AsEnum, AsNested, DeserError, FieldMatchMode, FromTomlTable, StringNamedEnum,
+    ToConcrete, TomlHelper, TomlValue, TomlValueState, VerifyFromToml, deserialize,
+    deserialize_with_mode, make_partial,
 };
 
 #[make_partial(false)]
@@ -235,7 +235,7 @@ struct ComplexOutput {
 }
 
 #[test]
-fn test_arrays_and_nested() {
+fn test_arrays() {
     let toml = "
             items = ['a', 'b', 'c']
             numbers = [1, 2, 3, 4, 5]
@@ -282,9 +282,11 @@ fn test_vec_missing() {
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("numbers")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("numbers"))
+        );
     } else {
         panic!("Expected failure due to missing numbers field")
     }
@@ -314,7 +316,6 @@ enum Example {
     Four,
 }
 
-// Test struct with arrays and nested structs
 #[make_partial]
 #[derive(Debug)]
 struct EnumOutput {
@@ -385,9 +386,11 @@ fn test_enum_invalid_variant() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
+        );
     } else {
         panic!("Expected failure due to invalid enum variant")
     }
@@ -403,9 +406,11 @@ fn test_enum_missing_required() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("an_enum")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("an_enum"))
+        );
     } else {
         panic!("Expected failure due to missing required enum field")
     }
@@ -488,13 +493,76 @@ fn test_nested_happy_half() {
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, output)) = result {
         assert_eq!(
-            &output.nested.as_ref().unwrap().name.as_ref().unwrap(),
+            &output.nested.value.as_ref().unwrap().name.as_ref().unwrap(),
             &&"a".to_string()
         );
-        assert!(&output.nested.as_ref().unwrap().value.as_ref().is_none());
+        assert!(&output.nested.value.as_ref().unwrap().value.as_ref().is_none());
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: value");
         assert!(output.opt_nested.as_ref().unwrap().is_none());
+    } else {
+        panic!();
+    }
+}
+
+#[test]
+fn test_nested_lower_failure() {
+    let toml = "
+        inline_nested = {
+            name = 2,
+            value = 4
+        }
+        [nested]
+            name = 55
+            value = 1
+
+        [opt_nested]
+            name = 55
+            value = 2
+
+        [[vec_nested]]
+            name = 55
+            value = 31
+
+        [[vec_nested]]
+            name = 55
+            value = 32
+
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialOuter, Outer>(toml);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, output)) = result {
+        assert_eq!(
+            *output
+                .opt_nested
+                .value
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap(),
+            2
+        );
+
+        assert!(matches!(
+            output.opt_nested.state,
+            TomlValueState::ValidationFailed { .. }
+        ));
+        assert!(matches!(
+            output.nested.state,
+            TomlValueState::ValidationFailed { .. }
+        ));
+        assert!(matches!(
+            output.inline_nested.state,
+            TomlValueState::ValidationFailed { .. }
+        ));
+        assert!(matches!(
+            output.vec_nested.state,
+            TomlValueState::ValidationFailed { .. }
+        ));
     } else {
         panic!();
     }
@@ -627,7 +695,7 @@ fn test_two_level_nested_missing_inner() {
     dbg!(&result);
     // Missing nested table returns StillIncomplete since the nested struct itself isn't present
     if let Err(DeserError::StillIncomplete(_, partial)) = result {
-        assert!(partial.level1.as_ref().unwrap().level2.as_ref().is_none());
+        assert!(partial.level1.value.as_ref().unwrap().level2.as_ref().is_none());
     } else {
         panic!("Expected StillIncomplete due to missing level2 field");
     }
@@ -646,9 +714,11 @@ fn test_two_level_nested_missing_inner_field() {
     let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Missing required key: data")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
+        );
     } else {
         panic!("Expected failure due to missing data field in level2");
     }
@@ -669,9 +739,11 @@ fn test_two_errors_pretty() {
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert_eq!(errors.len(), 2);
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Missing required key: data")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
+        );
         assert_eq!(
             errors[0].pretty("test.toml"),
             "  ╭─test.toml\n  ┆\n5 │         [level1.level2]\n6 │             other = 2\n  ┆             ──┬──    \n  ┆               │      \n  ┆               ╰─────── Unknown key: other\n──╯\nHint: Did you mean: 'data'?\n"
@@ -886,9 +958,11 @@ fn test_any_case_mode_unknown_key() {
         deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("unknown_field")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("unknown_field"))
+        );
     }
 }
 
@@ -916,7 +990,7 @@ fn test_alias_with_any_case_mode() {
 #[derive(Debug)]
 #[make_partial]
 struct AliasedNested {
-    #[alias("nestedName")]
+    #[alias("some_other_name")]
     nested_name: String,
 }
 
@@ -931,7 +1005,7 @@ struct OuterAliased {
 fn test_nested_with_alias() {
     let toml = "
         [nested]
-        nestedName = 'aliased nested field'
+        some_other_name = 'aliased nested field'
     ";
 
     let result: Result<_, _> = deserialize::<PartialOuterAliased, OuterAliased>(toml);

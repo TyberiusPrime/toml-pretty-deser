@@ -1,0 +1,27 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace normalize_to_no_case -> String with String::new()
+@@ -36,23 +36,17 @@
+     pub fn matches(&self, a: &str, b: &str) -> bool {
+         self.normalize(a) == self.normalize(b)
+     }
+ }
+ 
+ /// Convert any case variant to snake_case for comparison
+ /// Supports: camelCase, UpperCamelCase, snake_case, kebab-case, SHOUTY_SNAKE_CASE, Train-Case
+ pub fn normalize_to_no_case(s: &str) -> String {
+-    s.chars()
+-        .filter_map(|c| match c {
+-            'A'..='Z' => Some(c.to_lowercase().next().unwrap()),
+-            'a'..='z' | '0'..='9' => Some(c),
+-            _ => None,
+-        })
+-        .collect()
++    String::new() /* ~ changed by cargo-mutants ~ */
+     // let mut result = String::with_capacity(s.len() * 2);
+     // let mut chars = s.chars().peekable();
+     // let mut prev_was_uppercase = false;
+     // let mut prev_was_separator = true;
+     //
+     // while let Some(c) = chars.next() {
+     //     if c == '-' || c == '_' {
+     //         if !prev_was_separator {

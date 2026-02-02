@@ -1,0 +1,37 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm toml_edit::Item::Table(table) in <impl AsNested<Vec<P>> for TomlValue<Vec<toml_edit::Item>>>::as_nested
+@@ -1936,33 +1936,17 @@
+         match &self.state {
+             TomlValueState::Ok { span } => {
+                 if let Some(ref items) = self.value {
+                     let mut results = Vec::with_capacity(items.len());
+                     let error_count_before = errors.borrow().len();
+ 
+                     for item in items.iter() {
+                         match item {
+-                            toml_edit::Item::Table(table) => {
+-                                let item_error_count_before = errors.borrow().len();
+-                                let mut helper = TomlHelper::new(table, errors.clone(), mode);
+-                                let partial =
+-                                    P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+-                                helper.deny_unknown();
+-
+-                                let item_error_count_after = errors.borrow().len();
+-
+-                                if item_error_count_after > item_error_count_before {
+-                                    // There were errors during this item's deserialization
+-                                    // but we still push it to results so we can report all errors
+-                                    results.push(partial);
+-                                } else {
+-                                    results.push(partial);
+-                                }
+-                            }
++                             /* ~ changed by cargo-mutants ~ */
+                             _ => {
+                                 // Non-table item in array
+                                 errors.borrow_mut().push(AnnotatedError::placed(
+                                     span.clone(),
+                                     "Expected table in array",
+                                     "Only table items are supported in nested struct arrays",
+                                 ));
+                             }

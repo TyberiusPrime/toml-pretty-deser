@@ -447,9 +447,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #(#collect_errors_fields;)*
             }
 
-            fn can_concrete(&self) -> bool {
-                #(#can_concrete_fields)&&*
-            }
 
             fn to_concrete(self) -> Option<#struct_name #ty_generics> {
                 Some(#struct_name {
@@ -465,6 +462,10 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         impl #impl_generics FromTomlTable<()> for #partial_name #ty_generics #where_clause {
+            fn can_concrete(&self) -> bool {
+                #(#can_concrete_fields)&&*
+            }
+
             fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
                 #partial_name {
                     #(#from_toml_table_fields,)*

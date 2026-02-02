@@ -1,0 +1,24 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace TomlValue<T>::into_option -> Option<T> with Some(Default::default())
+@@ -1594,20 +1594,17 @@
+ }
+ 
+ impl<T> TomlValue<T> {
+     pub fn has_value(&self) -> bool {
+         matches!(self.state, TomlValueState::Ok { .. })
+     }
+ 
+     pub fn into_option(self) -> Option<T> {
+-        match self.state {
+-            TomlValueState::Ok { .. } => self.value,
+-            _ => None,
+-        }
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn as_ref(&self) -> Option<&T> {
+         match self.state {
+             TomlValueState::Ok { .. } => self.value.as_ref(),
+             _ => None,
+         }
+     }

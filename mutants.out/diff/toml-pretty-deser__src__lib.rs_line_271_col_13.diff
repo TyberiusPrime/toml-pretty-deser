@@ -1,0 +1,68 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm TomlValueState::Ok{span} in <impl AsEnum<Vec<E>> for TomlValue<Vec<String>>>::as_enum
+@@ -263,64 +263,17 @@
+             },
+         }
+     }
+ }
+ 
+ impl<E: StringNamedEnum> AsEnum<Vec<E>> for TomlValue<Vec<String>> {
+     fn as_enum(self) -> TomlValue<Vec<E>> {
+         match &self.state {
+-            TomlValueState::Ok { span } => {
+-                if let Some(ref strings) = self.value {
+-                    let mut values = Vec::with_capacity(strings.len());
+-                    let mut has_error = false;
+-                    let mut error_message = String::new();
+-
+-                    for s in strings {
+-                        match E::from_str(s) {
+-                            Some(enum_val) => values.push(enum_val),
+-                            None => {
+-                                has_error = true;
+-                                let valid_names = E::all_variant_names().join(", ");
+-                                error_message = format!(
+-                                    "Invalid enum variant '{}'. Valid variants are: {}",
+-                                    s, valid_names
+-                                );
+-                                break;
+-                            }
+-                        }
+-                    }
+-
+-                    if has_error {
+-                        TomlValue {
+-                            value: None,
+-                            required: self.required,
+-                            state: TomlValueState::ValidationFailed {
+-                                span: span.clone(),
+-                                message: error_message,
+-                            },
+-                        }
+-                    } else {
+-                        TomlValue {
+-                            value: Some(values),
+-                            required: self.required,
+-                            state: TomlValueState::Ok { span: span.clone() },
+-                        }
+-                    }
+-                } else {
+-                    TomlValue {
+-                        value: None,
+-                        required: self.required,
+-                        state: TomlValueState::ValidationFailed {
+-                            span: span.clone(),
+-                            message: "Cannot convert empty value to enum".to_string(),
+-                        },
+-                    }
+-                }
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             TomlValueState::Missing { key, parent_span } => TomlValue {
+                 value: None,
+                 required: self.required,
+                 state: TomlValueState::Missing {
+                     key: key.clone(),
+                     parent_span: parent_span.clone(),
+                 },
+             },

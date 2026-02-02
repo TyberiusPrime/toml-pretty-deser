@@ -1,0 +1,26 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm 1 in TomlHelper<'a>::get_with_aliases
+@@ -908,22 +908,17 @@
+                     FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span.clone());
+                 if let TomlValueState::Missing { ref mut key, .. } = res.state {
+                     if key.is_empty() {
+                         *key = query_key.to_string().clone();
+                     }
+                 }
+                 res
+             }
+-            1 => {
+-                let (matched_key, item) = found_keys.iter().next().unwrap();
+-                let res: TomlValue<T> = FromTomlItem::from_toml_item(&item, parent_span);
+-                self.observed.push(self.match_mode.normalize(&matched_key));
+-                res
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             _ => {
+                 let spans = found_keys
+                     .iter()
+                     .map(|(_matched_key, item)| item.span().unwrap_or(0..0))
+                     .collect();
+ 
+                 let mut res: TomlValue<T> =
+                     FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);

@@ -533,6 +533,7 @@ impl<P> From<TomlError> for DeserError<P> {
 }
 
 pub trait FromTomlTable<T> {
+    fn can_concrete(&self) -> bool;
     fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &T) -> Self
     where
         Self: Sized;
@@ -549,7 +550,6 @@ pub trait VerifyFromToml<T> {
 
 pub trait ToConcrete<T> {
     fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>);
-    fn can_concrete(&self) -> bool;
     fn to_concrete(self) -> Option<T>;
 }
 
@@ -882,10 +882,14 @@ impl<'a> TomlHelper<'a> {
         self.get_with_aliases(key, vec![])
     }
 
-    pub fn get_with_aliases<T>(&mut self, query_key: &str, aliases: Vec<&'static str>) -> TomlValue<T>
+    pub fn get_with_aliases<T>(
+        &mut self,
+        query_key: &str,
+        aliases: Vec<&'static str>,
+    ) -> TomlValue<T>
     where
         TomlValue<T>: FromTomlItem,
-        T:std::fmt::Debug,
+        T: std::fmt::Debug,
     {
         let parent_span = if let Some(table) = self.table {
             table.span().unwrap_or(0..0)
@@ -1579,7 +1583,7 @@ impl_from_toml_item_vec!(String, "string");
 #[derive(Debug, Clone)]
 pub struct TomlValue<T> {
     pub value: Option<T>,
-    pub(crate) state: TomlValueState,
+    pub state: TomlValueState,
     pub(crate) required: bool,
 }
 
@@ -1718,16 +1722,14 @@ where
                 if let Some(ref item) = self.value {
                     match item {
                         toml_edit::Item::Table(table) => {
-                            let error_count_before = errors.borrow().len();
                             let mut helper = TomlHelper::new(table, errors.clone(), mode);
                             let partial =
                                 P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                             helper.deny_unknown();
 
                             // Collect any new errors from the nested deserialization
-                            let error_count_after = errors.borrow().len();
 
-                            if error_count_after > error_count_before {
+                            if !partial.can_concrete() {
                                 // There were errors during nested deserialization
                                 TomlValue {
                                     value: Some(partial),
@@ -1746,15 +1748,13 @@ where
                             }
                         }
                         toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
-                            let error_count_before = errors.borrow().len();
                             let mut helper = TomlHelper::new_inline(table, errors.clone(), mode);
                             let partial =
                                 P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                             helper.deny_unknown();
 
-                            let error_count_after = errors.borrow().len();
 
-                            if error_count_after > error_count_before {
+                            if !partial.can_concrete() {
                                 TomlValue {
                                     value: Some(partial),
                                     required: self.required,
@@ -1824,15 +1824,12 @@ where
                     if let Some(item) = opt_item {
                         match item {
                             toml_edit::Item::Table(table) => {
-                                let error_count_before = errors.borrow().len();
                                 let mut helper = TomlHelper::new(table, errors.clone(), mode);
                                 let partial =
                                     P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
 
-                                let error_count_after = errors.borrow().len();
-
-                                if error_count_after > error_count_before {
+                                if !partial.can_concrete() {
                                     TomlValue {
                                         value: Some(Some(partial)),
                                         required: self.required,
@@ -1850,16 +1847,13 @@ where
                                 }
                             }
                             toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
-                                let error_count_before = errors.borrow().len();
                                 let mut helper =
                                     TomlHelper::new_inline(table, errors.clone(), mode);
                                 let partial =
                                     P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
 
-                                let error_count_after = errors.borrow().len();
-
-                                if error_count_after > error_count_before {
+                                if !partial.can_concrete() {
                                     TomlValue {
                                         value: Some(Some(partial)),
                                         required: self.required,
@@ -1937,26 +1931,17 @@ where
             TomlValueState::Ok { span } => {
                 if let Some(ref items) = self.value {
                     let mut results = Vec::with_capacity(items.len());
-                    let error_count_before = errors.borrow().len();
 
                     for item in items.iter() {
                         match item {
                             toml_edit::Item::Table(table) => {
-                                let item_error_count_before = errors.borrow().len();
                                 let mut helper = TomlHelper::new(table, errors.clone(), mode);
                                 let partial =
                                     P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
 
-                                let item_error_count_after = errors.borrow().len();
 
-                                if item_error_count_after > item_error_count_before {
-                                    // There were errors during this item's deserialization
-                                    // but we still push it to results so we can report all errors
-                                    results.push(partial);
-                                } else {
-                                    results.push(partial);
-                                }
+                                results.push(partial);
                             }
                             _ => {
                                 // Non-table item in array
@@ -1969,9 +1954,8 @@ where
                         }
                     }
 
-                    let error_count_after = errors.borrow().len();
 
-                    if error_count_after > error_count_before {
+                    if results.iter().any(|partial| !partial.can_concrete()) {
                         // There were errors during nested deserialization
                         TomlValue {
                             value: Some(results),

@@ -1,0 +1,24 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace <impl AnnotatedErrorExt for Rc<RefCell<AnnotatedError>>>::add_span with ()
+@@ -600,20 +600,17 @@
+             span,
+             msg: msg.to_string(),
+         });
+     }
+ }
+ 
+ impl AnnotatedErrorExt for Rc<RefCell<AnnotatedError>> {
+     fn add_span(&mut self, span: Range<usize>, msg: &str) {
+-        self.borrow_mut().spans.push(SpannedMessage {
+-            span,
+-            msg: msg.to_string(),
+-        });
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl HydratedAnnotatedError {
+     pub fn pretty(&self, source_name: &str) -> String {
+         use bstr::{BStr, ByteSlice};
+         use codesnake::{Block, CodeWidth, Label, LineIndex};
+         use std::fmt::Write;

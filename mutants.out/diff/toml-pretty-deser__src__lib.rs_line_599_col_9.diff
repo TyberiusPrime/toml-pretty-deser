@@ -1,0 +1,24 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace <impl AnnotatedErrorExt for AnnotatedError>::add_span with ()
+@@ -591,20 +591,17 @@
+ }
+ 
+ pub trait AnnotatedErrorExt {
+     fn add_span(&mut self, span: Range<usize>, msg: &str);
+ }
+ 
+ impl AnnotatedErrorExt for AnnotatedError {
+     fn add_span(&mut self, span: Range<usize>, msg: &str) {
+-        self.spans.push(SpannedMessage {
+-            span,
+-            msg: msg.to_string(),
+-        });
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl AnnotatedErrorExt for Rc<RefCell<AnnotatedError>> {
+     fn add_span(&mut self, span: Range<usize>, msg: &str) {
+         self.borrow_mut().spans.push(SpannedMessage {
+             span,
+             msg: msg.to_string(),

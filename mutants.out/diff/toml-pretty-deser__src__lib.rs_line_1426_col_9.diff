@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace <impl FromTomlItem for TomlValue<Option<toml_edit::Item>>>::is_optional -> bool with true
+@@ -1418,17 +1418,17 @@
+ impl_from_toml_item_option!(i64);
+ impl_from_toml_item_option!(f64);
+ impl_from_toml_item_option!(bool);
+ impl_from_toml_item_option!(String);
+ 
+ // Special implementation for Option<toml_edit::Item> to support optional nested structs
+ impl FromTomlItem for TomlValue<Option<toml_edit::Item>> {
+     fn is_optional() -> bool {
+-        false
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+         let mut res: TomlValue<toml_edit::Item> = FromTomlItem::from_toml_item(item, parent_span);
+         res.required = false;
+         match res.state {
+             TomlValueState::Ok { span } => TomlValue {
+                 required: false,

@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete ! in HydratedAnnotatedError::pretty
+@@ -669,17 +669,17 @@
+                         .enumerate()
+                         .map(|(line_no, line)| (line_no, line))
+                         .rev()
+                         .take_while(move |x| {
+                             if BStr::new(x.1).trim_ascii_start().starts_with(b"[") {
+                                 seen_opening = true;
+                                 true
+                             } else {
+-                                !seen_opening
++                                 /* ~ changed by cargo-mutants ~ */seen_opening
+                             }
+                         })
+                         .map(|(line_no, line)| {
+                             format!(
+                                 "{:>digits_needed$} │ {}",
+                                 line_no + 1,
+                                 std::string::String::from_utf8_lossy(line)
+                             )

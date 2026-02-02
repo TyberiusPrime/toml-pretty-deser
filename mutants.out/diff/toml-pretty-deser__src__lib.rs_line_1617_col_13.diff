@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm TomlValueState::Ok{..} in TomlValue<T>::unwrap
+@@ -1609,17 +1609,17 @@
+         match self.state {
+             TomlValueState::Ok { .. } => self.value.as_ref(),
+             _ => None,
+         }
+     }
+ 
+     pub fn unwrap(self) -> T {
+         match self.state {
+-            TomlValueState::Ok { .. } => self.value.unwrap(),
++             /* ~ changed by cargo-mutants ~ */
+             _ => panic!("Called unwrap on a TomlValue that is not Ok"),
+         }
+     }
+ 
+     pub fn register_error(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
+         match &self.state {
+             TomlValueState::NotSet => {}
+             TomlValueState::Missing { key, parent_span } => {

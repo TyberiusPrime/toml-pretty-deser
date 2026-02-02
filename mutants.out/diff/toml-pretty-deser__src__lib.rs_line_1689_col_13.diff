@@ -1,0 +1,25 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm TomlValueState::Missing{..} in TomlValue<T>::or_default
+@@ -1681,21 +1681,17 @@
+                 },
+             },
+             _ => self,
+         }
+     }
+ 
+     pub fn or_default(self, default: T) -> TomlValue<T> {
+         match &self.state {
+-            TomlValueState::Missing { .. } => TomlValue {
+-                value: Some(default),
+-                required: false,
+-                state: TomlValueState::Ok { span: 0..0 },
+-            },
++             /* ~ changed by cargo-mutants ~ */
+             _ => self,
+         }
+     }
+ }
+ 
+ pub trait AsNested<P>: Sized {
+     fn as_nested(
+         self,

@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete ! in HydratedAnnotatedError::pretty
+@@ -698,17 +698,17 @@
+                 .lines()
+                 .skip(1)
+                 .map(|x| format!("{}\n", x))
+                 .collect();
+             write!(&mut out, "{}", blockf).expect("can't fail");
+             writeln!(&mut out, "{}", block.epilogue()).expect("can't fail");
+ 
+             if let Some(help) = self.inner.help.as_ref() {
+-                if !help.is_empty() {
++                if  /* ~ changed by cargo-mutants ~ */help.is_empty() {
+                     let mut first = true;
+                     write!(&mut out, "Hint: ").expect("Can't fail");
+                     for line in help.lines() {
+                         if !first {
+                             write!(&mut out, "      ").expect("can't fail");
+                         }
+                         first = false;
+                         writeln!(&mut out, "{}", line).expect("can't fail");

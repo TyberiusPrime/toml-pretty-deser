@@ -1,0 +1,24 @@
+--- toml-pretty-deser-macros/src/lib.rs
++++ replace is_nested_field -> bool with true
+@@ -46,20 +46,17 @@
+             }
+         }
+     };
+ 
+     TokenStream::from(expanded)
+ }
+ 
+ fn is_nested_field(field: &syn::Field) -> bool {
+-    field
+-        .attrs
+-        .iter()
+-        .any(|attr| attr.path().is_ident("nested"))
++    true /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn is_as_enum_field(field: &syn::Field) -> bool {
+     field
+         .attrs
+         .iter()
+         .any(|attr| attr.path().is_ident("as_enum"))
+ }

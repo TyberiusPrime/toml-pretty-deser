@@ -1,0 +1,30 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm TomlValueState::Missing{key:_, parent_span,} in <impl AsEnum<Option<E>> for TomlValue<Option<String>>>::as_enum
+@@ -241,26 +241,17 @@
+                         required: self.required,
+                         state: TomlValueState::ValidationFailed {
+                             span: span.clone(),
+                             message: "Cannot convert empty value to enum".to_string(),
+                         },
+                     }
+                 }
+             }
+-            TomlValueState::Missing {
+-                key: _,
+-                parent_span,
+-            } => TomlValue {
+-                value: Some(None),
+-                required: self.required,
+-                state: TomlValueState::Ok {
+-                    span: parent_span.clone(),
+-                },
+-            },
++             /* ~ changed by cargo-mutants ~ */
+             _ => TomlValue {
+                 value: None,
+                 required: self.required,
+                 state: self.state.clone(),
+             },
+         }
+     }
+ }

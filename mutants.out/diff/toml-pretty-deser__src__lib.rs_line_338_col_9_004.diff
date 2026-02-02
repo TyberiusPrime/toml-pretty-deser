@@ -1,0 +1,94 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace <impl AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>>>>::as_enum -> TomlValue<Option<Vec<E>>> with TomlValue::new()
+@@ -330,90 +330,17 @@
+                 state: self.state.clone(),
+             },
+         }
+     }
+ }
+ 
+ impl<E: StringNamedEnum> AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>>> {
+     fn as_enum(self) -> TomlValue<Option<Vec<E>>> {
+-        match &self.state {
+-            TomlValueState::Ok { span } => {
+-                if let Some(ref opt_strings) = self.value {
+-                    if let Some(strings) = opt_strings {
+-                        let mut values = Vec::with_capacity(strings.len());
+-                        let mut has_error = false;
+-                        let mut error_message = String::new();
+-
+-                        for s in strings {
+-                            match E::from_str(&s) {
+-                                Some(enum_val) => values.push(enum_val),
+-                                None => {
+-                                    has_error = true;
+-                                    let valid_names = E::all_variant_names().join(", ");
+-                                    error_message = format!(
+-                                        "Invalid enum variant '{}'. Valid variants are: {}",
+-                                        s, valid_names
+-                                    );
+-                                    break;
+-                                }
+-                            }
+-                        }
+-
+-                        if has_error {
+-                            TomlValue {
+-                                value: None,
+-                                required: self.required,
+-                                state: TomlValueState::ValidationFailed {
+-                                    span: span.clone(),
+-                                    message: error_message,
+-                                },
+-                            }
+-                        } else {
+-                            TomlValue {
+-                                value: Some(Some(values)),
+-                                required: self.required,
+-                                state: TomlValueState::Ok { span: span.clone() },
+-                            }
+-                        }
+-                    } else {
+-                        // None value is valid for Option<Vec<E>>
+-                        TomlValue {
+-                            value: Some(None),
+-                            required: self.required,
+-                            state: TomlValueState::Ok { span: span.clone() },
+-                        }
+-                    }
+-                } else {
+-                    TomlValue {
+-                        value: None,
+-                        required: self.required,
+-                        state: TomlValueState::ValidationFailed {
+-                            span: span.clone(),
+-                            message: "Cannot convert empty value to enum".to_string(),
+-                        },
+-                    }
+-                }
+-            }
+-            TomlValueState::Missing {
+-                key: _,
+-                parent_span,
+-            } => TomlValue {
+-                value: Some(None),
+-                required: self.required,
+-                state: TomlValueState::Ok {
+-                    span: parent_span.clone(),
+-                },
+-            },
+-            _ => TomlValue {
+-                value: None,
+-                required: self.required,
+-                state: self.state.clone(),
+-            },
+-        }
++        TomlValue::new() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
+ where
+     P: FromTomlTable<()> + VerifyFromToml<()> + ToConcrete<T>,
+ {
+     deserialize_with_mode(source, FieldMatchMode::default())

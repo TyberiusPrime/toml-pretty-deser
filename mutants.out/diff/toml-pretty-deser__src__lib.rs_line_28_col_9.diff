@@ -1,0 +1,25 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace FieldMatchMode::normalize -> String with "xyzzy".into()
+@@ -20,21 +20,17 @@
+     UpperLower,
+     /// Any case variant match (allows camelCase, snake_case, kebab-case, etc.)
+     AnyCase,
+ }
+ 
+ impl FieldMatchMode {
+     /// Normalize a name according to the match mode
+     pub fn normalize(&self, name: &str) -> String {
+-        match self {
+-            FieldMatchMode::Exact => name.to_string(),
+-            FieldMatchMode::UpperLower => name.to_lowercase(),
+-            FieldMatchMode::AnyCase => normalize_to_no_case(name),
+-        }
++        "xyzzy".into() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Check if two names match under this mode
+     pub fn matches(&self, a: &str, b: &str) -> bool {
+         self.normalize(a) == self.normalize(b)
+     }
+ }
+ 

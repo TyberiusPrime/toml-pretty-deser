@@ -1,0 +1,21 @@
+--- toml-pretty-deser-macros/src/lib.rs
++++ delete ! in extract_aliases
+@@ -79,17 +79,17 @@
+                     loop {
+                         if input.is_empty() {
+                             break;
+                         }
+ 
+                         let lit: syn::LitStr = input.parse()?;
+                         names.push(lit.value());
+ 
+-                        if !input.is_empty() {
++                        if  /* ~ changed by cargo-mutants ~ */input.is_empty() {
+                             input.parse::<syn::Token![,]>()?;
+                         }
+                     }
+                     Ok(names)
+                 });
+ 
+             if let Ok(found_aliases) = result {
+                 aliases.extend(found_aliases);

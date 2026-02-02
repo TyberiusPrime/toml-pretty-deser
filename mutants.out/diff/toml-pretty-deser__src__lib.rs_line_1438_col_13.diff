@@ -1,0 +1,25 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm TomlValueState::Missing{..} in <impl FromTomlItem for TomlValue<Option<toml_edit::Item>>>::from_toml_item
+@@ -1430,21 +1430,17 @@
+         let mut res: TomlValue<toml_edit::Item> = FromTomlItem::from_toml_item(item, parent_span);
+         res.required = false;
+         match res.state {
+             TomlValueState::Ok { span } => TomlValue {
+                 required: false,
+                 value: Some(res.value),
+                 state: TomlValueState::Ok { span },
+             },
+-            TomlValueState::Missing { .. } => TomlValue {
+-                required: false,
+-                value: Some(None),
+-                state: TomlValueState::Ok { span: 0..0 },
+-            },
++             /* ~ changed by cargo-mutants ~ */
+             _ => TomlValue {
+                 value: None,
+                 required: false,
+                 state: res.state,
+             },
+         }
+     }
+ }

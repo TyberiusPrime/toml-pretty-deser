@@ -1,0 +1,123 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace <impl AsNested<Option<P>> for TomlValue<Option<toml_edit::Item>>>::as_nested -> TomlValue<Option<P>> with TomlValue::new(None)
+@@ -1813,119 +1813,17 @@
+ where
+     P: FromTomlTable<()> + VerifyFromToml<()>,
+ {
+     fn as_nested(
+         self,
+         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+         mode: FieldMatchMode,
+     ) -> TomlValue<Option<P>> {
+-        match &self.state {
+-            TomlValueState::Ok { span } => {
+-                if let Some(ref opt_item) = self.value {
+-                    if let Some(item) = opt_item {
+-                        match item {
+-                            toml_edit::Item::Table(table) => {
+-                                let error_count_before = errors.borrow().len();
+-                                let mut helper = TomlHelper::new(table, errors.clone(), mode);
+-                                let partial =
+-                                    P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+-                                helper.deny_unknown();
+-
+-                                let error_count_after = errors.borrow().len();
+-
+-                                if error_count_after > error_count_before {
+-                                    TomlValue {
+-                                        value: Some(Some(partial)),
+-                                        required: self.required,
+-                                        state: TomlValueState::ValidationFailed {
+-                                            span: span.clone(),
+-                                            message: "Nested struct has errors".to_string(),
+-                                        },
+-                                    }
+-                                } else {
+-                                    TomlValue {
+-                                        value: Some(Some(partial)),
+-                                        required: self.required,
+-                                        state: TomlValueState::Ok { span: span.clone() },
+-                                    }
+-                                }
+-                            }
+-                            toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
+-                                let error_count_before = errors.borrow().len();
+-                                let mut helper =
+-                                    TomlHelper::new_inline(table, errors.clone(), mode);
+-                                let partial =
+-                                    P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+-                                helper.deny_unknown();
+-
+-                                let error_count_after = errors.borrow().len();
+-
+-                                if error_count_after > error_count_before {
+-                                    TomlValue {
+-                                        value: Some(Some(partial)),
+-                                        required: self.required,
+-                                        state: TomlValueState::ValidationFailed {
+-                                            span: span.clone(),
+-                                            message: "Nested struct has errors".to_string(),
+-                                        },
+-                                    }
+-                                } else {
+-                                    TomlValue {
+-                                        value: Some(Some(partial)),
+-                                        required: self.required,
+-                                        state: TomlValueState::Ok { span: span.clone() },
+-                                    }
+-                                }
+-                            }
+-                            _ => TomlValue {
+-                                value: None,
+-                                required: self.required,
+-                                state: TomlValueState::WrongType {
+-                                    span: span.clone(),
+-                                    expected: "table",
+-                                    found: "other type",
+-                                },
+-                            },
+-                        }
+-                    } else {
+-                        // None value is valid for Option<P>
+-                        TomlValue {
+-                            value: Some(None),
+-                            required: self.required,
+-                            state: TomlValueState::Ok { span: span.clone() },
+-                        }
+-                    }
+-                } else {
+-                    TomlValue {
+-                        value: None,
+-                        required: self.required,
+-                        state: TomlValueState::ValidationFailed {
+-                            span: span.clone(),
+-                            message: "Cannot convert empty value to nested struct".to_string(),
+-                        },
+-                    }
+-                }
+-            }
+-            TomlValueState::Missing {
+-                key: _,
+-                parent_span,
+-            } => TomlValue {
+-                value: Some(None),
+-                required: self.required,
+-                state: TomlValueState::Ok {
+-                    span: parent_span.clone(),
+-                },
+-            },
+-            _ => TomlValue {
+-                value: None,
+-                required: self.required,
+-                state: self.state.clone(),
+-            },
+-        }
++        TomlValue::new(None) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<P> AsNested<Vec<P>> for TomlValue<Vec<toml_edit::Item>>
+ where
+     P: FromTomlTable<()> + VerifyFromToml<()>,
+ {
+     fn as_nested(

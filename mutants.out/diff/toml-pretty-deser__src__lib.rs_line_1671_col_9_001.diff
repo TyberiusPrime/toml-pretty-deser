@@ -1,0 +1,34 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace TomlValue<T>::verify -> TomlValue<T> with TomlValue::new(Default::default())
+@@ -1663,30 +1663,17 @@
+             TomlValueState::Ok { .. } => {}
+         }
+     }
+ 
+     pub fn verify<F>(self, verification_func: F) -> TomlValue<T>
+     where
+         F: FnOnce(&T) -> Result<(), String>,
+     {
+-        match &self.state {
+-            TomlValueState::Ok { span } => match verification_func(self.value.as_ref().unwrap()) {
+-                Ok(()) => self,
+-                Err(msg) => TomlValue {
+-                    value: None,
+-                    required: self.required,
+-                    state: TomlValueState::ValidationFailed {
+-                        span: span.clone(),
+-                        message: msg,
+-                    },
+-                },
+-            },
+-            _ => self,
+-        }
++        TomlValue::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn or_default(self, default: T) -> TomlValue<T> {
+         match &self.state {
+             TomlValueState::Missing { .. } => TomlValue {
+                 value: Some(default),
+                 required: false,
+                 state: TomlValueState::Ok { span: 0..0 },

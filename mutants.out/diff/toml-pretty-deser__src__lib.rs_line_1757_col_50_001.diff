@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace > with >= in <impl AsNested<P> for TomlValue<toml_edit::Item>>::as_nested
+@@ -1749,17 +1749,17 @@
+                             let error_count_before = errors.borrow().len();
+                             let mut helper = TomlHelper::new_inline(table, errors.clone(), mode);
+                             let partial =
+                                 P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+                             helper.deny_unknown();
+ 
+                             let error_count_after = errors.borrow().len();
+ 
+-                            if error_count_after > error_count_before {
++                            if error_count_after >= /* ~ changed by cargo-mutants ~ */ error_count_before {
+                                 TomlValue {
+                                     value: Some(partial),
+                                     required: self.required,
+                                     state: TomlValueState::ValidationFailed {
+                                         span: span.clone(),
+                                         message: "Nested struct has errors".to_string(),
+                                     },
+                                 }

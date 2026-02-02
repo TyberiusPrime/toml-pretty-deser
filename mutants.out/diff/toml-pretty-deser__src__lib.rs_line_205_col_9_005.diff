@@ -1,0 +1,80 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace <impl AsEnum<Option<E>> for TomlValue<Option<String>>>::as_enum -> TomlValue<Option<E>> with TomlValue::from(None)
+@@ -197,76 +197,17 @@
+                 state: self.state.clone(),
+             },
+         }
+     }
+ }
+ 
+ impl<E: StringNamedEnum> AsEnum<Option<E>> for TomlValue<Option<String>> {
+     fn as_enum(self) -> TomlValue<Option<E>> {
+-        match &self.state {
+-            TomlValueState::Ok { span } => {
+-                if let Some(ref opt_s) = self.value {
+-                    if let Some(s) = opt_s {
+-                        match E::from_str(&s) {
+-                            Some(enum_val) => TomlValue {
+-                                value: Some(Some(enum_val)),
+-                                required: self.required,
+-                                state: TomlValueState::Ok { span: span.clone() },
+-                            },
+-                            None => {
+-                                let valid_names = E::all_variant_names().join(", ");
+-                                TomlValue {
+-                                    value: None,
+-                                    required: self.required,
+-                                    state: TomlValueState::ValidationFailed {
+-                                        span: span.clone(),
+-                                        message: format!(
+-                                            "Invalid enum variant '{}'. Valid variants are: {}",
+-                                            s, valid_names
+-                                        ),
+-                                    },
+-                                }
+-                            }
+-                        }
+-                    } else {
+-                        // None value is valid for Option<E>
+-                        TomlValue {
+-                            value: Some(None),
+-                            required: self.required,
+-                            state: TomlValueState::Ok { span: span.clone() },
+-                        }
+-                    }
+-                } else {
+-                    TomlValue {
+-                        value: None,
+-                        required: self.required,
+-                        state: TomlValueState::ValidationFailed {
+-                            span: span.clone(),
+-                            message: "Cannot convert empty value to enum".to_string(),
+-                        },
+-                    }
+-                }
+-            }
+-            TomlValueState::Missing {
+-                key: _,
+-                parent_span,
+-            } => TomlValue {
+-                value: Some(None),
+-                required: self.required,
+-                state: TomlValueState::Ok {
+-                    span: parent_span.clone(),
+-                },
+-            },
+-            _ => TomlValue {
+-                value: None,
+-                required: self.required,
+-                state: self.state.clone(),
+-            },
+-        }
++        TomlValue::from(None) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<E: StringNamedEnum> AsEnum<Vec<E>> for TomlValue<Vec<String>> {
+     fn as_enum(self) -> TomlValue<Vec<E>> {
+         match &self.state {
+             TomlValueState::Ok { span } => {
+                 if let Some(ref strings) = self.value {

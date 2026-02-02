@@ -1,0 +1,24 @@
+--- toml-pretty-deser-macros/src/lib.rs
++++ replace is_as_enum_field -> bool with false
+@@ -53,20 +53,17 @@
+ fn is_nested_field(field: &syn::Field) -> bool {
+     field
+         .attrs
+         .iter()
+         .any(|attr| attr.path().is_ident("nested"))
+ }
+ 
+ fn is_as_enum_field(field: &syn::Field) -> bool {
+-    field
+-        .attrs
+-        .iter()
+-        .any(|attr| attr.path().is_ident("as_enum"))
++    false /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Extract aliases from #[alias("name1", "name2", ...)] attribute
+ fn extract_aliases(field: &syn::Field) -> Vec<String> {
+     let mut aliases = Vec::new();
+ 
+     for attr in &field.attrs {
+         if attr.path().is_ident("alias") {

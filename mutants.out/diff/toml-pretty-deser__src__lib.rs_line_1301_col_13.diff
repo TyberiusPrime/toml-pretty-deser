@@ -1,0 +1,27 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm toml_edit::Item::Table(table) in <impl FromTomlItem for TomlValue<toml_edit::Item>>::from_toml_item
+@@ -1293,23 +1293,17 @@
+             toml_edit::Item::None => TomlValue {
+                 value: None,
+                 required: true,
+                 state: TomlValueState::Missing {
+                     key: "".to_string(),
+                     parent_span,
+                 },
+             },
+-            toml_edit::Item::Table(table) => TomlValue {
+-                required: true,
+-                value: Some(toml_edit::Item::Table(table.clone())),
+-                state: TomlValueState::Ok {
+-                    span: table.span().unwrap_or(parent_span.clone()),
+-                },
+-            },
++             /* ~ changed by cargo-mutants ~ */
+             toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => TomlValue {
+                 required: true,
+                 value: Some(toml_edit::Item::Value(toml_edit::Value::InlineTable(
+                     table.clone(),
+                 ))),
+                 state: TomlValueState::Ok {
+                     span: table.span().unwrap_or(parent_span.clone()),
+                 },

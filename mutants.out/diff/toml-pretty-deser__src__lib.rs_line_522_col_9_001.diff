@@ -1,0 +1,24 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace <impl std::error::Error for DeserError<P>>::source -> Option<&(dyn std::error::Error +'static)> with Some(Box::leak(Box::new(Default::default())))
+@@ -514,20 +514,17 @@
+                 write!(f, "Incomplete deserialization with {} errors", errors.len())
+             }
+         }
+     }
+ }
+ 
+ impl<P: std::fmt::Debug> std::error::Error for DeserError<P> {
+     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+-        match self {
+-            DeserError::ParsingFailure(e) => Some(e),
+-            _ => None,
+-        }
++        Some(Box::leak(Box::new(Default::default()))) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<P> From<TomlError> for DeserError<P> {
+     fn from(value: TomlError) -> Self {
+         DeserError::ParsingFailure(value)
+     }
+ }

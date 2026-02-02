@@ -1,0 +1,521 @@
+
+*** toml-pretty-deser/src/lib.rs:1433:13: delete match arm TomlValueState::Ok{span} in <impl FromTomlItem for TomlValue<Option<toml_edit::Item>>>::from_toml_item
+
+*** mutation diff:
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm TomlValueState::Ok{span} in <impl FromTomlItem for TomlValue<Option<toml_edit::Item>>>::from_toml_item
+@@ -1425,21 +1425,17 @@
+     fn is_optional() -> bool {
+         false
+     }
+ 
+     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+         let mut res: TomlValue<toml_edit::Item> = FromTomlItem::from_toml_item(item, parent_span);
+         res.required = false;
+         match res.state {
+-            TomlValueState::Ok { span } => TomlValue {
+-                required: false,
+-                value: Some(res.value),
+-                state: TomlValueState::Ok { span },
+-            },
++             /* ~ changed by cargo-mutants ~ */
+             TomlValueState::Missing { .. } => TomlValue {
+                 required: false,
+                 value: Some(None),
+                 state: TomlValueState::Ok { span: 0..0 },
+             },
+             _ => TomlValue {
+                 value: None,
+                 required: false,
+
+
+*** /nix/store/826jircl576xphx7a459njgqfmcbd4x5-cargo-1.95.0-nightly-2026-01-21-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=toml-pretty-deser@0.1.0
+       Fresh unicode-ident v1.0.22
+       Fresh proc-macro2 v1.0.106
+       Fresh autocfg v1.5.0
+       Fresh quote v1.0.44
+       Fresh equivalent v1.0.2
+       Fresh winnow v0.7.14
+       Fresh hashbrown v0.16.1
+       Fresh indexmap v2.13.0
+       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh syn v2.0.114
+       Fresh toml_datetime v0.7.5+spec-1.1.0
+       Fresh regex-automata v0.4.13
+       Fresh memchr v2.7.6
+       Fresh toml_writer v1.0.6+spec-1.1.0
+       Fresh strsim v0.11.1
+       Fresh codesnake v0.2.1
+       Fresh bstr v1.12.1
+       Fresh toml_edit v0.24.0+spec-1.1.0
+       Fresh num-traits v0.2.19
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
+       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser): couldn't read metadata for file `/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib`
+   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+warning: field `allowed` is never read
+   --> toml-pretty-deser/src/lib.rs:775:5
+    |
+767 | pub struct TomlHelper<'a> {
+    |            ---------- field in this struct
+...
+775 |     allowed: HashMap<String, String>,
+    |     ^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toml-pretty-deser` (lib test) generated 1 warning
+warning: `toml-pretty-deser` (lib) generated 1 warning (1 duplicate)
+     Running `rustc --crate-name basic --edition=2024 toml-pretty-deser/tests/basic.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=608c682146c4ede0 -C extra-filename=-c7883bdc8893c706 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+warning: unused variable: `errors`
+    --> toml-pretty-deser/tests/basic.rs:1002:41
+     |
+1002 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.42s
+  Executable `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
+  Executable `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
+
+*** result: Success
+
+*** /nix/store/826jircl576xphx7a459njgqfmcbd4x5-cargo-1.95.0-nightly-2026-01-21-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=toml-pretty-deser@0.1.0
+       Fresh unicode-ident v1.0.22
+       Fresh proc-macro2 v1.0.106
+       Fresh autocfg v1.5.0
+       Fresh winnow v0.7.14
+       Fresh equivalent v1.0.2
+       Fresh hashbrown v0.16.1
+       Fresh regex-automata v0.4.13
+       Fresh quote v1.0.44
+       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh indexmap v2.13.0
+       Fresh toml_writer v1.0.6+spec-1.1.0
+       Fresh memchr v2.7.6
+       Fresh toml_datetime v0.7.5+spec-1.1.0
+       Fresh strsim v0.11.1
+       Fresh codesnake v0.2.1
+       Fresh syn v2.0.114
+       Fresh bstr v1.12.1
+       Fresh toml_edit v0.24.0+spec-1.1.0
+       Fresh num-traits v0.2.19
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
+warning: field `allowed` is never read
+   --> toml-pretty-deser/src/lib.rs:775:5
+    |
+767 | pub struct TomlHelper<'a> {
+    |            ---------- field in this struct
+...
+775 |     allowed: HashMap<String, String>,
+    |     ^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toml-pretty-deser` (lib) generated 1 warning
+warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
+warning: unused variable: `errors`
+    --> toml-pretty-deser/tests/basic.rs:1002:41
+     |
+1002 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+       Fresh toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
+warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
+
+running 2 tests
+test tests::test_field_match_mode ... ok
+test tests::test_normalize_no_case ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
+
+running 37 tests
+test test_alias_exact_mode ... ok
+test test_alias_with_any_case_mode ... ok
+test test_any_case_mode_camel ... ok
+test test_any_case_mode_kebab ... ok
+test test_alias_exact_mode_failure ... ok
+test test_any_case_mode_shouty ... ok
+test test_any_case_mode_unknown_key ... ok
+test test_any_case_mode_snake ... ok
+test test_any_case_mode_train ... ok
+test test_arrays_and_nested ... ok
+test test_array_wrong_element_type ... ok
+test test_any_case_mode_upper_camel ... ok
+test test_arrays_with_optional ... ok
+test test_complex_mixed_case ... ok
+test test_enum_optional_missing ... ok
+test test_enum_invalid_variant ... ok
+test test_enum_missing_required ... ok
+test test_complex_mixed_case_key_reused ... ok
+test test_nested_happy_half ... ok
+test test_enum_happy_path ... ok
+test test_nested_with_alias ... ok
+test test_happy_path ... ok
+test test_optional_missing ... ok
+test test_nested_with_any_case_mode ... ok
+test test_missing ... ok
+test test_nested_happy ... FAILED
+test test_two_level_nested_missing_inner ... ok
+test test_two_level_nested_happy ... FAILED
+test test_two_errors_pretty ... ok
+test test_two_level_nested_missing_inner_field ... ok
+test test_upper_lower_mode ... ok
+test test_vec_missing ... ok
+test test_two_level_nested_with_optional_nested ... FAILED
+test test_two_level_nested_inline_table ... FAILED
+test test_range_validation ... ok
+test test_wrong_type ... ok
+test test_validation_failure ... ok
+
+failures:
+
+---- test_nested_happy stdout ----
+[toml-pretty-deser/tests/basic.rs:463:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialOuter {
+            nested: TomlValue {
+                value: Some(
+                    PartialNested {
+                        name: TomlValue {
+                            value: Some(
+                                "a",
+                            ),
+                            state: Ok {
+                                span: 119..122,
+                            },
+                            required: true,
+                        },
+                        value: TomlValue {
+                            value: Some(
+                                1,
+                            ),
+                            state: Ok {
+                                span: 143..144,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 91..99,
+                },
+                required: true,
+            },
+            inline_nested: TomlValue {
+                value: Some(
+                    PartialNested {
+                        name: TomlValue {
+                            value: Some(
+                                "d",
+                            ),
+                            state: Ok {
+                                span: 46..49,
+                            },
+                            required: true,
+                        },
+                        value: TomlValue {
+                            value: Some(
+                                4,
+                            ),
+                            state: Ok {
+                                span: 71..72,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 25..82,
+                },
+                required: true,
+            },
+            opt_nested: TomlValue {
+                value: None,
+                state: ValidationFailed {
+                    span: 154..166,
+                    message: "Cannot convert empty value to nested struct",
+                },
+                required: false,
+            },
+            vec_nested: TomlValue {
+                value: Some(
+                    [
+                        PartialNested {
+                            name: TomlValue {
+                                value: Some(
+                                    "c1",
+                                ),
+                                state: Ok {
+                                    span: 255..259,
+                                },
+                                required: true,
+                            },
+                            value: TomlValue {
+                                value: Some(
+                                    31,
+                                ),
+                                state: Ok {
+                                    span: 280..282,
+                                },
+                                required: true,
+                            },
+                        },
+                        PartialNested {
+                            name: TomlValue {
+                                value: Some(
+                                    "c2",
+                                ),
+                                state: Ok {
+                                    span: 326..330,
+                                },
+                                required: true,
+                            },
+                            value: TomlValue {
+                                value: Some(
+                                    32,
+                                ),
+                                state: Ok {
+                                    span: 351..353,
+                                },
+                                required: true,
+                            },
+                        },
+                    ],
+                ),
+                state: Ok {
+                    span: 221..306,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_nested_happy' (2368468) panicked at toml-pretty-deser/tests/basic.rs:464:5:
+assertion failed: result.is_ok()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- test_two_level_nested_happy stdout ----
+[toml-pretty-deser/tests/basic.rs:546:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "level1_name",
+                            ),
+                            state: Ok {
+                                span: 37..50,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "level2_data",
+                                        ),
+                                        state: Ok {
+                                            span: 95..108,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: Ok {
+                                span: 60..75,
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                None,
+                            ),
+                            state: Ok {
+                                span: 0..0,
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: None,
+                state: ValidationFailed {
+                    span: 118..130,
+                    message: "Cannot convert empty value to nested struct",
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_happy' (2368475) panicked at toml-pretty-deser/tests/basic.rs:547:5:
+assertion failed: result.is_ok()
+
+---- test_two_level_nested_with_optional_nested stdout ----
+[toml-pretty-deser/tests/basic.rs:575:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "l1",
+                            ),
+                            state: Ok {
+                                span: 37..41,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "l2_data",
+                                        ),
+                                        state: Ok {
+                                            span: 86..95,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: Ok {
+                                span: 51..66,
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: None,
+                            state: ValidationFailed {
+                                span: 105..124,
+                                message: "Cannot convert empty value to nested struct",
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_with_optional_nested' (2368479) panicked at toml-pretty-deser/tests/basic.rs:576:5:
+assertion failed: result.is_ok()
+
+---- test_two_level_nested_inline_table stdout ----
+[toml-pretty-deser/tests/basic.rs:604:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "inline_l1",
+                            ),
+                            state: Ok {
+                                span: 39..50,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "inline_l2",
+                                        ),
+                                        state: Ok {
+                                            span: 98..109,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: Ok {
+                                span: 73..123,
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: None,
+                            state: ValidationFailed {
+                                span: 150..204,
+                                message: "Cannot convert empty value to nested struct",
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 18..214,
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_inline_table' (2368476) panicked at toml-pretty-deser/tests/basic.rs:605:5:
+assertion failed: result.is_ok()
+
+
+failures:
+    test_nested_happy
+    test_two_level_nested_happy
+    test_two_level_nested_inline_table
+    test_two_level_nested_with_optional_nested
+
+test result: FAILED. 33 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p toml-pretty-deser --test basic`
+
+*** result: Failure(101)

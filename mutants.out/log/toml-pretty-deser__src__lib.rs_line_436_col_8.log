@@ -1,0 +1,2788 @@
+
+*** toml-pretty-deser/src/lib.rs:436:8: delete ! in deserialize_with_mode
+
+*** mutation diff:
+--- toml-pretty-deser/src/lib.rs
++++ delete ! in deserialize_with_mode
+@@ -428,17 +428,17 @@
+ 
+     let errors = Rc::new(RefCell::new(Vec::new()));
+     let mut helper = TomlHelper::new(parsed_toml.as_table(), errors.clone(), mode);
+ 
+     let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+     helper.deny_unknown();
+ 
+     partial.collect_errors(&errors);
+-    if !errors.borrow().is_empty() {
++    if  /* ~ changed by cargo-mutants ~ */errors.borrow().is_empty() {
+         return Err(DeserError::DeserFailure(
+             helper.into_inner(&source),
+             partial,
+         ));
+     }
+ 
+     if partial.can_concrete() {
+         Ok(partial
+
+
+*** /nix/store/826jircl576xphx7a459njgqfmcbd4x5-cargo-1.95.0-nightly-2026-01-21-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=toml-pretty-deser@0.1.0
+       Fresh unicode-ident v1.0.22
+       Fresh proc-macro2 v1.0.106
+       Fresh autocfg v1.5.0
+       Fresh quote v1.0.44
+       Fresh winnow v0.7.14
+       Fresh hashbrown v0.16.1
+       Fresh equivalent v1.0.2
+       Fresh indexmap v2.13.0
+       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh syn v2.0.114
+       Fresh toml_writer v1.0.6+spec-1.1.0
+       Fresh memchr v2.7.6
+       Fresh toml_datetime v0.7.5+spec-1.1.0
+       Fresh regex-automata v0.4.13
+       Fresh bstr v1.12.1
+       Fresh toml_edit v0.24.0+spec-1.1.0
+       Fresh num-traits v0.2.19
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
+       Fresh strsim v0.11.1
+       Fresh codesnake v0.2.1
+       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser): the file `toml-pretty-deser/src/lib.rs` has changed (1770035306.953392390s, 1s after last build at 1770035305.943435745s)
+   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
+warning: field `allowed` is never read
+   --> toml-pretty-deser/src/lib.rs:775:5
+    |
+767 | pub struct TomlHelper<'a> {
+    |            ---------- field in this struct
+...
+775 |     allowed: HashMap<String, String>,
+    |     ^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
+warning: `toml-pretty-deser` (lib) generated 1 warning
+     Running `rustc --crate-name basic --edition=2024 toml-pretty-deser/tests/basic.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=608c682146c4ede0 -C extra-filename=-c7883bdc8893c706 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+warning: unused variable: `errors`
+    --> toml-pretty-deser/tests/basic.rs:1002:41
+     |
+1002 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.46s
+  Executable `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
+  Executable `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
+
+*** result: Success
+
+*** /nix/store/826jircl576xphx7a459njgqfmcbd4x5-cargo-1.95.0-nightly-2026-01-21-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=toml-pretty-deser@0.1.0
+       Fresh unicode-ident v1.0.22
+       Fresh proc-macro2 v1.0.106
+       Fresh autocfg v1.5.0
+       Fresh quote v1.0.44
+       Fresh hashbrown v0.16.1
+       Fresh winnow v0.7.14
+       Fresh equivalent v1.0.2
+       Fresh syn v2.0.114
+       Fresh toml_writer v1.0.6+spec-1.1.0
+       Fresh toml_datetime v0.7.5+spec-1.1.0
+       Fresh memchr v2.7.6
+       Fresh regex-automata v0.4.13
+       Fresh codesnake v0.2.1
+       Fresh strsim v0.11.1
+       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh indexmap v2.13.0
+       Fresh num-traits v0.2.19
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
+       Fresh bstr v1.12.1
+       Fresh toml_edit v0.24.0+spec-1.1.0
+warning: field `allowed` is never read
+   --> toml-pretty-deser/src/lib.rs:775:5
+    |
+767 | pub struct TomlHelper<'a> {
+    |            ---------- field in this struct
+...
+775 |     allowed: HashMap<String, String>,
+    |     ^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toml-pretty-deser` (lib) generated 1 warning
+warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
+       Fresh toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
+warning: unused variable: `errors`
+    --> toml-pretty-deser/tests/basic.rs:1002:41
+     |
+1002 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
+
+running 2 tests
+test tests::test_field_match_mode ... ok
+test tests::test_normalize_no_case ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
+
+running 37 tests
+test test_alias_exact_mode_failure ... ok
+test test_alias_exact_mode ... FAILED
+test test_alias_with_any_case_mode ... FAILED
+test test_any_case_mode_camel ... FAILED
+test test_any_case_mode_shouty ... FAILED
+test test_any_case_mode_kebab ... FAILED
+test test_any_case_mode_train ... FAILED
+test test_any_case_mode_snake ... FAILED
+test test_any_case_mode_upper_camel ... FAILED
+test test_any_case_mode_unknown_key ... ok
+test test_arrays_and_nested ... FAILED
+test test_arrays_with_optional ... FAILED
+test test_complex_mixed_case ... FAILED
+test test_complex_mixed_case_key_reused ... FAILED
+test test_enum_missing_required ... FAILED
+test test_array_wrong_element_type ... FAILED
+test test_enum_optional_missing ... FAILED
+test test_enum_happy_path ... FAILED
+test test_enum_invalid_variant ... FAILED
+test test_nested_with_alias ... FAILED
+test test_nested_with_any_case_mode ... FAILED
+test test_missing ... FAILED
+test test_nested_happy_half ... FAILED
+test test_two_level_nested_missing_inner ... FAILED
+test test_two_level_nested_happy ... FAILED
+test test_range_validation ... FAILED
+test test_happy_path ... FAILED
+test test_nested_happy ... FAILED
+test test_two_errors_pretty ... FAILED
+test test_two_level_nested_inline_table ... FAILED
+test test_two_level_nested_missing_inner_field ... FAILED
+test test_vec_missing ... FAILED
+test test_optional_missing ... FAILED
+test test_upper_lower_mode ... FAILED
+test test_two_level_nested_with_optional_nested ... FAILED
+test test_validation_failure ... FAILED
+test test_wrong_type ... FAILED
+
+failures:
+
+---- test_alias_exact_mode stdout ----
+[toml-pretty-deser/tests/basic.rs:715:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialAliasedOutput {
+            my_name: TomlValue {
+                value: Some(
+                    "using alias",
+                ),
+                state: Ok {
+                    span: 21..34,
+                },
+                required: true,
+            },
+            my_value: TomlValue {
+                value: Some(
+                    42,
+                ),
+                state: Ok {
+                    span: 53..55,
+                },
+                required: true,
+            },
+            regular_field: TomlValue {
+                value: Some(
+                    "no alias",
+                ),
+                state: Ok {
+                    span: 80..90,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_alias_exact_mode' (2339532) panicked at toml-pretty-deser/tests/basic.rs:716:5:
+assertion failed: result.is_ok()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- test_alias_with_any_case_mode stdout ----
+[toml-pretty-deser/tests/basic.rs:906:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialAliasedOutput {
+            my_name: TomlValue {
+                value: Some(
+                    "alias match",
+                ),
+                state: Ok {
+                    span: 18..31,
+                },
+                required: true,
+            },
+            my_value: TomlValue {
+                value: Some(
+                    111,
+                ),
+                state: Ok {
+                    span: 50..53,
+                },
+                required: true,
+            },
+            regular_field: TomlValue {
+                value: Some(
+                    "case variant",
+                ),
+                state: Ok {
+                    span: 77..91,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_alias_with_any_case_mode' (2339534) panicked at toml-pretty-deser/tests/basic.rs:907:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_camel stdout ----
+[toml-pretty-deser/tests/basic.rs:796:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "camel case",
+                ),
+                state: Ok {
+                    span: 19..31,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    789,
+                ),
+                state: Ok {
+                    span: 55..58,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_camel' (2339535) panicked at toml-pretty-deser/tests/basic.rs:797:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_shouty stdout ----
+[toml-pretty-deser/tests/basic.rs:850:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "shouty",
+                ),
+                state: Ok {
+                    span: 20..28,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    303,
+                ),
+                state: Ok {
+                    span: 53..56,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_shouty' (2339537) panicked at toml-pretty-deser/tests/basic.rs:851:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_kebab stdout ----
+[toml-pretty-deser/tests/basic.rs:814:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "kebab case",
+                ),
+                state: Ok {
+                    span: 20..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    101,
+                ),
+                state: Ok {
+                    span: 57..60,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_kebab' (2339536) panicked at toml-pretty-deser/tests/basic.rs:815:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_train stdout ----
+[toml-pretty-deser/tests/basic.rs:868:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "train case",
+                ),
+                state: Ok {
+                    span: 20..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    404,
+                ),
+                state: Ok {
+                    span: 57..60,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_train' (2339539) panicked at toml-pretty-deser/tests/basic.rs:869:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_snake stdout ----
+[toml-pretty-deser/tests/basic.rs:778:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "snake case",
+                ),
+                state: Ok {
+                    span: 20..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    456,
+                ),
+                state: Ok {
+                    span: 57..60,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_snake' (2339538) panicked at toml-pretty-deser/tests/basic.rs:779:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_upper_camel stdout ----
+[toml-pretty-deser/tests/basic.rs:832:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "upper camel",
+                ),
+                state: Ok {
+                    span: 19..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    202,
+                ),
+                state: Ok {
+                    span: 56..59,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_upper_camel' (2339541) panicked at toml-pretty-deser/tests/basic.rs:833:5:
+assertion failed: result.is_ok()
+
+---- test_arrays_and_nested stdout ----
+[toml-pretty-deser/tests/basic.rs:245:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialComplexOutput {
+            items: TomlValue {
+                value: Some(
+                    [
+                        "a",
+                        "b",
+                        "c",
+                    ],
+                ),
+                state: Ok {
+                    span: 21..36,
+                },
+                required: true,
+            },
+            numbers: TomlValue {
+                value: Some(
+                    [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                    ],
+                ),
+                state: Ok {
+                    span: 59..74,
+                },
+                required: true,
+            },
+            opt_items: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_arrays_and_nested' (2339543) panicked at toml-pretty-deser/tests/basic.rs:246:5:
+assertion failed: result.is_ok()
+
+---- test_arrays_with_optional stdout ----
+[toml-pretty-deser/tests/basic.rs:263:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialComplexOutput {
+            items: TomlValue {
+                value: Some(
+                    [
+                        "x",
+                        "y",
+                    ],
+                ),
+                state: Ok {
+                    span: 21..31,
+                },
+                required: true,
+            },
+            numbers: TomlValue {
+                value: Some(
+                    [
+                        10,
+                        20,
+                    ],
+                ),
+                state: Ok {
+                    span: 54..62,
+                },
+                required: true,
+            },
+            opt_items: TomlValue {
+                value: Some(
+                    Some(
+                        [
+                            "optional",
+                            "items",
+                        ],
+                    ),
+                ),
+                state: Ok {
+                    span: 87..108,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_arrays_with_optional' (2339544) panicked at toml-pretty-deser/tests/basic.rs:264:5:
+assertion failed: result.is_ok()
+
+---- test_complex_mixed_case stdout ----
+[toml-pretty-deser/tests/basic.rs:980:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialMixedCase {
+            api_key: TomlValue {
+                value: Some(
+                    "shouty alias",
+                ),
+                state: Ok {
+                    span: 19..33,
+                },
+                required: true,
+            },
+            html_parser: TomlValue {
+                value: Some(
+                    "consecutive caps",
+                ),
+                state: Ok {
+                    span: 55..73,
+                },
+                required: true,
+            },
+            get_http_response: TomlValue {
+                value: Some(
+                    42,
+                ),
+                state: Ok {
+                    span: 100..102,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_complex_mixed_case' (2339545) panicked at toml-pretty-deser/tests/basic.rs:981:5:
+assertion failed: result.is_ok()
+
+---- test_complex_mixed_case_key_reused stdout ----
+[toml-pretty-deser/tests/basic.rs:1001:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        API_KEY = 'shouty alias'\n        htmlparser= '23'\n        HTMLPARSER = 'consecutive caps'\n        api-key = 24\n        getHTTPResponse = 42\n    ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 9..16,
+                            msg: "Unknown key: API_KEY",
+                        },
+                    ],
+                    help: Some(
+                        "Did you mean: 'apikey' or 'htmlparser'?",
+                    ),
+                },
+            },
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        API_KEY = 'shouty alias'\n        htmlparser= '23'\n        HTMLPARSER = 'consecutive caps'\n        api-key = 24\n        getHTTPResponse = 42\n    ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 42..52,
+                            msg: "Unknown key: htmlparser",
+                        },
+                    ],
+                    help: Some(
+                        "Did you mean: 'htmlparser' or 'apikey'?",
+                    ),
+                },
+            },
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        API_KEY = 'shouty alias'\n        htmlparser= '23'\n        HTMLPARSER = 'consecutive caps'\n        api-key = 24\n        getHTTPResponse = 42\n    ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 67..77,
+                            msg: "Unknown key: HTMLPARSER",
+                        },
+                    ],
+                    help: Some(
+                        "Did you mean: 'apikey' or 'htmlparser'?",
+                    ),
+                },
+            },
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        API_KEY = 'shouty alias'\n        htmlparser= '23'\n        HTMLPARSER = 'consecutive caps'\n        api-key = 24\n        getHTTPResponse = 42\n    ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 107..114,
+                            msg: "Unknown key: api-key",
+                        },
+                    ],
+                    help: Some(
+                        "Did you mean: 'apikey' or 'htmlparser'?",
+                    ),
+                },
+            },
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        API_KEY = 'shouty alias'\n        htmlparser= '23'\n        HTMLPARSER = 'consecutive caps'\n        api-key = 24\n        getHTTPResponse = 42\n    ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 19..33,
+                            msg: "Key/alias conflict (defined multiple times)",
+                        },
+                        SpannedMessage {
+                            span: 117..119,
+                            msg: "Also defined here",
+                        },
+                    ],
+                    help: Some(
+                        "Use only one of the keys involved. Canonical is 'api_key'",
+                    ),
+                },
+            },
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        API_KEY = 'shouty alias'\n        htmlparser= '23'\n        HTMLPARSER = 'consecutive caps'\n        api-key = 24\n        getHTTPResponse = 42\n    ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 54..58,
+                            msg: "Key/alias conflict (defined multiple times)",
+                        },
+                        SpannedMessage {
+                            span: 80..98,
+                            msg: "Also defined here",
+                        },
+                    ],
+                    help: Some(
+                        "Use only one of the keys involved. Canonical is 'html_parser'",
+                    ),
+                },
+            },
+        ],
+        PartialMixedCase {
+            api_key: TomlValue {
+                value: None,
+                state: MultiDefined {
+                    key: "api_key",
+                    spans: [
+                        19..33,
+                        117..119,
+                    ],
+                },
+                required: true,
+            },
+            html_parser: TomlValue {
+                value: None,
+                state: MultiDefined {
+                    key: "html_parser",
+                    spans: [
+                        54..58,
+                        80..98,
+                    ],
+                },
+                required: true,
+            },
+            get_http_response: TomlValue {
+                value: Some(
+                    42,
+                ),
+                state: Ok {
+                    span: 146..148,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_complex_mixed_case_key_reused' (2339546) panicked at toml-pretty-deser/tests/basic.rs:1007:9:
+should have been a DeserFailure
+
+---- test_enum_missing_required stdout ----
+[toml-pretty-deser/tests/basic.rs:404:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n            # an_enum is missing\n            vec_enum = ['One']\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 0..0,
+                            msg: "Missing required key: an_enum",
+                        },
+                    ],
+                    help: Some(
+                        "This key is required but was not found in the TOML document.",
+                    ),
+                },
+            },
+        ],
+        PartialEnumOutput {
+            an_enum: TomlValue {
+                value: None,
+                state: Missing {
+                    key: "an_enum",
+                    parent_span: 0..0,
+                },
+                required: true,
+            },
+            opt_enum: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            vec_enum: TomlValue {
+                value: Some(
+                    [
+                        One,
+                    ],
+                ),
+                state: Ok {
+                    span: 57..64,
+                },
+                required: true,
+            },
+            opt_vec_enum: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_enum_missing_required' (2339549) panicked at toml-pretty-deser/tests/basic.rs:410:9:
+Expected failure due to missing required enum field
+
+---- test_array_wrong_element_type stdout ----
+[toml-pretty-deser/tests/basic.rs:301:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n            items = [1, 2, 3]  # wrong type - should be strings\n            numbers = [1, 2, 3]\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 21..30,
+                            msg: "Validation failed: Array contains invalid elements",
+                        },
+                    ],
+                    help: Some(
+                        "The value failed validation checks.",
+                    ),
+                },
+            },
+        ],
+        PartialComplexOutput {
+            items: TomlValue {
+                value: None,
+                state: ValidationFailed {
+                    span: 21..30,
+                    message: "Array contains invalid elements",
+                },
+                required: true,
+            },
+            numbers: TomlValue {
+                value: Some(
+                    [
+                        1,
+                        2,
+                        3,
+                    ],
+                ),
+                state: Ok {
+                    span: 87..96,
+                },
+                required: true,
+            },
+            opt_items: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_array_wrong_element_type' (2339542) panicked at toml-pretty-deser/tests/basic.rs:306:9:
+Expected failure due to wrong array element type
+
+---- test_enum_optional_missing stdout ----
+[toml-pretty-deser/tests/basic.rs:367:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialEnumOutput {
+            an_enum: TomlValue {
+                value: Some(
+                    Four,
+                ),
+                state: Ok {
+                    span: 23..29,
+                },
+                required: true,
+            },
+            opt_enum: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            vec_enum: TomlValue {
+                value: Some(
+                    [
+                        TwoThree,
+                    ],
+                ),
+                state: Ok {
+                    span: 87..99,
+                },
+                required: true,
+            },
+            opt_vec_enum: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_enum_optional_missing' (2339550) panicked at toml-pretty-deser/tests/basic.rs:368:5:
+assertion failed: result.is_ok()
+
+---- test_enum_happy_path stdout ----
+[toml-pretty-deser/tests/basic.rs:341:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialEnumOutput {
+            an_enum: TomlValue {
+                value: Some(
+                    One,
+                ),
+                state: Ok {
+                    span: 23..28,
+                },
+                required: true,
+            },
+            opt_enum: TomlValue {
+                value: Some(
+                    Some(
+                        TwoThree,
+                    ),
+                ),
+                state: Ok {
+                    span: 52..62,
+                },
+                required: false,
+            },
+            vec_enum: TomlValue {
+                value: Some(
+                    [
+                        One,
+                        Four,
+                    ],
+                ),
+                state: Ok {
+                    span: 86..101,
+                },
+                required: true,
+            },
+            opt_vec_enum: TomlValue {
+                value: Some(
+                    Some(
+                        [
+                            TwoThree,
+                            One,
+                        ],
+                    ),
+                ),
+                state: Ok {
+                    span: 129..148,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_enum_happy_path' (2339547) panicked at toml-pretty-deser/tests/basic.rs:342:5:
+assertion failed: result.is_ok()
+
+---- test_enum_invalid_variant stdout ----
+[toml-pretty-deser/tests/basic.rs:386:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n            an_enum = 'InvalidVariant'\n            vec_enum = ['One']\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 23..39,
+                            msg: "Validation failed: Invalid enum variant 'InvalidVariant'. Valid variants are: One, TwoThree, Four",
+                        },
+                    ],
+                    help: Some(
+                        "The value failed validation checks.",
+                    ),
+                },
+            },
+        ],
+        PartialEnumOutput {
+            an_enum: TomlValue {
+                value: None,
+                state: ValidationFailed {
+                    span: 23..39,
+                    message: "Invalid enum variant 'InvalidVariant'. Valid variants are: One, TwoThree, Four",
+                },
+                required: true,
+            },
+            opt_enum: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            vec_enum: TomlValue {
+                value: Some(
+                    [
+                        One,
+                    ],
+                ),
+                state: Ok {
+                    span: 63..70,
+                },
+                required: true,
+            },
+            opt_vec_enum: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_enum_invalid_variant' (2339548) panicked at toml-pretty-deser/tests/basic.rs:392:9:
+Expected failure due to invalid enum variant
+
+---- test_nested_with_alias stdout ----
+[toml-pretty-deser/tests/basic.rs:938:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialOuterAliased {
+            nested: TomlValue {
+                value: Some(
+                    PartialAliasedNested {
+                        nested_name: TomlValue {
+                            value: Some(
+                                "aliased nested field",
+                            ),
+                            state: Ok {
+                                span: 39..61,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_nested_with_alias' (2339555) panicked at toml-pretty-deser/tests/basic.rs:939:5:
+assertion failed: result.is_ok()
+
+---- test_nested_with_any_case_mode stdout ----
+[toml-pretty-deser/tests/basic.rs:954:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialOuterAliased {
+            nested: TomlValue {
+                value: Some(
+                    PartialAliasedNested {
+                        nested_name: TomlValue {
+                            value: Some(
+                                "case variant in nested",
+                            ),
+                            state: Ok {
+                                span: 39..63,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_nested_with_any_case_mode' (2339556) panicked at toml-pretty-deser/tests/basic.rs:955:5:
+assertion failed: result.is_ok()
+
+---- test_missing stdout ----
+[toml-pretty-deser/tests/basic.rs:97:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n            # a_u8 = 255\n            a_i64 = -123\n            a_f64 = 3.14\n            a_string = 'Hello, World!'\n            a_bool = true\n\n            opt_a_u8 = 128\n            opt_a_i64 = -456\n            opt_a_f64 = 2.71\n            opt_a_string = 'Optional String'\n            opt_a_bool = false\n\n            verified_i16 = 10\n            defaulted_i16 = 100\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 0..0,
+                            msg: "Missing required key: a_u8",
+                        },
+                    ],
+                    help: Some(
+                        "This key is required but was not found in the TOML document.",
+                    ),
+                },
+            },
+        ],
+        PartialOutput {
+            a_u8: TomlValue {
+                value: None,
+                state: Missing {
+                    key: "a_u8",
+                    parent_span: 0..0,
+                },
+                required: true,
+            },
+            a_i64: TomlValue {
+                value: Some(
+                    -123,
+                ),
+                state: Ok {
+                    span: 46..50,
+                },
+                required: true,
+            },
+            a_f64: TomlValue {
+                value: Some(
+                    3.14,
+                ),
+                state: Ok {
+                    span: 71..75,
+                },
+                required: true,
+            },
+            a_string: TomlValue {
+                value: Some(
+                    "Hello, World!",
+                ),
+                state: Ok {
+                    span: 99..114,
+                },
+                required: true,
+            },
+            a_bool: TomlValue {
+                value: Some(
+                    true,
+                ),
+                state: Ok {
+                    span: 136..140,
+                },
+                required: true,
+            },
+            opt_a_u8: TomlValue {
+                value: Some(
+                    Some(
+                        128,
+                    ),
+                ),
+                state: Ok {
+                    span: 165..168,
+                },
+                required: false,
+            },
+            opt_a_i64: TomlValue {
+                value: Some(
+                    Some(
+                        -456,
+                    ),
+                ),
+                state: Ok {
+                    span: 193..197,
+                },
+                required: false,
+            },
+            opt_a_f64: TomlValue {
+                value: Some(
+                    Some(
+                        2.71,
+                    ),
+                ),
+                state: Ok {
+                    span: 222..226,
+                },
+                required: false,
+            },
+            opt_a_string: TomlValue {
+                value: Some(
+                    Some(
+                        "Optional String",
+                    ),
+                ),
+                state: Ok {
+                    span: 254..271,
+                },
+                required: false,
+            },
+            opt_a_bool: TomlValue {
+                value: Some(
+                    Some(
+                        false,
+                    ),
+                ),
+                state: Ok {
+                    span: 297..302,
+                },
+                required: false,
+            },
+            verified_i16: TomlValue {
+                value: Some(
+                    10,
+                ),
+                state: Ok {
+                    span: 331..333,
+                },
+                required: true,
+            },
+            defaulted_i16: TomlValue {
+                value: Some(
+                    100,
+                ),
+                state: Ok {
+                    span: 362..365,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_missing' (2339552) panicked at toml-pretty-deser/tests/basic.rs:104:9:
+wrong result
+
+---- test_nested_happy_half stdout ----
+[toml-pretty-deser/tests/basic.rs:488:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        [nested]\n            name = 'a'\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 9..17,
+                            msg: "Missing required key: value",
+                        },
+                    ],
+                    help: Some(
+                        "This key is required but was not found in the TOML document.",
+                    ),
+                },
+            },
+        ],
+        PartialOuter {
+            nested: TomlValue {
+                value: Some(
+                    PartialNested {
+                        name: TomlValue {
+                            value: Some(
+                                "a",
+                            ),
+                            state: Ok {
+                                span: 37..40,
+                            },
+                            required: true,
+                        },
+                        value: TomlValue {
+                            value: None,
+                            state: Missing {
+                                key: "value",
+                                parent_span: 9..17,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+            inline_nested: TomlValue {
+                value: None,
+                state: Missing {
+                    key: "inline_nested",
+                    parent_span: 0..0,
+                },
+                required: true,
+            },
+            opt_nested: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            vec_nested: TomlValue {
+                value: None,
+                state: Missing {
+                    key: "vec_nested",
+                    parent_span: 0..0,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_nested_happy_half' (2339554) panicked at toml-pretty-deser/tests/basic.rs:499:9:
+explicit panic
+
+---- test_two_level_nested_missing_inner stdout ----
+[toml-pretty-deser/tests/basic.rs:627:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "l1",
+                            ),
+                            state: Ok {
+                                span: 37..41,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: None,
+                            state: Missing {
+                                key: "level2",
+                                parent_span: 9..17,
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                None,
+                            ),
+                            state: Ok {
+                                span: 0..0,
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_missing_inner' (2339562) panicked at toml-pretty-deser/tests/basic.rs:632:9:
+Expected StillIncomplete due to missing level2 field
+
+---- test_two_level_nested_happy stdout ----
+[toml-pretty-deser/tests/basic.rs:546:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "level1_name",
+                            ),
+                            state: Ok {
+                                span: 37..50,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "level2_data",
+                                        ),
+                                        state: Ok {
+                                            span: 95..108,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: Ok {
+                                span: 60..75,
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                None,
+                            ),
+                            state: Ok {
+                                span: 0..0,
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    Some(
+                        PartialLevel1 {
+                            name: TomlValue {
+                                value: Some(
+                                    "opt_name",
+                                ),
+                                state: Ok {
+                                    span: 150..160,
+                                },
+                                required: true,
+                            },
+                            level2: TomlValue {
+                                value: Some(
+                                    PartialLevel2 {
+                                        data: TomlValue {
+                                            value: Some(
+                                                "opt_level2_data",
+                                            ),
+                                            state: Ok {
+                                                span: 209..226,
+                                            },
+                                            required: true,
+                                        },
+                                    },
+                                ),
+                                state: Ok {
+                                    span: 170..189,
+                                },
+                                required: true,
+                            },
+                            opt_level2: TomlValue {
+                                value: Some(
+                                    None,
+                                ),
+                                state: Ok {
+                                    span: 0..0,
+                                },
+                                required: false,
+                            },
+                        },
+                    ),
+                ),
+                state: Ok {
+                    span: 118..130,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_happy' (2339560) panicked at toml-pretty-deser/tests/basic.rs:547:5:
+assertion failed: result.is_ok()
+
+---- test_range_validation stdout ----
+[toml-pretty-deser/tests/basic.rs:219:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n            a_u8 = 300\n            a_i64 = -123\n            a_f64 = 3.14\n            a_string = 'Hello, World!'\n            a_bool = true\n\n            opt_a_u8 = 128\n            opt_a_i64 = -456\n            opt_a_f64 = 2.71\n            opt_a_string = 'Optional String'\n            opt_a_bool = false\n\n            verified_i16 = 10\n            defaulted_i16 = 100\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 20..23,
+                            msg: "Validation failed: integer out of range. Accepted: 0..255",
+                        },
+                    ],
+                    help: Some(
+                        "The value failed validation checks.",
+                    ),
+                },
+            },
+        ],
+        PartialOutput {
+            a_u8: TomlValue {
+                value: None,
+                state: ValidationFailed {
+                    span: 20..23,
+                    message: "integer out of range. Accepted: 0..255",
+                },
+                required: true,
+            },
+            a_i64: TomlValue {
+                value: Some(
+                    -123,
+                ),
+                state: Ok {
+                    span: 44..48,
+                },
+                required: true,
+            },
+            a_f64: TomlValue {
+                value: Some(
+                    3.14,
+                ),
+                state: Ok {
+                    span: 69..73,
+                },
+                required: true,
+            },
+            a_string: TomlValue {
+                value: Some(
+                    "Hello, World!",
+                ),
+                state: Ok {
+                    span: 97..112,
+                },
+                required: true,
+            },
+            a_bool: TomlValue {
+                value: Some(
+                    true,
+                ),
+                state: Ok {
+                    span: 134..138,
+                },
+                required: true,
+            },
+            opt_a_u8: TomlValue {
+                value: Some(
+                    Some(
+                        128,
+                    ),
+                ),
+                state: Ok {
+                    span: 163..166,
+                },
+                required: false,
+            },
+            opt_a_i64: TomlValue {
+                value: Some(
+                    Some(
+                        -456,
+                    ),
+                ),
+                state: Ok {
+                    span: 191..195,
+                },
+                required: false,
+            },
+            opt_a_f64: TomlValue {
+                value: Some(
+                    Some(
+                        2.71,
+                    ),
+                ),
+                state: Ok {
+                    span: 220..224,
+                },
+                required: false,
+            },
+            opt_a_string: TomlValue {
+                value: Some(
+                    Some(
+                        "Optional String",
+                    ),
+                ),
+                state: Ok {
+                    span: 252..269,
+                },
+                required: false,
+            },
+            opt_a_bool: TomlValue {
+                value: Some(
+                    Some(
+                        false,
+                    ),
+                ),
+                state: Ok {
+                    span: 295..300,
+                },
+                required: false,
+            },
+            verified_i16: TomlValue {
+                value: Some(
+                    10,
+                ),
+                state: Ok {
+                    span: 329..331,
+                },
+                required: true,
+            },
+            defaulted_i16: TomlValue {
+                value: Some(
+                    100,
+                ),
+                state: Ok {
+                    span: 360..363,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_range_validation' (2339558) panicked at toml-pretty-deser/tests/basic.rs:224:9:
+wrong result
+
+---- test_happy_path stdout ----
+[toml-pretty-deser/tests/basic.rs:59:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialOutput {
+            a_u8: TomlValue {
+                value: Some(
+                    255,
+                ),
+                state: Ok {
+                    span: 20..23,
+                },
+                required: true,
+            },
+            a_i64: TomlValue {
+                value: Some(
+                    -123,
+                ),
+                state: Ok {
+                    span: 44..48,
+                },
+                required: true,
+            },
+            a_f64: TomlValue {
+                value: Some(
+                    3.14,
+                ),
+                state: Ok {
+                    span: 69..73,
+                },
+                required: true,
+            },
+            a_string: TomlValue {
+                value: Some(
+                    "Hello, World!",
+                ),
+                state: Ok {
+                    span: 97..112,
+                },
+                required: true,
+            },
+            a_bool: TomlValue {
+                value: Some(
+                    true,
+                ),
+                state: Ok {
+                    span: 134..138,
+                },
+                required: true,
+            },
+            opt_a_u8: TomlValue {
+                value: Some(
+                    Some(
+                        128,
+                    ),
+                ),
+                state: Ok {
+                    span: 163..166,
+                },
+                required: false,
+            },
+            opt_a_i64: TomlValue {
+                value: Some(
+                    Some(
+                        -456,
+                    ),
+                ),
+                state: Ok {
+                    span: 191..195,
+                },
+                required: false,
+            },
+            opt_a_f64: TomlValue {
+                value: Some(
+                    Some(
+                        2.71,
+                    ),
+                ),
+                state: Ok {
+                    span: 220..224,
+                },
+                required: false,
+            },
+            opt_a_string: TomlValue {
+                value: Some(
+                    Some(
+                        "Optional String",
+                    ),
+                ),
+                state: Ok {
+                    span: 252..269,
+                },
+                required: false,
+            },
+            opt_a_bool: TomlValue {
+                value: Some(
+                    Some(
+                        false,
+                    ),
+                ),
+                state: Ok {
+                    span: 295..300,
+                },
+                required: false,
+            },
+            verified_i16: TomlValue {
+                value: Some(
+                    10,
+                ),
+                state: Ok {
+                    span: 329..331,
+                },
+                required: true,
+            },
+            defaulted_i16: TomlValue {
+                value: Some(
+                    100,
+                ),
+                state: Ok {
+                    span: 360..363,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_happy_path' (2339551) panicked at toml-pretty-deser/tests/basic.rs:60:5:
+assertion failed: result.is_ok()
+
+---- test_nested_happy stdout ----
+[toml-pretty-deser/tests/basic.rs:463:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialOuter {
+            nested: TomlValue {
+                value: Some(
+                    PartialNested {
+                        name: TomlValue {
+                            value: Some(
+                                "a",
+                            ),
+                            state: Ok {
+                                span: 119..122,
+                            },
+                            required: true,
+                        },
+                        value: TomlValue {
+                            value: Some(
+                                1,
+                            ),
+                            state: Ok {
+                                span: 143..144,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 91..99,
+                },
+                required: true,
+            },
+            inline_nested: TomlValue {
+                value: Some(
+                    PartialNested {
+                        name: TomlValue {
+                            value: Some(
+                                "d",
+                            ),
+                            state: Ok {
+                                span: 46..49,
+                            },
+                            required: true,
+                        },
+                        value: TomlValue {
+                            value: Some(
+                                4,
+                            ),
+                            state: Ok {
+                                span: 71..72,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 25..82,
+                },
+                required: true,
+            },
+            opt_nested: TomlValue {
+                value: Some(
+                    Some(
+                        PartialNested {
+                            name: TomlValue {
+                                value: Some(
+                                    "b",
+                                ),
+                                state: Ok {
+                                    span: 186..189,
+                                },
+                                required: true,
+                            },
+                            value: TomlValue {
+                                value: Some(
+                                    2,
+                                ),
+                                state: Ok {
+                                    span: 210..211,
+                                },
+                                required: true,
+                            },
+                        },
+                    ),
+                ),
+                state: Ok {
+                    span: 154..166,
+                },
+                required: false,
+            },
+            vec_nested: TomlValue {
+                value: Some(
+                    [
+                        PartialNested {
+                            name: TomlValue {
+                                value: Some(
+                                    "c1",
+                                ),
+                                state: Ok {
+                                    span: 255..259,
+                                },
+                                required: true,
+                            },
+                            value: TomlValue {
+                                value: Some(
+                                    31,
+                                ),
+                                state: Ok {
+                                    span: 280..282,
+                                },
+                                required: true,
+                            },
+                        },
+                        PartialNested {
+                            name: TomlValue {
+                                value: Some(
+                                    "c2",
+                                ),
+                                state: Ok {
+                                    span: 326..330,
+                                },
+                                required: true,
+                            },
+                            value: TomlValue {
+                                value: Some(
+                                    32,
+                                ),
+                                state: Ok {
+                                    span: 351..353,
+                                },
+                                required: true,
+                            },
+                        },
+                    ],
+                ),
+                state: Ok {
+                    span: 221..306,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_nested_happy' (2339553) panicked at toml-pretty-deser/tests/basic.rs:464:5:
+assertion failed: result.is_ok()
+
+---- test_two_errors_pretty stdout ----
+[toml-pretty-deser/tests/basic.rs:669:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        [level1]\n            name = 'l1'\n\n        [level1.level2]\n            other = 2\n            # missing data field\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 79..84,
+                            msg: "Unknown key: other",
+                        },
+                    ],
+                    help: Some(
+                        "Did you mean: 'data'?",
+                    ),
+                },
+            },
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        [level1]\n            name = 'l1'\n\n        [level1.level2]\n            other = 2\n            # missing data field\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 51..66,
+                            msg: "Missing required key: data",
+                        },
+                    ],
+                    help: Some(
+                        "This key is required but was not found in the TOML document.",
+                    ),
+                },
+            },
+        ],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "l1",
+                            ),
+                            state: Ok {
+                                span: 37..41,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: None,
+                                        state: Missing {
+                                            key: "data",
+                                            parent_span: 51..66,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: ValidationFailed {
+                                span: 51..66,
+                                message: "Nested struct has errors",
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                None,
+                            ),
+                            state: Ok {
+                                span: 0..0,
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: ValidationFailed {
+                    span: 9..17,
+                    message: "Nested struct has errors",
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_errors_pretty' (2339559) panicked at toml-pretty-deser/tests/basic.rs:686:9:
+Expected failure due to missing data field in level2
+
+---- test_two_level_nested_inline_table stdout ----
+[toml-pretty-deser/tests/basic.rs:604:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "inline_l1",
+                            ),
+                            state: Ok {
+                                span: 39..50,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "inline_l2",
+                                        ),
+                                        state: Ok {
+                                            span: 98..109,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: Ok {
+                                span: 73..123,
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                Some(
+                                    PartialLevel2 {
+                                        data: TomlValue {
+                                            value: Some(
+                                                "inline_opt_l2",
+                                            ),
+                                            state: Ok {
+                                                span: 175..190,
+                                            },
+                                            required: true,
+                                        },
+                                    },
+                                ),
+                            ),
+                            state: Ok {
+                                span: 150..204,
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 18..214,
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_inline_table' (2339561) panicked at toml-pretty-deser/tests/basic.rs:605:5:
+assertion failed: result.is_ok()
+
+---- test_two_level_nested_missing_inner_field stdout ----
+[toml-pretty-deser/tests/basic.rs:647:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n        [level1]\n            name = 'l1'\n\n        [level1.level2]\n            # missing data field\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 51..66,
+                            msg: "Missing required key: data",
+                        },
+                    ],
+                    help: Some(
+                        "This key is required but was not found in the TOML document.",
+                    ),
+                },
+            },
+        ],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "l1",
+                            ),
+                            state: Ok {
+                                span: 37..41,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: None,
+                                        state: Missing {
+                                            key: "data",
+                                            parent_span: 51..66,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: Ok {
+                                span: 51..66,
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                None,
+                            ),
+                            state: Ok {
+                                span: 0..0,
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_missing_inner_field' (2339563) panicked at toml-pretty-deser/tests/basic.rs:653:9:
+Expected failure due to missing data field in level2
+
+---- test_vec_missing stdout ----
+[toml-pretty-deser/tests/basic.rs:283:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n            items = ['a']\n            # missing numbers\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 0..0,
+                            msg: "Missing required key: numbers",
+                        },
+                    ],
+                    help: Some(
+                        "This key is required but was not found in the TOML document.",
+                    ),
+                },
+            },
+        ],
+        PartialComplexOutput {
+            items: TomlValue {
+                value: Some(
+                    [
+                        "a",
+                    ],
+                ),
+                state: Ok {
+                    span: 21..26,
+                },
+                required: true,
+            },
+            numbers: TomlValue {
+                value: None,
+                state: Missing {
+                    key: "numbers",
+                    parent_span: 0..0,
+                },
+                required: true,
+            },
+            opt_items: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_vec_missing' (2339567) panicked at toml-pretty-deser/tests/basic.rs:289:9:
+Expected failure due to missing numbers field
+
+---- test_optional_missing stdout ----
+[toml-pretty-deser/tests/basic.rs:128:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialOutput {
+            a_u8: TomlValue {
+                value: Some(
+                    255,
+                ),
+                state: Ok {
+                    span: 20..23,
+                },
+                required: true,
+            },
+            a_i64: TomlValue {
+                value: Some(
+                    -123,
+                ),
+                state: Ok {
+                    span: 44..48,
+                },
+                required: true,
+            },
+            a_f64: TomlValue {
+                value: Some(
+                    3.14,
+                ),
+                state: Ok {
+                    span: 69..73,
+                },
+                required: true,
+            },
+            a_string: TomlValue {
+                value: Some(
+                    "Hello, World!",
+                ),
+                state: Ok {
+                    span: 97..112,
+                },
+                required: true,
+            },
+            a_bool: TomlValue {
+                value: Some(
+                    true,
+                ),
+                state: Ok {
+                    span: 134..138,
+                },
+                required: true,
+            },
+            opt_a_u8: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            opt_a_i64: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            opt_a_f64: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            opt_a_string: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            opt_a_bool: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            verified_i16: TomlValue {
+                value: Some(
+                    10,
+                ),
+                state: Ok {
+                    span: 346..348,
+                },
+                required: true,
+            },
+            defaulted_i16: TomlValue {
+                value: Some(
+                    42,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_optional_missing' (2339557) panicked at toml-pretty-deser/tests/basic.rs:129:5:
+assertion failed: result.is_ok()
+
+---- test_upper_lower_mode stdout ----
+[toml-pretty-deser/tests/basic.rs:760:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "upper case",
+                ),
+                state: Ok {
+                    span: 20..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    123,
+                ),
+                state: Ok {
+                    span: 57..60,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_upper_lower_mode' (2339565) panicked at toml-pretty-deser/tests/basic.rs:761:5:
+assertion failed: result.is_ok()
+
+---- test_two_level_nested_with_optional_nested stdout ----
+[toml-pretty-deser/tests/basic.rs:575:5] &result = Err(
+    DeserFailure(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "l1",
+                            ),
+                            state: Ok {
+                                span: 37..41,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "l2_data",
+                                        ),
+                                        state: Ok {
+                                            span: 86..95,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: Ok {
+                                span: 51..66,
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                Some(
+                                    PartialLevel2 {
+                                        data: TomlValue {
+                                            value: Some(
+                                                "opt_l2_data",
+                                            ),
+                                            state: Ok {
+                                                span: 144..157,
+                                            },
+                                            required: true,
+                                        },
+                                    },
+                                ),
+                            ),
+                            state: Ok {
+                                span: 105..124,
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: Ok {
+                    span: 9..17,
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_with_optional_nested' (2339564) panicked at toml-pretty-deser/tests/basic.rs:576:5:
+assertion failed: result.is_ok()
+
+---- test_validation_failure stdout ----
+[toml-pretty-deser/tests/basic.rs:161:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n            a_u8 = 255\n            a_i64 = -123\n            a_f64 = 3.14\n            a_string = 'Hello, World!'\n            a_bool = true\n\n            opt_a_u8 = 128\n            opt_a_i64 = -456\n            opt_a_f64 = 2.71\n            opt_a_string = 'Optional String'\n            opt_a_bool = false\n\n            verified_i16 = 3\n            defaulted_i16 = 100\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 329..330,
+                            msg: "Validation failed: Too small",
+                        },
+                    ],
+                    help: Some(
+                        "The value failed validation checks.",
+                    ),
+                },
+            },
+        ],
+        PartialOutput {
+            a_u8: TomlValue {
+                value: Some(
+                    255,
+                ),
+                state: Ok {
+                    span: 20..23,
+                },
+                required: true,
+            },
+            a_i64: TomlValue {
+                value: Some(
+                    -123,
+                ),
+                state: Ok {
+                    span: 44..48,
+                },
+                required: true,
+            },
+            a_f64: TomlValue {
+                value: Some(
+                    3.14,
+                ),
+                state: Ok {
+                    span: 69..73,
+                },
+                required: true,
+            },
+            a_string: TomlValue {
+                value: Some(
+                    "Hello, World!",
+                ),
+                state: Ok {
+                    span: 97..112,
+                },
+                required: true,
+            },
+            a_bool: TomlValue {
+                value: Some(
+                    true,
+                ),
+                state: Ok {
+                    span: 134..138,
+                },
+                required: true,
+            },
+            opt_a_u8: TomlValue {
+                value: Some(
+                    Some(
+                        128,
+                    ),
+                ),
+                state: Ok {
+                    span: 163..166,
+                },
+                required: false,
+            },
+            opt_a_i64: TomlValue {
+                value: Some(
+                    Some(
+                        -456,
+                    ),
+                ),
+                state: Ok {
+                    span: 191..195,
+                },
+                required: false,
+            },
+            opt_a_f64: TomlValue {
+                value: Some(
+                    Some(
+                        2.71,
+                    ),
+                ),
+                state: Ok {
+                    span: 220..224,
+                },
+                required: false,
+            },
+            opt_a_string: TomlValue {
+                value: Some(
+                    Some(
+                        "Optional String",
+                    ),
+                ),
+                state: Ok {
+                    span: 252..269,
+                },
+                required: false,
+            },
+            opt_a_bool: TomlValue {
+                value: Some(
+                    Some(
+                        false,
+                    ),
+                ),
+                state: Ok {
+                    span: 295..300,
+                },
+                required: false,
+            },
+            verified_i16: TomlValue {
+                value: None,
+                state: ValidationFailed {
+                    span: 329..330,
+                    message: "Too small",
+                },
+                required: true,
+            },
+            defaulted_i16: TomlValue {
+                value: Some(
+                    100,
+                ),
+                state: Ok {
+                    span: 359..362,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_validation_failure' (2339566) panicked at toml-pretty-deser/tests/basic.rs:166:9:
+wrong result
+
+---- test_wrong_type stdout ----
+[toml-pretty-deser/tests/basic.rs:190:5] &result = Err(
+    StillIncomplete(
+        [
+            HydratedAnnotatedError {
+                source: RefCell {
+                    value: "\n            a_u8 = 'not a number'\n            a_i64 = -123\n            a_f64 = 3.14\n            a_string = 'Hello, World!'\n            a_bool = true\n\n            opt_a_u8 = 128\n            opt_a_i64 = -456\n            opt_a_f64 = 2.71\n            opt_a_string = 'Optional String'\n            opt_a_bool = false\n\n            verified_i16 = 10\n            defaulted_i16 = 100\n        ",
+                },
+                inner: AnnotatedError {
+                    spans: [
+                        SpannedMessage {
+                            span: 20..34,
+                            msg: "Wrong type: expected u8, found string",
+                        },
+                    ],
+                    help: Some(
+                        "The value has the wrong type.",
+                    ),
+                },
+            },
+        ],
+        PartialOutput {
+            a_u8: TomlValue {
+                value: None,
+                state: WrongType {
+                    span: 20..34,
+                    expected: "u8",
+                    found: "string",
+                },
+                required: true,
+            },
+            a_i64: TomlValue {
+                value: Some(
+                    -123,
+                ),
+                state: Ok {
+                    span: 55..59,
+                },
+                required: true,
+            },
+            a_f64: TomlValue {
+                value: Some(
+                    3.14,
+                ),
+                state: Ok {
+                    span: 80..84,
+                },
+                required: true,
+            },
+            a_string: TomlValue {
+                value: Some(
+                    "Hello, World!",
+                ),
+                state: Ok {
+                    span: 108..123,
+                },
+                required: true,
+            },
+            a_bool: TomlValue {
+                value: Some(
+                    true,
+                ),
+                state: Ok {
+                    span: 145..149,
+                },
+                required: true,
+            },
+            opt_a_u8: TomlValue {
+                value: Some(
+                    Some(
+                        128,
+                    ),
+                ),
+                state: Ok {
+                    span: 174..177,
+                },
+                required: false,
+            },
+            opt_a_i64: TomlValue {
+                value: Some(
+                    Some(
+                        -456,
+                    ),
+                ),
+                state: Ok {
+                    span: 202..206,
+                },
+                required: false,
+            },
+            opt_a_f64: TomlValue {
+                value: Some(
+                    Some(
+                        2.71,
+                    ),
+                ),
+                state: Ok {
+                    span: 231..235,
+                },
+                required: false,
+            },
+            opt_a_string: TomlValue {
+                value: Some(
+                    Some(
+                        "Optional String",
+                    ),
+                ),
+                state: Ok {
+                    span: 263..280,
+                },
+                required: false,
+            },
+            opt_a_bool: TomlValue {
+                value: Some(
+                    Some(
+                        false,
+                    ),
+                ),
+                state: Ok {
+                    span: 306..311,
+                },
+                required: false,
+            },
+            verified_i16: TomlValue {
+                value: Some(
+                    10,
+                ),
+                state: Ok {
+                    span: 340..342,
+                },
+                required: true,
+            },
+            defaulted_i16: TomlValue {
+                value: Some(
+                    100,
+                ),
+                state: Ok {
+                    span: 371..374,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_wrong_type' (2339568) panicked at toml-pretty-deser/tests/basic.rs:195:9:
+wrong result
+
+
+failures:
+    test_alias_exact_mode
+    test_alias_with_any_case_mode
+    test_any_case_mode_camel
+    test_any_case_mode_kebab
+    test_any_case_mode_shouty
+    test_any_case_mode_snake
+    test_any_case_mode_train
+    test_any_case_mode_upper_camel
+    test_array_wrong_element_type
+    test_arrays_and_nested
+    test_arrays_with_optional
+    test_complex_mixed_case
+    test_complex_mixed_case_key_reused
+    test_enum_happy_path
+    test_enum_invalid_variant
+    test_enum_missing_required
+    test_enum_optional_missing
+    test_happy_path
+    test_missing
+    test_nested_happy
+    test_nested_happy_half
+    test_nested_with_alias
+    test_nested_with_any_case_mode
+    test_optional_missing
+    test_range_validation
+    test_two_errors_pretty
+    test_two_level_nested_happy
+    test_two_level_nested_inline_table
+    test_two_level_nested_missing_inner
+    test_two_level_nested_missing_inner_field
+    test_two_level_nested_with_optional_nested
+    test_upper_lower_mode
+    test_validation_failure
+    test_vec_missing
+    test_wrong_type
+
+test result: FAILED. 2 passed; 35 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p toml-pretty-deser --test basic`
+
+*** result: Failure(101)
