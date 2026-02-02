@@ -115,7 +115,7 @@ fn test_happy_path() {
             opt_a_f64 = 2.71
             opt_a_string = 'Optional String'
             opt_a_bool = false
-            
+
             verified_i16 = 10
             defaulted_i16 = 100
         ";
@@ -153,7 +153,7 @@ fn test_missing() {
             opt_a_f64 = 2.71
             opt_a_string = 'Optional String'
             opt_a_bool = false
-            
+
             verified_i16 = 10
             defaulted_i16 = 100
         ";
@@ -184,7 +184,7 @@ fn test_optional_missing() {
             # opt_a_f64 is missing
             # opt_a_string is missing
             # opt_a_bool is missing
-            
+
             verified_i16 = 10
             # defaulted_i16 is missing - should use default
         ";
@@ -217,7 +217,7 @@ fn test_validation_failure() {
             opt_a_f64 = 2.71
             opt_a_string = 'Optional String'
             opt_a_bool = false
-            
+
             verified_i16 = 3
             defaulted_i16 = 100
         ";
@@ -246,7 +246,7 @@ fn test_wrong_type() {
             opt_a_f64 = 2.71
             opt_a_string = 'Optional String'
             opt_a_bool = false
-            
+
             verified_i16 = 10
             defaulted_i16 = 100
         ";
@@ -275,7 +275,7 @@ fn test_range_validation() {
             opt_a_f64 = 2.71
             opt_a_string = 'Optional String'
             opt_a_bool = false
-            
+
             verified_i16 = 10
             defaulted_i16 = 100
         ";
@@ -538,9 +538,7 @@ impl FromTomlTable<()> for PartialOuter {
             inline_nested: helper.get("inline_nested").as_nested(&helper.errors),
             nested: helper.get("nested").as_nested(&helper.errors),
             opt_nested: helper.get("opt_nested").as_nested(&helper.errors),
-            vec_nested: helper
-                .get("vec_nested")
-                .as_nested(&helper.errors),
+            vec_nested: helper.get("vec_nested").as_nested(&helper.errors),
         }
     }
 }
@@ -576,11 +574,15 @@ fn test_nested_happy() {
     if let Ok(output) = result {
         assert_eq!(output.nested.name, "a");
         assert_eq!(output.nested.value, 1);
+        assert_eq!(output.inline_nested.name, "d");
+        assert_eq!(output.inline_nested.value, 4);
         assert_eq!(output.opt_nested.as_ref().unwrap().name, "b");
         assert_eq!(output.opt_nested.as_ref().unwrap().value, 2);
         assert_eq!(output.vec_nested.len(), 2);
         assert_eq!(output.vec_nested[0].name, "c1");
-        assert_eq!(output.vec_nested[0].name, "c1");
+        assert_eq!(output.vec_nested[0].value, 31);
+        assert_eq!(output.vec_nested[1].name, "c2");
+        assert_eq!(output.vec_nested[1].value, 32);
     }
 }
 
@@ -604,5 +606,190 @@ fn test_nested_happy_half() {
         assert!(output.opt_nested.as_ref().unwrap().is_none());
     } else {
         panic!();
+    }
+}
+
+// Test two-level nested structs
+#[derive(Debug)]
+#[make_partial]
+struct Level2 {
+    data: String,
+}
+
+impl FromTomlTable<()> for PartialLevel2 {
+    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        PartialLevel2 {
+            data: helper.get("data"),
+        }
+    }
+}
+
+#[derive(Debug)]
+#[make_partial]
+struct Level1 {
+    name: String,
+    #[nested]
+    level2: Level2,
+    #[nested]
+    opt_level2: Option<Level2>,
+}
+
+impl FromTomlTable<()> for PartialLevel1 {
+    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        use toml_pretty_deser::AsNested;
+        PartialLevel1 {
+            name: helper.get("name"),
+            level2: helper.get("level2").as_nested(&helper.errors),
+            opt_level2: helper.get("opt_level2").as_nested(&helper.errors),
+        }
+    }
+}
+
+#[derive(Debug)]
+#[make_partial]
+struct Root {
+    #[nested]
+    level1: Level1,
+    #[nested]
+    opt_level1: Option<Level1>,
+}
+
+impl FromTomlTable<()> for PartialRoot {
+    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        use toml_pretty_deser::AsNested;
+        PartialRoot {
+            level1: helper.get("level1").as_nested(&helper.errors),
+            opt_level1: helper.get("opt_level1").as_nested(&helper.errors),
+        }
+    }
+}
+
+#[test]
+fn test_two_level_nested_happy() {
+    let toml = "
+        [level1]
+            name = 'level1_name'
+
+        [level1.level2]
+            data = 'level2_data'
+
+        [opt_level1]
+            name = 'opt_name'
+
+        [opt_level1.level2]
+            data = 'opt_level2_data'
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.level1.name, "level1_name");
+        assert_eq!(output.level1.level2.data, "level2_data");
+        assert!(output.opt_level1.is_some());
+        assert_eq!(output.opt_level1.as_ref().unwrap().name, "opt_name");
+        assert_eq!(
+            output.opt_level1.as_ref().unwrap().level2.data,
+            "opt_level2_data"
+        );
+        assert!(output.opt_level1.as_ref().unwrap().opt_level2.is_none());
+    }
+}
+
+#[test]
+fn test_two_level_nested_with_optional_nested() {
+    let toml = "
+        [level1]
+            name = 'l1'
+
+        [level1.level2]
+            data = 'l2_data'
+
+        [level1.opt_level2]
+            data = 'opt_l2_data'
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.level1.name, "l1");
+        assert_eq!(output.level1.level2.data, "l2_data");
+        assert!(output.level1.opt_level2.is_some());
+        assert_eq!(
+            output.level1.opt_level2.as_ref().unwrap().data,
+            "opt_l2_data"
+        );
+        assert!(output.opt_level1.is_none());
+    }
+}
+
+#[test]
+fn test_two_level_nested_inline_table() {
+    let toml = "
+        level1 = {
+            name = 'inline_l1',
+            level2 = {
+                data = 'inline_l2'
+            },
+            opt_level2 = {
+                data = 'inline_opt_l2'
+            }
+        }
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.level1.name, "inline_l1");
+        assert_eq!(output.level1.level2.data, "inline_l2");
+        assert!(output.level1.opt_level2.is_some());
+        assert_eq!(
+            output.level1.opt_level2.as_ref().unwrap().data,
+            "inline_opt_l2"
+        );
+        assert!(output.opt_level1.is_none());
+    }
+}
+
+#[test]
+fn test_two_level_nested_missing_inner() {
+    let toml = "
+        [level1]
+            name = 'l1'
+        # missing level1.level2
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
+    dbg!(&result);
+    // Missing nested table returns StillIncomplete since the nested struct itself isn't present
+    if let Err(DeserError::StillIncomplete(_, partial)) = result {
+        assert!(partial.level1.as_ref().unwrap().level2.as_ref().is_none());
+    } else {
+        panic!("Expected StillIncomplete due to missing level2 field");
+    }
+}
+
+#[test]
+fn test_two_level_nested_missing_inner_field() {
+    let toml = "
+        [level1]
+            name = 'l1'
+
+        [level1.level2]
+            # missing data field
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
+        );
+    } else {
+        panic!("Expected failure due to missing data field in level2");
     }
 }

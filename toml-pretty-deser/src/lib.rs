@@ -566,7 +566,8 @@ impl HydratedAnnotatedError {
 }
 
 pub struct TomlHelper<'a> {
-    table: &'a toml_edit::Table,
+    table: Option<&'a toml_edit::Table>,
+    inline_table: Option<&'a toml_edit::InlineTable>,
     expected: Vec<String>,
     allowed: Vec<String>,
     pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
@@ -575,7 +576,21 @@ pub struct TomlHelper<'a> {
 impl<'a> TomlHelper<'a> {
     pub fn new(table: &'a toml_edit::Table, errors: Rc<RefCell<Vec<AnnotatedError>>>) -> Self {
         Self {
-            table,
+            table: Some(table),
+            inline_table: None,
+            expected: vec![],
+            allowed: vec![],
+            errors,
+        }
+    }
+
+    pub fn new_inline(
+        inline_table: &'a toml_edit::InlineTable,
+        errors: Rc<RefCell<Vec<AnnotatedError>>>,
+    ) -> Self {
+        Self {
+            table: None,
+            inline_table: Some(inline_table),
             expected: vec![],
             allowed: vec![],
             errors,
@@ -597,36 +612,83 @@ impl<'a> TomlHelper<'a> {
     where
         TomlValue<T>: FromTomlItem,
     {
-        let parent_span = self.table.span().unwrap_or(0..0);
+        let parent_span = if let Some(table) = self.table {
+            table.span().unwrap_or(0..0)
+        } else if let Some(inline_table) = self.inline_table {
+            inline_table.span().unwrap_or(0..0)
+        } else {
+            0..0
+        };
         self.expected.push(key.to_string());
 
-        match self.table.get(key) {
-            Some(item) => {
-                let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
-                match &res.state {
-                    TomlValueState::NotSet => unreachable!(),
-                    TomlValueState::Missing { .. } => {}
-                    _ => {
-                        self.allowed.push(key.to_string());
+        // Handle regular table
+        if let Some(table) = self.table {
+            return match table.get(key) {
+                Some(item) => {
+                    let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
+                    match &res.state {
+                        TomlValueState::NotSet => unreachable!(),
+                        TomlValueState::Missing { .. } => {}
+                        _ => {
+                            self.allowed.push(key.to_string());
+                        }
                     }
+                    res
                 }
-                res
-            }
-            None => {
-                // For missing keys, call from_toml_item with Item::None
-                // so that optional types can handle it appropriately
-                let key_str = key.to_string();
-                let mut res: TomlValue<T> =
-                    FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
-                // Update the key in the Missing state if needed
-                if let TomlValueState::Missing { ref mut key, .. } = res.state {
-                    if key.is_empty() {
-                        *key = key_str;
+                None => {
+                    let key_str = key.to_string();
+                    let mut res: TomlValue<T> =
+                        FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
+                    if let TomlValueState::Missing { ref mut key, .. } = res.state {
+                        if key.is_empty() {
+                            *key = key_str;
+                        }
                     }
+                    res
                 }
-                res
+            };
+        }
+
+        // Handle inline table
+        if let Some(inline_table) = self.inline_table {
+            let wrapped_item = inline_table
+                .get(key)
+                .map(|v| toml_edit::Item::Value(v.clone()));
+            return match wrapped_item {
+                Some(ref item) => {
+                    let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
+                    match &res.state {
+                        TomlValueState::NotSet => unreachable!(),
+                        TomlValueState::Missing { .. } => {}
+                        _ => {
+                            self.allowed.push(key.to_string());
+                        }
+                    }
+                    res
+                }
+                None => {
+                    let key_str = key.to_string();
+                    let mut res: TomlValue<T> =
+                        FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
+                    if let TomlValueState::Missing { ref mut key, .. } = res.state {
+                        if key.is_empty() {
+                            *key = key_str;
+                        }
+                    }
+                    res
+                }
+            };
+        }
+
+        // Neither table type is set - return missing
+        let key_str = key.to_string();
+        let mut res: TomlValue<T> = FromTomlItem::from_toml_item(&toml_edit::Item::None, 0..0);
+        if let TomlValueState::Missing { ref mut key, .. } = res.state {
+            if key.is_empty() {
+                *key = key_str;
             }
         }
+        res
     }
 
     pub fn add_err(&self, err: AnnotatedError) {
@@ -634,11 +696,14 @@ impl<'a> TomlHelper<'a> {
     }
 
     pub fn add_err_by_key(&self, key: &str, msg: &str, help: &str) {
-        let span = self
-            .table
-            .key(key)
-            .and_then(|item| item.span())
-            .unwrap_or(0..0);
+        let span = if let Some(table) = self.table {
+            table.key(key).and_then(|item| item.span()).unwrap_or(0..0)
+        } else if let Some(inline_table) = self.inline_table {
+            // For inline tables, we can't easily get the key span, so use the table span
+            inline_table.span().unwrap_or(0..0)
+        } else {
+            0..0
+        };
         self.add_err_by_span(span.clone(), msg, help);
     }
 
@@ -651,11 +716,20 @@ impl<'a> TomlHelper<'a> {
     pub fn deny_unknown(&self) {
         let expected_set: HashSet<String> = self.expected.iter().cloned().collect();
 
-        for (key, _) in self.table.iter() {
+        // Collect all keys from either table type
+        let keys: Vec<String> = if let Some(table) = self.table {
+            table.iter().map(|(k, _)| k.to_string()).collect()
+        } else if let Some(inline_table) = self.inline_table {
+            inline_table.iter().map(|(k, _)| k.to_string()).collect()
+        } else {
+            vec![]
+        };
+
+        for key in keys {
             if !self
                 .allowed
                 .iter()
-                .any(|allowed| allowed.eq_ignore_ascii_case(key))
+                .any(|allowed| allowed.eq_ignore_ascii_case(&key))
             {
                 let still_available: Vec<_> = expected_set
                     .iter()
@@ -669,9 +743,9 @@ impl<'a> TomlHelper<'a> {
                     .collect();
 
                 self.add_err_by_key(
-                    key,
+                    &key,
                     &format!("Unknown key: {}", key),
-                    &suggest_alternatives(key, &still_available),
+                    &suggest_alternatives(&key, &still_available),
                 );
             }
         }
@@ -1377,17 +1451,29 @@ where
                                 }
                             }
                         }
-                        toml_edit::Item::Value(toml_edit::Value::InlineTable(_table)) => {
-                            // For now, inline tables are not supported for nested structs
-                            // They would need special handling since InlineTable is a different type
-                            TomlValue {
-                                value: None,
-                                required: self.required,
-                                state: TomlValueState::WrongType {
-                                    span: span.clone(),
-                                    expected: "table",
-                                    found: "inline table (not supported for nested structs)",
-                                },
+                        toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
+                            let error_count_before = errors.borrow().len();
+                            let mut helper = TomlHelper::new_inline(table, errors.clone());
+                            let partial = P::from_toml_table(&mut helper, &());
+                            helper.deny_unknown();
+
+                            let error_count_after = errors.borrow().len();
+
+                            if error_count_after > error_count_before {
+                                TomlValue {
+                                    value: Some(partial),
+                                    required: self.required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: "Nested struct has errors".to_string(),
+                                    },
+                                }
+                            } else {
+                                TomlValue {
+                                    value: Some(partial),
+                                    required: self.required,
+                                    state: TomlValueState::Ok { span: span.clone() },
+                                }
                             }
                         }
                         _ => TomlValue {
@@ -1463,15 +1549,29 @@ where
                                     }
                                 }
                             }
-                            toml_edit::Item::Value(toml_edit::Value::InlineTable(_table)) => {
-                                TomlValue {
-                                    value: None,
-                                    required: self.required,
-                                    state: TomlValueState::WrongType {
-                                        span: span.clone(),
-                                        expected: "table",
-                                        found: "inline table (not supported for nested structs)",
-                                    },
+                            toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
+                                let error_count_before = errors.borrow().len();
+                                let mut helper = TomlHelper::new_inline(table, errors.clone());
+                                let partial = P::from_toml_table(&mut helper, &());
+                                helper.deny_unknown();
+
+                                let error_count_after = errors.borrow().len();
+
+                                if error_count_after > error_count_before {
+                                    TomlValue {
+                                        value: Some(Some(partial)),
+                                        required: self.required,
+                                        state: TomlValueState::ValidationFailed {
+                                            span: span.clone(),
+                                            message: "Nested struct has errors".to_string(),
+                                        },
+                                    }
+                                } else {
+                                    TomlValue {
+                                        value: Some(Some(partial)),
+                                        required: self.required,
+                                        state: TomlValueState::Ok { span: span.clone() },
+                                    }
                                 }
                             }
                             _ => TomlValue {
