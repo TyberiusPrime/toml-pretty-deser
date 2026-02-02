@@ -496,10 +496,29 @@ fn test_nested_happy_half() {
             &output.nested.value.as_ref().unwrap().name.as_ref().unwrap(),
             &&"a".to_string()
         );
-        assert!(&output.nested.value.as_ref().unwrap().value.as_ref().is_none());
+        assert!(
+            &output
+                .nested
+                .value
+                .as_ref()
+                .unwrap()
+                .value
+                .as_ref()
+                .is_none()
+        );
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: value");
         assert!(output.opt_nested.as_ref().unwrap().is_none());
+        assert!(matches!(output.opt_nested.state, TomlValueState::Ok { .. }));
+
+        assert!(matches!(
+            output.inline_nested.state,
+            TomlValueState::Missing { .. }
+        ));
+        assert!(matches!(
+            output.vec_nested.state,
+            TomlValueState::Missing { .. }
+        ));
     } else {
         panic!();
     }
@@ -684,6 +703,67 @@ fn test_two_level_nested_inline_table() {
 }
 
 #[test]
+fn test_two_level_nested_inline_table_failure() {
+    let toml = "
+        level1 = {
+            name = 'inline_l1',
+            level2 = {
+                data = 'inline_l2'
+            },
+            opt_level2 = {
+                data = 23
+            }
+        }
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(_errors, output)) = result {
+        assert_eq!(
+            output.level1.value.as_ref().unwrap().name.as_ref().unwrap(),
+            "inline_l1"
+        );
+        assert_eq!(
+            output
+                .level1
+                .value
+                .as_ref()
+                .unwrap()
+                .level2
+                .as_ref()
+                .unwrap()
+                .data
+                .as_ref()
+                .unwrap(),
+            "inline_l2"
+        );
+
+        assert!(matches!(
+            output.level1.value.as_ref().unwrap().opt_level2.state,
+            TomlValueState::ValidationFailed { .. }
+        ));
+        assert!(
+            output
+                .level1
+                .value
+                .as_ref()
+                .unwrap()
+                .opt_level2
+                .value
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .data
+                .value
+                .is_none()
+        );
+    } else {
+        panic!("expected err")
+    }
+}
+
+#[test]
 fn test_two_level_nested_missing_inner() {
     let toml = "
         [level1]
@@ -695,7 +775,16 @@ fn test_two_level_nested_missing_inner() {
     dbg!(&result);
     // Missing nested table returns StillIncomplete since the nested struct itself isn't present
     if let Err(DeserError::StillIncomplete(_, partial)) = result {
-        assert!(partial.level1.value.as_ref().unwrap().level2.as_ref().is_none());
+        assert!(
+            partial
+                .level1
+                .value
+                .as_ref()
+                .unwrap()
+                .level2
+                .as_ref()
+                .is_none()
+        );
     } else {
         panic!("Expected StillIncomplete due to missing level2 field");
     }
@@ -1072,12 +1161,79 @@ fn test_complex_mixed_case_key_reused() {
 
     let result: Result<_, _> =
         deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase);
-    dbg!(&result);
-    if let Err(DeserError::DeserFailure(_errors, output)) = result {
+    //dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, output)) = result {
         assert!(output.api_key.as_ref().is_none());
         assert!(output.html_parser.as_ref().is_none());
         assert_eq!(*output.get_http_response.as_ref().unwrap(), 42);
+        assert_eq!(errors.len(), 2);
+        for e in &errors {
+            println!("{}", e.pretty("test.toml"));
+        }
+        assert_eq!(
+            errors[0].pretty("test.toml"),
+            "  ╭─test.toml\n  ┆\n\n2 │         API_KEY = 'shouty alias'\n  ┆         ───┬───                 \n  ┆            │                    \n  ┆            ╰───────────────────── Key/alias conflict (defined multiple times)\n5 │         api-key = 24\n  ┆         ───┬───     \n  ┆            │        \n  ┆            ╰───────── Also defined here\n──╯\nHint: Use only one of the keys involved. Canonical is 'api_key'\n"
+        );
+        assert_eq!(
+            errors[1].pretty("test.toml"),
+            "  ╭─test.toml\n  ┆\n1 │ \n2 │         API_KEY = 'shouty alias'\n3 │         htmlparser= '23'\n  ┆         ─────┬────      \n  ┆              │          \n  ┆              ╰─────────── Key/alias conflict (defined multiple times)\n4 │         HTMLPARSER = 'consecutive caps'\n  ┆         ─────┬────                     \n  ┆              │                         \n  ┆              ╰────────────────────────── Also defined here\n──╯\nHint: Use only one of the keys involved. Canonical is 'html_parser'\n"
+);
     } else {
         panic!("should have been a DeserFailure");
+    }
+}
+
+#[make_partial]
+#[derive(Debug)]
+struct NestedWithVec {
+    name: String,
+    value: u8,
+    entries: Vec<String>,
+}
+
+#[make_partial]
+#[derive(Debug)]
+struct ArrayOfInlineTables {
+    #[nested]
+    inner: Vec<NestedWithVec>,
+}
+
+#[test]
+fn test_inline_tables() {
+    let toml = "
+    inner = [
+            {
+                name = 'a',
+                value = 1,
+                entries = ['a','b']
+            },
+            {
+                name = 'b',
+                value = 2,
+                entries = ['c','d', 'e']
+            },
+    ]
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialArrayOfInlineTables,
+        ArrayOfInlineTables,
+    >(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.inner.len(), 2);
+        assert_eq!(output.inner[0].name, "a");
+        assert_eq!(output.inner[0].value, 1);
+        assert_eq!(output.inner[0].entries.len(), 2);
+        assert_eq!(output.inner[0].entries[0], "a");
+        assert_eq!(output.inner[0].entries[1], "b");
+
+        assert_eq!(output.inner[1].name, "b");
+        assert_eq!(output.inner[1].value, 2);
+        assert_eq!(output.inner[1].entries.len(), 3);
+        assert_eq!(output.inner[1].entries[0], "c");
+        assert_eq!(output.inner[1].entries[1], "d");
+        assert_eq!(output.inner[1].entries[2], "e");
     }
 }

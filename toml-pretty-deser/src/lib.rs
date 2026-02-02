@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
@@ -183,14 +182,6 @@ impl<E: StringNamedEnum> AsEnum<E> for TomlValue<String> {
                     }
                 }
             }
-            TomlValueState::Missing { key, parent_span } => TomlValue {
-                value: None,
-                required: self.required,
-                state: TomlValueState::Missing {
-                    key: key.clone(),
-                    parent_span: parent_span.clone(),
-                },
-            },
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -248,14 +239,16 @@ impl<E: StringNamedEnum> AsEnum<Option<E>> for TomlValue<Option<String>> {
             }
             TomlValueState::Missing {
                 key: _,
-                parent_span,
-            } => TomlValue {
-                value: Some(None),
-                required: self.required,
-                state: TomlValueState::Ok {
-                    span: parent_span.clone(),
-                },
-            },
+                parent_span: _,
+            } => {
+                unreachable!();
+                // TomlValue {
+                // value: Some(None),
+                // required: self.required,
+                // state: TomlValueState::Ok {
+                //     span: parent_span.clone(),
+                // },
+            }
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -316,14 +309,6 @@ impl<E: StringNamedEnum> AsEnum<Vec<E>> for TomlValue<Vec<String>> {
                     }
                 }
             }
-            TomlValueState::Missing { key, parent_span } => TomlValue {
-                value: None,
-                required: self.required,
-                state: TomlValueState::Missing {
-                    key: key.clone(),
-                    parent_span: parent_span.clone(),
-                },
-            },
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -395,14 +380,17 @@ impl<E: StringNamedEnum> AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>
             }
             TomlValueState::Missing {
                 key: _,
-                parent_span,
-            } => TomlValue {
-                value: Some(None),
-                required: self.required,
-                state: TomlValueState::Ok {
-                    span: parent_span.clone(),
-                },
-            },
+                parent_span: _,
+            } => {
+                unreachable!();
+                //     TomlValue {
+                //     value: Some(None),
+                //     required: self.required,
+                //     state: TomlValueState::Ok {
+                //         span: parent_span.clone(),
+                //     },
+                // }
+            }
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -503,28 +491,19 @@ pub enum DeserError<P> {
     StillIncomplete(Vec<HydratedAnnotatedError>, P),
 }
 
-impl<P> Display for DeserError<P> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DeserError::ParsingFailure(e) => write!(f, "TOML parsing error: {}", e),
-            DeserError::DeserFailure(errors, _) => {
-                write!(f, "Deserialization failed with {} errors", errors.len())
-            }
-            DeserError::StillIncomplete(errors, _) => {
-                write!(f, "Incomplete deserialization with {} errors", errors.len())
-            }
-        }
-    }
-}
-
-impl<P: std::fmt::Debug> std::error::Error for DeserError<P> {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            DeserError::ParsingFailure(e) => Some(e),
-            _ => None,
-        }
-    }
-}
+// impl<P> Display for DeserError<P> {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             DeserError::ParsingFailure(e) => write!(f, "TOML parsing error: {}", e),
+//             DeserError::DeserFailure(errors, _) => {
+//                 write!(f, "Deserialization failed with {} errors", errors.len())
+//             }
+//             DeserError::StillIncomplete(errors, _) => {
+//                 write!(f, "Incomplete deserialization with {} errors", errors.len())
+//             }
+//         }
+//     }
+// }
 
 impl<P> From<TomlError> for DeserError<P> {
     fn from(value: TomlError) -> Self {
@@ -597,15 +576,6 @@ pub trait AnnotatedErrorExt {
 impl AnnotatedErrorExt for AnnotatedError {
     fn add_span(&mut self, span: Range<usize>, msg: &str) {
         self.spans.push(SpannedMessage {
-            span,
-            msg: msg.to_string(),
-        });
-    }
-}
-
-impl AnnotatedErrorExt for Rc<RefCell<AnnotatedError>> {
-    fn add_span(&mut self, span: Range<usize>, msg: &str) {
-        self.borrow_mut().spans.push(SpannedMessage {
             span,
             msg: msg.to_string(),
         });
@@ -807,10 +777,6 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    pub fn with_match_mode(&mut self, mode: FieldMatchMode) {
-        self.match_mode = mode;
-    }
-
     pub fn into_inner(self, source: &Rc<RefCell<String>>) -> Vec<HydratedAnnotatedError> {
         self.errors
             .borrow_mut()
@@ -923,8 +889,11 @@ impl<'a> TomlHelper<'a> {
             _ => {
                 let spans = found_keys
                     .iter()
-                    .map(|(_matched_key, item)| item.span().unwrap_or(0..0))
+                    .map(|(matched_key, _item)| self.span_from_key(matched_key))
                     .collect();
+                for (matched_key, _) in &found_keys {
+                    self.observed.push(self.match_mode.normalize(matched_key));
+                }
 
                 let mut res: TomlValue<T> =
                     FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
@@ -947,10 +916,6 @@ impl<'a> TomlHelper<'a> {
                 // }
             }
         }
-    }
-
-    pub fn add_err(&self, err: AnnotatedError) {
-        self.errors.borrow_mut().push(err);
     }
 
     fn span_from_key(&self, key: &str) -> Range<usize> {
@@ -1018,17 +983,12 @@ impl<'a> TomlHelper<'a> {
 }
 
 pub trait FromTomlItem {
-    fn is_optional() -> bool;
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self;
 }
 
 macro_rules! impl_from_toml_item_integer {
     ($ty:ty, $name:expr) => {
         impl FromTomlItem for TomlValue<$ty> {
-            fn is_optional() -> bool {
-                true
-            }
-
             fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
                 match item {
                     toml_edit::Item::None => TomlValue {
@@ -1106,10 +1066,6 @@ impl_from_toml_item_integer!(i64, "i64");
 impl_from_toml_item_integer!(u64, "u64");
 
 impl FromTomlItem for TomlValue<f64> {
-    fn is_optional() -> bool {
-        true
-    }
-
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
             toml_edit::Item::None => TomlValue {
@@ -1172,10 +1128,6 @@ impl FromTomlItem for TomlValue<f64> {
 }
 
 impl FromTomlItem for TomlValue<bool> {
-    fn is_optional() -> bool {
-        true
-    }
-
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
             toml_edit::Item::None => TomlValue {
@@ -1228,10 +1180,6 @@ impl FromTomlItem for TomlValue<bool> {
 }
 
 impl FromTomlItem for TomlValue<String> {
-    fn is_optional() -> bool {
-        true
-    }
-
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
             toml_edit::Item::None => TomlValue {
@@ -1285,10 +1233,6 @@ impl FromTomlItem for TomlValue<String> {
 
 // Implementation for raw toml_edit::Item - used for nested struct deserialization
 impl FromTomlItem for TomlValue<toml_edit::Item> {
-    fn is_optional() -> bool {
-        true
-    }
-
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
             toml_edit::Item::None => TomlValue {
@@ -1299,22 +1243,24 @@ impl FromTomlItem for TomlValue<toml_edit::Item> {
                     parent_span,
                 },
             },
-            toml_edit::Item::Table(table) => TomlValue {
-                required: true,
-                value: Some(toml_edit::Item::Table(table.clone())),
-                state: TomlValueState::Ok {
-                    span: table.span().unwrap_or(parent_span.clone()),
-                },
-            },
-            toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => TomlValue {
-                required: true,
-                value: Some(toml_edit::Item::Value(toml_edit::Value::InlineTable(
-                    table.clone(),
-                ))),
-                state: TomlValueState::Ok {
-                    span: table.span().unwrap_or(parent_span.clone()),
-                },
-            },
+            // same as below
+            // toml_edit::Item::Table(table) => {TomlValue {
+            //     required: true,
+            //     value: Some(toml_edit::Item::Table(table.clone())),
+            //     state: TomlValueState::Ok {
+            //         span: table.span().unwrap_or(parent_span.clone()),
+            //     },
+            // }},
+            // toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
+            //     TomlValue {
+            //     required: true,
+            //     value: Some(toml_edit::Item::Value(toml_edit::Value::InlineTable(
+            //         table.clone(),
+            //     ))),
+            //     state: TomlValueState::Ok {
+            //         span: table.span().unwrap_or(parent_span.clone()),
+            //     },
+            // }},
             _ => TomlValue {
                 required: true,
                 value: Some(item.clone()),
@@ -1327,10 +1273,6 @@ impl FromTomlItem for TomlValue<toml_edit::Item> {
 }
 
 impl FromTomlItem for TomlValue<Vec<toml_edit::Item>> {
-    fn is_optional() -> bool {
-        true
-    }
-
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
             toml_edit::Item::None => TomlValue {
@@ -1384,10 +1326,6 @@ impl FromTomlItem for TomlValue<Vec<toml_edit::Item>> {
 macro_rules! impl_from_toml_item_option {
     ($ty:ty) => {
         impl FromTomlItem for TomlValue<Option<$ty>> {
-            fn is_optional() -> bool {
-                false
-            }
-
             fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
                 let mut res: TomlValue<$ty> = FromTomlItem::from_toml_item(item, parent_span);
                 res.required = false;
@@ -1423,10 +1361,6 @@ impl_from_toml_item_option!(String);
 
 // Special implementation for Option<toml_edit::Item> to support optional nested structs
 impl FromTomlItem for TomlValue<Option<toml_edit::Item>> {
-    fn is_optional() -> bool {
-        false
-    }
-
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         let mut res: TomlValue<toml_edit::Item> = FromTomlItem::from_toml_item(item, parent_span);
         res.required = false;
@@ -1453,10 +1387,6 @@ impl FromTomlItem for TomlValue<Option<toml_edit::Item>> {
 macro_rules! impl_from_toml_item_vec {
     ($ty:ty, $name:expr) => {
         impl FromTomlItem for TomlValue<Vec<$ty>> {
-            fn is_optional() -> bool {
-                true
-            }
-
             fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
                 match item {
                     toml_edit::Item::None => TomlValue {
@@ -1540,10 +1470,6 @@ macro_rules! impl_from_toml_item_vec {
         }
 
         impl FromTomlItem for TomlValue<Option<Vec<$ty>>> {
-            fn is_optional() -> bool {
-                false
-            }
-
             fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
                 let mut res: TomlValue<Vec<$ty>> = FromTomlItem::from_toml_item(item, parent_span);
                 res.required = false;
@@ -1788,14 +1714,6 @@ where
                     }
                 }
             }
-            TomlValueState::Missing { key, parent_span } => TomlValue {
-                value: None,
-                required: self.required,
-                state: TomlValueState::Missing {
-                    key: key.clone(),
-                    parent_span: parent_span.clone(),
-                },
-            },
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -1895,16 +1813,16 @@ where
                     }
                 }
             }
-            TomlValueState::Missing {
-                key: _,
-                parent_span,
-            } => TomlValue {
-                value: Some(None),
-                required: self.required,
-                state: TomlValueState::Ok {
-                    span: parent_span.clone(),
-                },
-            },
+            // TomlValueState::Missing {
+            //     key: _,
+            //     parent_span,
+            // } => TomlValue {
+            //     value: Some(None),
+            //     required: self.required,
+            //     state: TomlValueState::Ok {
+            //         span: parent_span.clone(),
+            //     },
+            // },
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -1938,11 +1856,20 @@ where
 
                                 results.push(partial);
                             }
+                            toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
+                                let mut helper =
+                                    TomlHelper::new_inline(table, errors.clone(), mode);
+                                let partial =
+                                    P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+                                helper.deny_unknown();
+
+                                results.push(partial);
+                            }
                             _ => {
                                 // Non-table item in array
                                 errors.borrow_mut().push(AnnotatedError::placed(
                                     span.clone(),
-                                    "Expected table in array",
+                                    &format!("Expected table in array - was {}", item.type_name()),
                                     "Only table items are supported in nested struct arrays",
                                 ));
                             }
@@ -1978,14 +1905,6 @@ where
                     }
                 }
             }
-            TomlValueState::Missing { key, parent_span } => TomlValue {
-                value: None,
-                required: self.required,
-                state: TomlValueState::Missing {
-                    key: key.clone(),
-                    parent_span: parent_span.clone(),
-                },
-            },
             _ => TomlValue {
                 value: None,
                 required: self.required,
