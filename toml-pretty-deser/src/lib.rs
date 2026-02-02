@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
@@ -772,7 +772,6 @@ pub struct TomlHelper<'a> {
     /// Normalized names that were actually observed (matched against table keys)
     observed: Vec<String>,
     /// Original field names that were allowed to the keys observed
-    allowed: HashMap<String, String>,
     pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
     pub match_mode: FieldMatchMode,
 }
@@ -788,7 +787,6 @@ impl<'a> TomlHelper<'a> {
             inline_table: None,
             expected: vec![],
             observed: vec![],
-            allowed: HashMap::new(),
             errors,
             match_mode,
         }
@@ -804,7 +802,6 @@ impl<'a> TomlHelper<'a> {
             inline_table: Some(inline_table),
             expected: vec![],
             observed: vec![],
-            allowed: HashMap::new(),
             errors,
             match_mode,
         }
@@ -1753,7 +1750,6 @@ where
                                 P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                             helper.deny_unknown();
 
-
                             if !partial.can_concrete() {
                                 TomlValue {
                                     value: Some(partial),
@@ -1940,7 +1936,6 @@ where
                                     P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
 
-
                                 results.push(partial);
                             }
                             _ => {
@@ -1953,7 +1948,6 @@ where
                             }
                         }
                     }
-
 
                     if results.iter().any(|partial| !partial.can_concrete()) {
                         // There were errors during nested deserialization

@@ -1,0 +1,77 @@
+
+*** toml-pretty-deser/src/lib.rs:960:9: replace TomlHelper<'a>::span_from_key -> Range<usize> with Range::from_iter([0])
+
+*** mutation diff:
+--- toml-pretty-deser/src/lib.rs
++++ replace TomlHelper<'a>::span_from_key -> Range<usize> with Range::from_iter([0])
+@@ -952,24 +952,17 @@
+         }
+     }
+ 
+     pub fn add_err(&self, err: AnnotatedError) {
+         self.errors.borrow_mut().push(err);
+     }
+ 
+     fn span_from_key(&self, key: &str) -> Range<usize> {
+-        if let Some(table) = self.table {
+-            table.key(key).and_then(|item| item.span()).unwrap_or(0..0)
+-        } else if let Some(inline_table) = self.inline_table {
+-            // For inline tables, we can't easily get the key span, so use the table span
+-            inline_table.span().unwrap_or(0..0)
+-        } else {
+-            0..0
+-        }
++        Range::from_iter([0]) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn add_err_by_key(&self, key: &str, msg: &str, help: &str) {
+         let span = self.span_from_key(key);
+         self.add_err_by_span(span, msg, help);
+     }
+ 
+     pub fn add_err_by_span(&self, span: Range<usize>, msg: &str, help: &str) {
+
+
+*** /nix/store/826jircl576xphx7a459njgqfmcbd4x5-cargo-1.95.0-nightly-2026-01-21-x86_64-unknown-linux-gnu/bin/cargo test --no-run --verbose --package=toml-pretty-deser@0.1.0
+       Fresh unicode-ident v1.0.22
+       Fresh proc-macro2 v1.0.106
+       Fresh autocfg v1.5.0
+       Fresh quote v1.0.44
+       Fresh equivalent v1.0.2
+       Fresh winnow v0.7.14
+       Fresh hashbrown v0.16.1
+       Fresh indexmap v2.13.0
+       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh syn v2.0.114
+       Fresh toml_writer v1.0.6+spec-1.1.0
+       Fresh memchr v2.7.6
+       Fresh toml_datetime v0.7.5+spec-1.1.0
+       Fresh regex-automata v0.4.13
+       Fresh strsim v0.11.1
+       Fresh codesnake v0.2.1
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
+       Fresh num-traits v0.2.19
+       Fresh toml_edit v0.24.0+spec-1.1.0
+       Fresh bstr v1.12.1
+       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser): the file `toml-pretty-deser/src/lib.rs` has changed (1770036660.723263685s, 553976212ns after last build at 1770036660.169287473s)
+   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser)
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
+error[E0599]: no function or associated item named `from_iter` found for struct `std::ops::Range<Idx>` in the current scope
+   --> toml-pretty-deser/src/lib.rs:960:16
+    |
+960 |         Range::from_iter([0]) /* ~ changed by cargo-mutants ~ */
+    |                ^^^^^^^^^ function or associated item not found in `std::ops::Range<_>`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `toml-pretty-deser` (lib test) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold` (exit status: 1)
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `toml-pretty-deser` (lib) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold` (exit status: 1)
+
+*** result: Failure(101)

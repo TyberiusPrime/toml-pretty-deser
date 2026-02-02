@@ -1,0 +1,21 @@
+--- toml-pretty-deser-macros/src/lib.rs
++++ delete match arm Type::Path(TypePath{path, ..}) in extract_type_name
+@@ -97,17 +97,17 @@
+         }
+     }
+ 
+     aliases
+ }
+ 
+ fn extract_type_name(ty: &Type) -> Option<syn::Ident> {
+     match ty {
+-        Type::Path(TypePath { path, .. }) => path.get_ident().cloned(),
++         /* ~ changed by cargo-mutants ~ */
+         _ => None,
+     }
+ }
+ 
+ fn extract_option_inner_type(ty: &Type) -> Option<syn::Ident> {
+     // Check if this is an Option<T> type
+     match ty {
+         Type::Path(TypePath { path, .. }) => {

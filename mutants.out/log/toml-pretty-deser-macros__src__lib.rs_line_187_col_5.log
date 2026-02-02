@@ -4,7 +4,7 @@
 *** mutation diff:
 --- toml-pretty-deser-macros/src/lib.rs
 +++ replace make_partial -> TokenStream with Default::default()
-@@ -179,301 +179,10 @@
+@@ -179,302 +179,10 @@
          }
          _ => false,
      }
@@ -276,9 +276,6 @@
 -                #(#collect_errors_fields;)*
 -            }
 -
--            fn can_concrete(&self) -> bool {
--                #(#can_concrete_fields)&&*
--            }
 -
 -            fn to_concrete(self) -> Option<#struct_name #ty_generics> {
 -                Some(#struct_name {
@@ -294,6 +291,10 @@
 -        }
 -
 -        impl #impl_generics FromTomlTable<()> for #partial_name #ty_generics #where_clause {
+-            fn can_concrete(&self) -> bool {
+-                #(#can_concrete_fields)&&*
+-            }
+-
 -            fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
 -                #partial_name {
 -                    #(#from_toml_table_fields,)*
@@ -314,8 +315,8 @@
        Fresh proc-macro2 v1.0.106
        Fresh quote v1.0.44
        Fresh syn v2.0.114
-       Dirty toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros): the file `toml-pretty-deser-macros/src/lib.rs` has changed (1770035369.697698878s, 2s after last build at 1770035367.601788854s)
-   Compiling toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
+       Dirty toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros): the file `toml-pretty-deser-macros/src/lib.rs` has changed (1770036613.957271957s, 733968483ns after last build at 1770036613.223303474s)
+   Compiling toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
      Running `rustc --crate-name toml_pretty_deser_macros --edition=2024 toml-pretty-deser-macros/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type proc-macro --emit=dep-info,link -C prefer-dynamic -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=81120a598c00f9fa -C extra-filename=-f792c9db6a0b2842 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern proc_macro2=/home/finkernagel/.cache/cargo/target/debug/deps/libproc_macro2-3b81e34eea8b22ad.rlib --extern quote=/home/finkernagel/.cache/cargo/target/debug/deps/libquote-17bdff8842b26ed8.rlib --extern syn=/home/finkernagel/.cache/cargo/target/debug/deps/libsyn-2ef69c79628e106e.rlib --extern proc_macro -C link-arg=-fuse-ld=mold`
      Running `rustc --crate-name toml_pretty_deser_macros --edition=2024 toml-pretty-deser-macros/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C prefer-dynamic -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=dff9d6b74d3ad59d -C extra-filename=-54b992e04b4c4902 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern proc_macro2=/home/finkernagel/.cache/cargo/target/debug/deps/libproc_macro2-3b81e34eea8b22ad.rlib --extern quote=/home/finkernagel/.cache/cargo/target/debug/deps/libquote-17bdff8842b26ed8.rlib --extern syn=/home/finkernagel/.cache/cargo/target/debug/deps/libsyn-2ef69c79628e106e.rlib --extern proc_macro -C link-arg=-fuse-ld=mold`
 warning: unused import: `format_ident`
@@ -396,9 +397,9 @@ warning: function `is_vec_type` is never used
 171 | fn is_vec_type(ty: &Type) -> bool {
     |    ^^^^^^^^^^^
 
-warning: `toml-pretty-deser-macros` (lib test) generated 12 warnings (12 duplicates)
-warning: `toml-pretty-deser-macros` (lib) generated 12 warnings (run `cargo fix --lib -p toml-pretty-deser-macros` to apply 4 suggestions)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+warning: `toml-pretty-deser-macros` (lib test) generated 12 warnings (run `cargo fix --lib -p toml-pretty-deser-macros --tests` to apply 4 suggestions)
+warning: `toml-pretty-deser-macros` (lib) generated 12 warnings (12 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
   Executable `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser_macros-54b992e04b4c4902`
 
 *** result: Success
@@ -487,8 +488,8 @@ warning: function `is_vec_type` is never used
     |    ^^^^^^^^^^^
 
 warning: `toml-pretty-deser-macros` (lib) generated 12 warnings (run `cargo fix --lib -p toml-pretty-deser-macros` to apply 4 suggestions)
-       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
 warning: `toml-pretty-deser-macros` (lib test) generated 12 warnings (12 duplicates)
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
      Running `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser_macros-54b992e04b4c4902`
 
@@ -497,7 +498,7 @@ running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
    Doc-tests toml_pretty_deser_macros
-     Running `rustdoc --edition=2024 --crate-type proc-macro --color auto --crate-name toml_pretty_deser_macros --test toml-pretty-deser-macros/src/lib.rs --test-run-directory /tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros --extern proc_macro2=/home/finkernagel/.cache/cargo/target/debug/deps/libproc_macro2-3b81e34eea8b22ad.rlib --extern quote=/home/finkernagel/.cache/cargo/target/debug/deps/libquote-17bdff8842b26ed8.rlib --extern syn=/home/finkernagel/.cache/cargo/target/debug/deps/libsyn-2ef69c79628e106e.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern proc_macro -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' --error-format human`
+     Running `rustdoc --edition=2024 --crate-type proc-macro --color auto --crate-name toml_pretty_deser_macros --test toml-pretty-deser-macros/src/lib.rs --test-run-directory /tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros --extern proc_macro2=/home/finkernagel/.cache/cargo/target/debug/deps/libproc_macro2-3b81e34eea8b22ad.rlib --extern quote=/home/finkernagel/.cache/cargo/target/debug/deps/libquote-17bdff8842b26ed8.rlib --extern syn=/home/finkernagel/.cache/cargo/target/debug/deps/libsyn-2ef69c79628e106e.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern proc_macro -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' --error-format human`
 
 running 0 tests
 

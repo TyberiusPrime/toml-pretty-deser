@@ -1,0 +1,29 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm toml_edit::Item::Table(table) in <impl AsNested<Vec<P>> for TomlValue<Vec<toml_edit::Item>>>::as_nested
+@@ -1929,25 +1929,17 @@
+     ) -> TomlValue<Vec<P>> {
+         match &self.state {
+             TomlValueState::Ok { span } => {
+                 if let Some(ref items) = self.value {
+                     let mut results = Vec::with_capacity(items.len());
+ 
+                     for item in items.iter() {
+                         match item {
+-                            toml_edit::Item::Table(table) => {
+-                                let mut helper = TomlHelper::new(table, errors.clone(), mode);
+-                                let partial =
+-                                    P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+-                                helper.deny_unknown();
+-
+-
+-                                results.push(partial);
+-                            }
++                             /* ~ changed by cargo-mutants ~ */
+                             _ => {
+                                 // Non-table item in array
+                                 errors.borrow_mut().push(AnnotatedError::placed(
+                                     span.clone(),
+                                     "Expected table in array",
+                                     "Only table items are supported in nested struct arrays",
+                                 ));
+                             }

@@ -29,25 +29,25 @@
        Fresh unicode-ident v1.0.22
        Fresh proc-macro2 v1.0.106
        Fresh autocfg v1.5.0
-       Fresh winnow v0.7.14
-       Fresh equivalent v1.0.2
+       Fresh quote v1.0.44
        Fresh hashbrown v0.16.1
-       Fresh toml_writer v1.0.6+spec-1.1.0
-       Fresh regex-automata v0.4.13
+       Fresh equivalent v1.0.2
+       Fresh winnow v0.7.14
+       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh indexmap v2.13.0
+       Fresh syn v2.0.114
        Fresh memchr v2.7.6
+       Fresh regex-automata v0.4.13
        Fresh toml_datetime v0.7.5+spec-1.1.0
+       Fresh toml_writer v1.0.6+spec-1.1.0
        Fresh codesnake v0.2.1
        Fresh strsim v0.11.1
-       Fresh indexmap v2.13.0
-       Fresh toml_parser v1.0.6+spec-1.1.0
        Fresh bstr v1.12.1
-       Fresh quote v1.0.44
-       Fresh toml_edit v0.24.0+spec-1.1.0
-       Fresh syn v2.0.114
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
        Fresh num-traits v0.2.19
-       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
-       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser): couldn't read metadata for file `/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib`
-   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
+       Fresh toml_edit v0.24.0+spec-1.1.0
+       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser): couldn't read metadata for file `/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib`
+   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser)
      Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
      Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
 warning: field `allowed` is never read
@@ -61,19 +61,25 @@ warning: field `allowed` is never read
     |
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
-warning: `toml-pretty-deser` (lib) generated 1 warning
+warning: `toml-pretty-deser` (lib) generated 1 warning (1 duplicate)
      Running `rustc --crate-name basic --edition=2024 toml-pretty-deser/tests/basic.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=608c682146c4ede0 -C extra-filename=-c7883bdc8893c706 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
-warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
+warning: `toml-pretty-deser` (lib test) generated 1 warning
 warning: unused variable: `errors`
-    --> toml-pretty-deser/tests/basic.rs:1002:41
-     |
-1002 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
-     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
-     |
-     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+   --> toml-pretty-deser/tests/basic.rs:535:41
+    |
+535 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+    |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
 
-warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 1 suggestion)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+warning: unused variable: `errors`
+    --> toml-pretty-deser/tests/basic.rs:1076:41
+     |
+1076 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+
+warning: `toml-pretty-deser` (test "basic") generated 2 warnings (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.43s
   Executable `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
   Executable `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
 
@@ -83,23 +89,23 @@ warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix 
        Fresh unicode-ident v1.0.22
        Fresh proc-macro2 v1.0.106
        Fresh autocfg v1.5.0
-       Fresh quote v1.0.44
+       Fresh winnow v0.7.14
        Fresh hashbrown v0.16.1
        Fresh equivalent v1.0.2
-       Fresh winnow v0.7.14
-       Fresh toml_parser v1.0.6+spec-1.1.0
-       Fresh indexmap v2.13.0
-       Fresh syn v2.0.114
-       Fresh memchr v2.7.6
-       Fresh regex-automata v0.4.13
-       Fresh toml_datetime v0.7.5+spec-1.1.0
        Fresh toml_writer v1.0.6+spec-1.1.0
-       Fresh toml_edit v0.24.0+spec-1.1.0
-       Fresh bstr v1.12.1
-       Fresh num-traits v0.2.19
-       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
+       Fresh memchr v2.7.6
+       Fresh toml_datetime v0.7.5+spec-1.1.0
+       Fresh regex-automata v0.4.13
        Fresh strsim v0.11.1
        Fresh codesnake v0.2.1
+       Fresh indexmap v2.13.0
+       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh bstr v1.12.1
+       Fresh quote v1.0.44
+       Fresh toml_edit v0.24.0+spec-1.1.0
+       Fresh syn v2.0.114
+       Fresh num-traits v0.2.19
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
 warning: field `allowed` is never read
    --> toml-pretty-deser/src/lib.rs:775:5
     |
@@ -112,17 +118,23 @@ warning: field `allowed` is never read
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
 warning: `toml-pretty-deser` (lib) generated 1 warning
-warning: unused variable: `errors`
-    --> toml-pretty-deser/tests/basic.rs:1002:41
-     |
-1002 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
-     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
-     |
-     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
-
-warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 1 suggestion)
-       Fresh toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
 warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
+warning: unused variable: `errors`
+   --> toml-pretty-deser/tests/basic.rs:535:41
+    |
+535 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+    |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `errors`
+    --> toml-pretty-deser/tests/basic.rs:1076:41
+     |
+1076 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+
+       Fresh toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser)
+warning: `toml-pretty-deser` (test "basic") generated 2 warnings (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 2 suggestions)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
      Running `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
 
@@ -134,7 +146,7 @@ failures:
 
 ---- tests::test_field_match_mode stdout ----
 
-thread 'tests::test_field_match_mode' (2384815) panicked at toml-pretty-deser/src/lib.rs:125:9:
+thread 'tests::test_field_match_mode' (2415148) panicked at toml-pretty-deser/src/lib.rs:125:9:
 assertion failed: exact.matches("field_name", "field_name")
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 

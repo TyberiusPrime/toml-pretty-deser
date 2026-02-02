@@ -1,0 +1,21 @@
+--- toml-pretty-deser-macros/src/lib.rs
++++ delete match arm Fields::Named(fields) in make_partial
+@@ -199,17 +199,17 @@
+ 
+     let struct_name = &input.ident;
+     let partial_name = format_ident!("Partial{}", struct_name);
+     let generics = &input.generics;
+     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+ 
+     let fields = match &input.data {
+         Data::Struct(data) => match &data.fields {
+-            Fields::Named(fields) => &fields.named,
++             /* ~ changed by cargo-mutants ~ */
+             _ => panic!("make_partial only supports structs with named fields"),
+         },
+         _ => panic!("make_partial only supports structs"),
+     };
+ 
+     // Create a version of the input struct with #[nested], #[as_enum], and #[alias(...)] attributes stripped
+     let mut cleaned_input = input.clone();
+     if let Data::Struct(ref mut data) = cleaned_input.data {

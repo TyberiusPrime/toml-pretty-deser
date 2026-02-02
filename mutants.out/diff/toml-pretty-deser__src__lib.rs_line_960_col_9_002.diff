@@ -1,0 +1,28 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace TomlHelper<'a>::span_from_key -> Range<usize> with Range::new(1)
+@@ -952,24 +952,17 @@
+         }
+     }
+ 
+     pub fn add_err(&self, err: AnnotatedError) {
+         self.errors.borrow_mut().push(err);
+     }
+ 
+     fn span_from_key(&self, key: &str) -> Range<usize> {
+-        if let Some(table) = self.table {
+-            table.key(key).and_then(|item| item.span()).unwrap_or(0..0)
+-        } else if let Some(inline_table) = self.inline_table {
+-            // For inline tables, we can't easily get the key span, so use the table span
+-            inline_table.span().unwrap_or(0..0)
+-        } else {
+-            0..0
+-        }
++        Range::new(1) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn add_err_by_key(&self, key: &str, msg: &str, help: &str) {
+         let span = self.span_from_key(key);
+         self.add_err_by_span(span, msg, help);
+     }
+ 
+     pub fn add_err_by_span(&self, span: Range<usize>, msg: &str, help: &str) {

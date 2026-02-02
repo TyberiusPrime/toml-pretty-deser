@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete ! in HydratedAnnotatedError::pretty
+@@ -615,17 +615,17 @@
+ impl HydratedAnnotatedError {
+     pub fn pretty(&self, source_name: &str) -> String {
+         use bstr::{BStr, ByteSlice};
+         use codesnake::{Block, CodeWidth, Label, LineIndex};
+         use std::fmt::Write;
+ 
+         let source = self.source.borrow();
+ 
+-        if !self.inner.spans.is_empty() {
++        if  /* ~ changed by cargo-mutants ~ */self.inner.spans.is_empty() {
+             let idx = LineIndex::new(&source);
+             let mut spans = self.inner.spans.clone();
+             spans.sort_by_key(|span| span.span.start);
+ 
+             let mut previous_newline =
+                 memchr::memmem::rfind(&source.as_bytes()[..spans[0].span.start], b"\n");
+             let this_line_is_block_start = source.as_bytes()[previous_newline.unwrap_or(0)..]
+                 .trim_ascii_start()

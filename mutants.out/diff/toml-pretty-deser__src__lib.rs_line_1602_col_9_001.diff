@@ -1,24 +1,21 @@
 --- toml-pretty-deser/src/lib.rs
-+++ replace TomlValue<T>::into_option -> Option<T> with None
-@@ -1594,20 +1594,17 @@
++++ replace TomlValue<T>::has_value -> bool with true
+@@ -1594,17 +1594,17 @@
+             state: TomlValueState::NotSet,
+             required: false,
+         }
+     }
  }
  
  impl<T> TomlValue<T> {
      pub fn has_value(&self) -> bool {
-         matches!(self.state, TomlValueState::Ok { .. })
+-        matches!(self.state, TomlValueState::Ok { .. })
++        true /* ~ changed by cargo-mutants ~ */
      }
  
      pub fn into_option(self) -> Option<T> {
--        match self.state {
--            TomlValueState::Ok { .. } => self.value,
--            _ => None,
--        }
-+        None /* ~ changed by cargo-mutants ~ */
-     }
- 
-     pub fn as_ref(&self) -> Option<&T> {
          match self.state {
-             TomlValueState::Ok { .. } => self.value.as_ref(),
+             TomlValueState::Ok { .. } => self.value,
              _ => None,
          }
      }

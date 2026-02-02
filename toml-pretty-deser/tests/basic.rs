@@ -532,7 +532,7 @@ fn test_nested_lower_failure() {
 
     let result: Result<_, _> = deserialize::<PartialOuter, Outer>(toml);
     dbg!(&result);
-    if let Err(DeserError::DeserFailure(errors, output)) = result {
+    if let Err(DeserError::DeserFailure(_errors, output)) = result {
         assert_eq!(
             *output
                 .opt_nested
@@ -1073,7 +1073,7 @@ fn test_complex_mixed_case_key_reused() {
     let result: Result<_, _> =
         deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase);
     dbg!(&result);
-    if let Err(DeserError::DeserFailure(errors, output)) = result {
+    if let Err(DeserError::DeserFailure(_errors, output)) = result {
         assert!(output.api_key.as_ref().is_none());
         assert!(output.html_parser.as_ref().is_none());
         assert_eq!(*output.get_http_response.as_ref().unwrap(), 42);

@@ -1,9 +1,9 @@
 
-*** toml-pretty-deser/src/lib.rs:338:9: replace <impl AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>>>>::as_enum -> TomlValue<Option<Vec<E>>> with TomlValue::new(Some(vec![]))
+*** toml-pretty-deser/src/lib.rs:338:9: replace <impl AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>>>>::as_enum -> TomlValue<Option<Vec<E>>> with TomlValue::from(Some(vec![Default::default()]))
 
 *** mutation diff:
 --- toml-pretty-deser/src/lib.rs
-+++ replace <impl AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>>>>::as_enum -> TomlValue<Option<Vec<E>>> with TomlValue::new(Some(vec![]))
++++ replace <impl AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>>>>::as_enum -> TomlValue<Option<Vec<E>>> with TomlValue::from(Some(vec![Default::default()]))
 @@ -330,90 +330,17 @@
                  state: self.state.clone(),
              },
@@ -87,7 +87,7 @@
 -                state: self.state.clone(),
 -            },
 -        }
-+        TomlValue::new(Some(vec![])) /* ~ changed by cargo-mutants ~ */
++        TomlValue::from(Some(vec![Default::default()])) /* ~ changed by cargo-mutants ~ */
      }
  }
  
@@ -103,46 +103,50 @@
        Fresh proc-macro2 v1.0.106
        Fresh autocfg v1.5.0
        Fresh quote v1.0.44
-       Fresh equivalent v1.0.2
        Fresh hashbrown v0.16.1
        Fresh winnow v0.7.14
-       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh equivalent v1.0.2
        Fresh indexmap v2.13.0
+       Fresh toml_parser v1.0.6+spec-1.1.0
        Fresh syn v2.0.114
        Fresh memchr v2.7.6
-       Fresh toml_datetime v0.7.5+spec-1.1.0
        Fresh regex-automata v0.4.13
+       Fresh toml_datetime v0.7.5+spec-1.1.0
        Fresh toml_writer v1.0.6+spec-1.1.0
-       Fresh strsim v0.11.1
-       Fresh codesnake v0.2.1
-       Fresh num-traits v0.2.19
        Fresh toml_edit v0.24.0+spec-1.1.0
-       Dirty toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros): the file `toml-pretty-deser-macros/src/lib.rs` has changed (1770035314.541066670s, 281987894ns after last build at 1770035314.259078776s)
-   Compiling toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
        Fresh bstr v1.12.1
+       Fresh num-traits v0.2.19
+       Dirty toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros): the file `toml-pretty-deser-macros/src/lib.rs` has changed (1770036638.957198383s, 287987634ns after last build at 1770036638.669210749s)
+   Compiling toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
      Running `rustc --crate-name toml_pretty_deser_macros --edition=2024 toml-pretty-deser-macros/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type proc-macro --emit=dep-info,link -C prefer-dynamic -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=81120a598c00f9fa -C extra-filename=-f792c9db6a0b2842 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern proc_macro2=/home/finkernagel/.cache/cargo/target/debug/deps/libproc_macro2-3b81e34eea8b22ad.rlib --extern quote=/home/finkernagel/.cache/cargo/target/debug/deps/libquote-17bdff8842b26ed8.rlib --extern syn=/home/finkernagel/.cache/cargo/target/debug/deps/libsyn-2ef69c79628e106e.rlib --extern proc_macro -C link-arg=-fuse-ld=mold`
-       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser): couldn't read metadata for file `/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib`
-   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
-     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
+       Fresh codesnake v0.2.1
+       Fresh strsim v0.11.1
+       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser): the dependency `toml-pretty-deser-macros` was rebuilt
+   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser)
      Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
-error[E0599]: no function or associated item named `new` found for struct `TomlValue<T>` in the current scope
-    --> toml-pretty-deser/src/lib.rs:338:20
-     |
- 338 |         TomlValue::new(Some(vec![])) /* ~ changed by cargo-mutants ~ */
-     |                    ^^^ function or associated item not found in `TomlValue<_>`
-...
-1507 | pub struct TomlValue<T> {
-     | ----------------------- function or associated item `new` not found for this struct
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
+error[E0308]: mismatched types
+   --> toml-pretty-deser/src/lib.rs:338:25
+    |
+338 |         TomlValue::from(Some(vec![Default::default()])) /* ~ changed by cargo-mutants ~ */
+    |         --------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `TomlValue<Option<Vec<E>>>`, found `Option<Vec<_>>`
+    |         |
+    |         arguments to this function are incorrect
+    |
+    = note: expected struct `TomlValue<Option<Vec<E>>>`
+                 found enum `Option<Vec<_>>`
+note: associated function defined here
+   --> /rustc/5c49c4f7c8393c861b849441d27f5d40e0f1e33b/library/core/src/convert/mod.rs:592:7
 
-For more information about this error, try `rustc --explain E0599`.
-error: could not compile `toml-pretty-deser` (lib) due to 1 previous error
-
-Caused by:
-  process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold` (exit status: 1)
-warning: build failed, waiting for other jobs to finish...
+For more information about this error, try `rustc --explain E0308`.
 error: could not compile `toml-pretty-deser` (lib test) due to 1 previous error
 
 Caused by:
   process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold` (exit status: 1)
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `toml-pretty-deser` (lib) due to 1 previous error
+
+Caused by:
+  process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold` (exit status: 1)
 
 *** result: Failure(101)

@@ -1,28 +1,25 @@
 
-*** toml-pretty-deser/src/lib.rs:1602:9: replace TomlValue<T>::into_option -> Option<T> with Some(Default::default())
+*** toml-pretty-deser/src/lib.rs:1602:9: replace TomlValue<T>::has_value -> bool with false
 
 *** mutation diff:
 --- toml-pretty-deser/src/lib.rs
-+++ replace TomlValue<T>::into_option -> Option<T> with Some(Default::default())
-@@ -1594,20 +1594,17 @@
++++ replace TomlValue<T>::has_value -> bool with false
+@@ -1594,17 +1594,17 @@
+             state: TomlValueState::NotSet,
+             required: false,
+         }
+     }
  }
  
  impl<T> TomlValue<T> {
      pub fn has_value(&self) -> bool {
-         matches!(self.state, TomlValueState::Ok { .. })
+-        matches!(self.state, TomlValueState::Ok { .. })
++        false /* ~ changed by cargo-mutants ~ */
      }
  
      pub fn into_option(self) -> Option<T> {
--        match self.state {
--            TomlValueState::Ok { .. } => self.value,
--            _ => None,
--        }
-+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
-     }
- 
-     pub fn as_ref(&self) -> Option<&T> {
          match self.state {
-             TomlValueState::Ok { .. } => self.value.as_ref(),
+             TomlValueState::Ok { .. } => self.value,
              _ => None,
          }
      }
@@ -32,47 +29,1473 @@
        Fresh unicode-ident v1.0.22
        Fresh proc-macro2 v1.0.106
        Fresh autocfg v1.5.0
-       Fresh quote v1.0.44
+       Fresh equivalent v1.0.2
        Fresh hashbrown v0.16.1
        Fresh winnow v0.7.14
+       Fresh toml_writer v1.0.6+spec-1.1.0
+       Fresh memchr v2.7.6
+       Fresh regex-automata v0.4.13
+       Fresh toml_datetime v0.7.5+spec-1.1.0
+       Fresh codesnake v0.2.1
+       Fresh strsim v0.11.1
+       Fresh quote v1.0.44
+       Fresh toml_parser v1.0.6+spec-1.1.0
+       Fresh indexmap v2.13.0
+       Fresh bstr v1.12.1
+       Fresh syn v2.0.114
+       Fresh toml_edit v0.24.0+spec-1.1.0
+       Fresh num-traits v0.2.19
+       Dirty toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros): the file `toml-pretty-deser-macros/src/lib.rs` has changed (1770036682.926310215s, 285987718ns after last build at 1770036682.640322497s)
+   Compiling toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
+     Running `rustc --crate-name toml_pretty_deser_macros --edition=2024 toml-pretty-deser-macros/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type proc-macro --emit=dep-info,link -C prefer-dynamic -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=81120a598c00f9fa -C extra-filename=-f792c9db6a0b2842 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern proc_macro2=/home/finkernagel/.cache/cargo/target/debug/deps/libproc_macro2-3b81e34eea8b22ad.rlib --extern quote=/home/finkernagel/.cache/cargo/target/debug/deps/libquote-17bdff8842b26ed8.rlib --extern syn=/home/finkernagel/.cache/cargo/target/debug/deps/libsyn-2ef69c79628e106e.rlib --extern proc_macro -C link-arg=-fuse-ld=mold`
+       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser): the dependency `toml-pretty-deser-macros` was rebuilt
+   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser)
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
+warning: field `allowed` is never read
+   --> toml-pretty-deser/src/lib.rs:775:5
+    |
+767 | pub struct TomlHelper<'a> {
+    |            ---------- field in this struct
+...
+775 |     allowed: HashMap<String, String>,
+    |     ^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
+warning: `toml-pretty-deser` (lib) generated 1 warning
+     Running `rustc --crate-name basic --edition=2024 toml-pretty-deser/tests/basic.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=608c682146c4ede0 -C extra-filename=-c7883bdc8893c706 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+warning: unused variable: `errors`
+   --> toml-pretty-deser/tests/basic.rs:535:41
+    |
+535 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+    |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `errors`
+    --> toml-pretty-deser/tests/basic.rs:1076:41
+     |
+1076 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+
+warning: `toml-pretty-deser` (test "basic") generated 2 warnings (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.61s
+  Executable `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
+  Executable `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
+
+*** result: Success
+
+*** /nix/store/826jircl576xphx7a459njgqfmcbd4x5-cargo-1.95.0-nightly-2026-01-21-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=toml-pretty-deser@0.1.0
+       Fresh unicode-ident v1.0.22
+       Fresh proc-macro2 v1.0.106
+       Fresh autocfg v1.5.0
+       Fresh quote v1.0.44
+       Fresh winnow v0.7.14
+       Fresh hashbrown v0.16.1
        Fresh equivalent v1.0.2
        Fresh indexmap v2.13.0
        Fresh toml_parser v1.0.6+spec-1.1.0
        Fresh syn v2.0.114
        Fresh toml_datetime v0.7.5+spec-1.1.0
        Fresh memchr v2.7.6
-       Fresh regex-automata v0.4.13
        Fresh toml_writer v1.0.6+spec-1.1.0
-       Fresh toml_edit v0.24.0+spec-1.1.0
+       Fresh regex-automata v0.4.13
        Fresh bstr v1.12.1
+       Fresh toml_edit v0.24.0+spec-1.1.0
        Fresh num-traits v0.2.19
-       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
-       Fresh codesnake v0.2.1
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
        Fresh strsim v0.11.1
-       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser): the file `toml-pretty-deser/src/lib.rs` has changed (1770035329.729414666s, 1s after last build at 1770035328.998446045s)
-   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
-     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
-     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
-error[E0277]: the trait bound `T: Default` is not satisfied
-    --> toml-pretty-deser/src/lib.rs:1602:14
-     |
-1602 |         Some(Default::default()) /* ~ changed by cargo-mutants ~ */
-     |              ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `T`
-     |
-help: consider restricting type parameter `T` with trait `Default`
-     |
-1596 | impl<T: std::default::Default> TomlValue<T> {
-     |       +++++++++++++++++++++++
+       Fresh codesnake v0.2.1
+warning: field `allowed` is never read
+   --> toml-pretty-deser/src/lib.rs:775:5
+    |
+767 | pub struct TomlHelper<'a> {
+    |            ---------- field in this struct
+...
+775 |     allowed: HashMap<String, String>,
+    |     ^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
-For more information about this error, try `rustc --explain E0277`.
-error: could not compile `toml-pretty-deser` (lib) due to 1 previous error
+warning: `toml-pretty-deser` (lib) generated 1 warning
+warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
+       Fresh toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser)
+warning: unused variable: `errors`
+   --> toml-pretty-deser/tests/basic.rs:535:41
+    |
+535 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+    |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
 
-Caused by:
-  process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold` (exit status: 1)
-warning: build failed, waiting for other jobs to finish...
-error: could not compile `toml-pretty-deser` (lib test) due to 1 previous error
+warning: unused variable: `errors`
+    --> toml-pretty-deser/tests/basic.rs:1076:41
+     |
+1076 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
+     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
 
-Caused by:
-  process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold` (exit status: 1)
+warning: `toml-pretty-deser` (test "basic") generated 2 warnings (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
+
+running 2 tests
+test tests::test_field_match_mode ... ok
+test tests::test_normalize_no_case ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
+
+running 38 tests
+test test_alias_exact_mode ... FAILED
+test test_any_case_mode_kebab ... FAILED
+test test_alias_with_any_case_mode ... FAILED
+test test_any_case_mode_camel ... FAILED
+test test_alias_exact_mode_failure ... ok
+test test_any_case_mode_snake ... FAILED
+test test_any_case_mode_shouty ... FAILED
+test test_any_case_mode_train ... FAILED
+test test_any_case_mode_upper_camel ... FAILED
+test test_complex_mixed_case ... FAILED
+test test_array_wrong_element_type ... ok
+test test_any_case_mode_unknown_key ... ok
+test test_arrays_with_optional ... FAILED
+test test_arrays ... FAILED
+test test_enum_invalid_variant ... ok
+test test_enum_optional_missing ... FAILED
+test test_complex_mixed_case_key_reused ... ok
+test test_enum_happy_path ... FAILED
+test test_enum_missing_required ... ok
+test test_nested_happy_half ... ok
+test test_nested_with_alias ... FAILED
+test test_missing ... ok
+test test_nested_happy ... FAILED
+test test_nested_with_any_case_mode ... FAILED
+test test_happy_path ... FAILED
+test test_nested_lower_failure ... ok
+test test_optional_missing ... FAILED
+test test_two_level_nested_inline_table ... FAILED
+test test_two_errors_pretty ... ok
+test test_two_level_nested_happy ... FAILED
+test test_two_level_nested_missing_inner ... ok
+test test_range_validation ... ok
+test test_two_level_nested_missing_inner_field ... ok
+test test_two_level_nested_with_optional_nested ... FAILED
+test test_validation_failure ... ok
+test test_upper_lower_mode ... FAILED
+test test_vec_missing ... ok
+test test_wrong_type ... ok
+
+failures:
+
+---- test_alias_exact_mode stdout ----
+[toml-pretty-deser/tests/basic.rs:787:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialAliasedOutput {
+            my_name: TomlValue {
+                value: Some(
+                    "using alias",
+                ),
+                state: Ok {
+                    span: 21..34,
+                },
+                required: true,
+            },
+            my_value: TomlValue {
+                value: Some(
+                    42,
+                ),
+                state: Ok {
+                    span: 53..55,
+                },
+                required: true,
+            },
+            regular_field: TomlValue {
+                value: Some(
+                    "no alias",
+                ),
+                state: Ok {
+                    span: 80..90,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_alias_exact_mode' (2435630) panicked at toml-pretty-deser/tests/basic.rs:788:5:
+assertion failed: result.is_ok()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- test_any_case_mode_kebab stdout ----
+[toml-pretty-deser/tests/basic.rs:886:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "kebab case",
+                ),
+                state: Ok {
+                    span: 20..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    101,
+                ),
+                state: Ok {
+                    span: 57..60,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_kebab' (2435634) panicked at toml-pretty-deser/tests/basic.rs:887:5:
+assertion failed: result.is_ok()
+
+---- test_alias_with_any_case_mode stdout ----
+[toml-pretty-deser/tests/basic.rs:980:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialAliasedOutput {
+            my_name: TomlValue {
+                value: Some(
+                    "alias match",
+                ),
+                state: Ok {
+                    span: 18..31,
+                },
+                required: true,
+            },
+            my_value: TomlValue {
+                value: Some(
+                    111,
+                ),
+                state: Ok {
+                    span: 50..53,
+                },
+                required: true,
+            },
+            regular_field: TomlValue {
+                value: Some(
+                    "case variant",
+                ),
+                state: Ok {
+                    span: 77..91,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_alias_with_any_case_mode' (2435632) panicked at toml-pretty-deser/tests/basic.rs:981:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_camel stdout ----
+[toml-pretty-deser/tests/basic.rs:868:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "camel case",
+                ),
+                state: Ok {
+                    span: 19..31,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    789,
+                ),
+                state: Ok {
+                    span: 55..58,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_camel' (2435633) panicked at toml-pretty-deser/tests/basic.rs:869:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_snake stdout ----
+[toml-pretty-deser/tests/basic.rs:850:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "snake case",
+                ),
+                state: Ok {
+                    span: 20..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    456,
+                ),
+                state: Ok {
+                    span: 57..60,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_snake' (2435636) panicked at toml-pretty-deser/tests/basic.rs:851:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_shouty stdout ----
+[toml-pretty-deser/tests/basic.rs:922:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "shouty",
+                ),
+                state: Ok {
+                    span: 20..28,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    303,
+                ),
+                state: Ok {
+                    span: 53..56,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_shouty' (2435635) panicked at toml-pretty-deser/tests/basic.rs:923:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_train stdout ----
+[toml-pretty-deser/tests/basic.rs:940:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "train case",
+                ),
+                state: Ok {
+                    span: 20..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    404,
+                ),
+                state: Ok {
+                    span: 57..60,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_train' (2435637) panicked at toml-pretty-deser/tests/basic.rs:941:5:
+assertion failed: result.is_ok()
+
+---- test_any_case_mode_upper_camel stdout ----
+[toml-pretty-deser/tests/basic.rs:904:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "upper camel",
+                ),
+                state: Ok {
+                    span: 19..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    202,
+                ),
+                state: Ok {
+                    span: 56..59,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_any_case_mode_upper_camel' (2435639) panicked at toml-pretty-deser/tests/basic.rs:905:5:
+assertion failed: result.is_ok()
+
+---- test_complex_mixed_case stdout ----
+[toml-pretty-deser/tests/basic.rs:1054:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialMixedCase {
+            api_key: TomlValue {
+                value: Some(
+                    "shouty alias",
+                ),
+                state: Ok {
+                    span: 19..33,
+                },
+                required: true,
+            },
+            html_parser: TomlValue {
+                value: Some(
+                    "consecutive caps",
+                ),
+                state: Ok {
+                    span: 55..73,
+                },
+                required: true,
+            },
+            get_http_response: TomlValue {
+                value: Some(
+                    42,
+                ),
+                state: Ok {
+                    span: 100..102,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_complex_mixed_case' (2435643) panicked at toml-pretty-deser/tests/basic.rs:1055:5:
+assertion failed: result.is_ok()
+
+---- test_arrays_with_optional stdout ----
+[toml-pretty-deser/tests/basic.rs:263:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialComplexOutput {
+            items: TomlValue {
+                value: Some(
+                    [
+                        "x",
+                        "y",
+                    ],
+                ),
+                state: Ok {
+                    span: 21..31,
+                },
+                required: true,
+            },
+            numbers: TomlValue {
+                value: Some(
+                    [
+                        10,
+                        20,
+                    ],
+                ),
+                state: Ok {
+                    span: 54..62,
+                },
+                required: true,
+            },
+            opt_items: TomlValue {
+                value: Some(
+                    Some(
+                        [
+                            "optional",
+                            "items",
+                        ],
+                    ),
+                ),
+                state: Ok {
+                    span: 87..108,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_arrays_with_optional' (2435642) panicked at toml-pretty-deser/tests/basic.rs:264:5:
+assertion failed: result.is_ok()
+
+---- test_arrays stdout ----
+[toml-pretty-deser/tests/basic.rs:245:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialComplexOutput {
+            items: TomlValue {
+                value: Some(
+                    [
+                        "a",
+                        "b",
+                        "c",
+                    ],
+                ),
+                state: Ok {
+                    span: 21..36,
+                },
+                required: true,
+            },
+            numbers: TomlValue {
+                value: Some(
+                    [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                    ],
+                ),
+                state: Ok {
+                    span: 59..74,
+                },
+                required: true,
+            },
+            opt_items: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_arrays' (2435641) panicked at toml-pretty-deser/tests/basic.rs:246:5:
+assertion failed: result.is_ok()
+
+---- test_enum_optional_missing stdout ----
+[toml-pretty-deser/tests/basic.rs:368:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialEnumOutput {
+            an_enum: TomlValue {
+                value: Some(
+                    Four,
+                ),
+                state: Ok {
+                    span: 23..29,
+                },
+                required: true,
+            },
+            opt_enum: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            vec_enum: TomlValue {
+                value: Some(
+                    [
+                        TwoThree,
+                    ],
+                ),
+                state: Ok {
+                    span: 87..99,
+                },
+                required: true,
+            },
+            opt_vec_enum: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_enum_optional_missing' (2435648) panicked at toml-pretty-deser/tests/basic.rs:369:5:
+assertion failed: result.is_ok()
+
+---- test_enum_happy_path stdout ----
+[toml-pretty-deser/tests/basic.rs:342:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialEnumOutput {
+            an_enum: TomlValue {
+                value: Some(
+                    One,
+                ),
+                state: Ok {
+                    span: 23..28,
+                },
+                required: true,
+            },
+            opt_enum: TomlValue {
+                value: Some(
+                    Some(
+                        TwoThree,
+                    ),
+                ),
+                state: Ok {
+                    span: 52..62,
+                },
+                required: false,
+            },
+            vec_enum: TomlValue {
+                value: Some(
+                    [
+                        One,
+                        Four,
+                    ],
+                ),
+                state: Ok {
+                    span: 86..101,
+                },
+                required: true,
+            },
+            opt_vec_enum: TomlValue {
+                value: Some(
+                    Some(
+                        [
+                            TwoThree,
+                            One,
+                        ],
+                    ),
+                ),
+                state: Ok {
+                    span: 129..148,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_enum_happy_path' (2435645) panicked at toml-pretty-deser/tests/basic.rs:343:5:
+assertion failed: result.is_ok()
+
+---- test_nested_with_alias stdout ----
+[toml-pretty-deser/tests/basic.rs:1012:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialOuterAliased {
+            nested: TomlValue {
+                value: Some(
+                    PartialAliasedNested {
+                        nested_name: TomlValue {
+                            value: Some(
+                                "aliased nested field",
+                            ),
+                            state: Ok {
+                                span: 44..66,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: ValidationFailed {
+                    span: 9..17,
+                    message: "Nested struct has errors",
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_nested_with_alias' (2435654) panicked at toml-pretty-deser/tests/basic.rs:1013:5:
+assertion failed: result.is_ok()
+
+---- test_nested_happy stdout ----
+[toml-pretty-deser/tests/basic.rs:468:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialOuter {
+            nested: TomlValue {
+                value: Some(
+                    PartialNested {
+                        name: TomlValue {
+                            value: Some(
+                                "a",
+                            ),
+                            state: Ok {
+                                span: 119..122,
+                            },
+                            required: true,
+                        },
+                        value: TomlValue {
+                            value: Some(
+                                1,
+                            ),
+                            state: Ok {
+                                span: 143..144,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: ValidationFailed {
+                    span: 91..99,
+                    message: "Nested struct has errors",
+                },
+                required: true,
+            },
+            inline_nested: TomlValue {
+                value: Some(
+                    PartialNested {
+                        name: TomlValue {
+                            value: Some(
+                                "d",
+                            ),
+                            state: Ok {
+                                span: 46..49,
+                            },
+                            required: true,
+                        },
+                        value: TomlValue {
+                            value: Some(
+                                4,
+                            ),
+                            state: Ok {
+                                span: 71..72,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: ValidationFailed {
+                    span: 25..82,
+                    message: "Nested struct has errors",
+                },
+                required: true,
+            },
+            opt_nested: TomlValue {
+                value: Some(
+                    Some(
+                        PartialNested {
+                            name: TomlValue {
+                                value: Some(
+                                    "b",
+                                ),
+                                state: Ok {
+                                    span: 186..189,
+                                },
+                                required: true,
+                            },
+                            value: TomlValue {
+                                value: Some(
+                                    2,
+                                ),
+                                state: Ok {
+                                    span: 210..211,
+                                },
+                                required: true,
+                            },
+                        },
+                    ),
+                ),
+                state: ValidationFailed {
+                    span: 154..166,
+                    message: "Nested struct has errors",
+                },
+                required: false,
+            },
+            vec_nested: TomlValue {
+                value: Some(
+                    [
+                        PartialNested {
+                            name: TomlValue {
+                                value: Some(
+                                    "c1",
+                                ),
+                                state: Ok {
+                                    span: 255..259,
+                                },
+                                required: true,
+                            },
+                            value: TomlValue {
+                                value: Some(
+                                    31,
+                                ),
+                                state: Ok {
+                                    span: 280..282,
+                                },
+                                required: true,
+                            },
+                        },
+                        PartialNested {
+                            name: TomlValue {
+                                value: Some(
+                                    "c2",
+                                ),
+                                state: Ok {
+                                    span: 326..330,
+                                },
+                                required: true,
+                            },
+                            value: TomlValue {
+                                value: Some(
+                                    32,
+                                ),
+                                state: Ok {
+                                    span: 351..353,
+                                },
+                                required: true,
+                            },
+                        },
+                    ],
+                ),
+                state: ValidationFailed {
+                    span: 221..306,
+                    message: "Array of nested structs has errors",
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_nested_happy' (2435651) panicked at toml-pretty-deser/tests/basic.rs:469:5:
+assertion failed: result.is_ok()
+
+---- test_nested_with_any_case_mode stdout ----
+[toml-pretty-deser/tests/basic.rs:1028:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialOuterAliased {
+            nested: TomlValue {
+                value: Some(
+                    PartialAliasedNested {
+                        nested_name: TomlValue {
+                            value: Some(
+                                "case variant in nested",
+                            ),
+                            state: Ok {
+                                span: 39..63,
+                            },
+                            required: true,
+                        },
+                    },
+                ),
+                state: ValidationFailed {
+                    span: 9..17,
+                    message: "Nested struct has errors",
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_nested_with_any_case_mode' (2435655) panicked at toml-pretty-deser/tests/basic.rs:1029:5:
+assertion failed: result.is_ok()
+
+---- test_happy_path stdout ----
+[toml-pretty-deser/tests/basic.rs:59:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialOutput {
+            a_u8: TomlValue {
+                value: Some(
+                    255,
+                ),
+                state: Ok {
+                    span: 20..23,
+                },
+                required: true,
+            },
+            a_i64: TomlValue {
+                value: Some(
+                    -123,
+                ),
+                state: Ok {
+                    span: 44..48,
+                },
+                required: true,
+            },
+            a_f64: TomlValue {
+                value: Some(
+                    3.14,
+                ),
+                state: Ok {
+                    span: 69..73,
+                },
+                required: true,
+            },
+            a_string: TomlValue {
+                value: Some(
+                    "Hello, World!",
+                ),
+                state: Ok {
+                    span: 97..112,
+                },
+                required: true,
+            },
+            a_bool: TomlValue {
+                value: Some(
+                    true,
+                ),
+                state: Ok {
+                    span: 134..138,
+                },
+                required: true,
+            },
+            opt_a_u8: TomlValue {
+                value: Some(
+                    Some(
+                        128,
+                    ),
+                ),
+                state: Ok {
+                    span: 163..166,
+                },
+                required: false,
+            },
+            opt_a_i64: TomlValue {
+                value: Some(
+                    Some(
+                        -456,
+                    ),
+                ),
+                state: Ok {
+                    span: 191..195,
+                },
+                required: false,
+            },
+            opt_a_f64: TomlValue {
+                value: Some(
+                    Some(
+                        2.71,
+                    ),
+                ),
+                state: Ok {
+                    span: 220..224,
+                },
+                required: false,
+            },
+            opt_a_string: TomlValue {
+                value: Some(
+                    Some(
+                        "Optional String",
+                    ),
+                ),
+                state: Ok {
+                    span: 252..269,
+                },
+                required: false,
+            },
+            opt_a_bool: TomlValue {
+                value: Some(
+                    Some(
+                        false,
+                    ),
+                ),
+                state: Ok {
+                    span: 295..300,
+                },
+                required: false,
+            },
+            verified_i16: TomlValue {
+                value: Some(
+                    10,
+                ),
+                state: Ok {
+                    span: 329..331,
+                },
+                required: true,
+            },
+            defaulted_i16: TomlValue {
+                value: Some(
+                    100,
+                ),
+                state: Ok {
+                    span: 360..363,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_happy_path' (2435649) panicked at toml-pretty-deser/tests/basic.rs:60:5:
+assertion failed: result.is_ok()
+
+---- test_optional_missing stdout ----
+[toml-pretty-deser/tests/basic.rs:128:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialOutput {
+            a_u8: TomlValue {
+                value: Some(
+                    255,
+                ),
+                state: Ok {
+                    span: 20..23,
+                },
+                required: true,
+            },
+            a_i64: TomlValue {
+                value: Some(
+                    -123,
+                ),
+                state: Ok {
+                    span: 44..48,
+                },
+                required: true,
+            },
+            a_f64: TomlValue {
+                value: Some(
+                    3.14,
+                ),
+                state: Ok {
+                    span: 69..73,
+                },
+                required: true,
+            },
+            a_string: TomlValue {
+                value: Some(
+                    "Hello, World!",
+                ),
+                state: Ok {
+                    span: 97..112,
+                },
+                required: true,
+            },
+            a_bool: TomlValue {
+                value: Some(
+                    true,
+                ),
+                state: Ok {
+                    span: 134..138,
+                },
+                required: true,
+            },
+            opt_a_u8: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            opt_a_i64: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            opt_a_f64: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            opt_a_string: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            opt_a_bool: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+            verified_i16: TomlValue {
+                value: Some(
+                    10,
+                ),
+                state: Ok {
+                    span: 346..348,
+                },
+                required: true,
+            },
+            defaulted_i16: TomlValue {
+                value: Some(
+                    42,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_optional_missing' (2435656) panicked at toml-pretty-deser/tests/basic.rs:129:5:
+assertion failed: result.is_ok()
+
+---- test_two_level_nested_inline_table stdout ----
+[toml-pretty-deser/tests/basic.rs:672:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "inline_l1",
+                            ),
+                            state: Ok {
+                                span: 39..50,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "inline_l2",
+                                        ),
+                                        state: Ok {
+                                            span: 98..109,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: ValidationFailed {
+                                span: 73..123,
+                                message: "Nested struct has errors",
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                Some(
+                                    PartialLevel2 {
+                                        data: TomlValue {
+                                            value: Some(
+                                                "inline_opt_l2",
+                                            ),
+                                            state: Ok {
+                                                span: 175..190,
+                                            },
+                                            required: true,
+                                        },
+                                    },
+                                ),
+                            ),
+                            state: ValidationFailed {
+                                span: 150..204,
+                                message: "Nested struct has errors",
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: ValidationFailed {
+                    span: 18..214,
+                    message: "Nested struct has errors",
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_inline_table' (2435660) panicked at toml-pretty-deser/tests/basic.rs:673:5:
+assertion failed: result.is_ok()
+
+---- test_two_level_nested_happy stdout ----
+[toml-pretty-deser/tests/basic.rs:614:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "level1_name",
+                            ),
+                            state: Ok {
+                                span: 37..50,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "level2_data",
+                                        ),
+                                        state: Ok {
+                                            span: 95..108,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: ValidationFailed {
+                                span: 60..75,
+                                message: "Nested struct has errors",
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                None,
+                            ),
+                            state: Ok {
+                                span: 0..0,
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: ValidationFailed {
+                    span: 9..17,
+                    message: "Nested struct has errors",
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    Some(
+                        PartialLevel1 {
+                            name: TomlValue {
+                                value: Some(
+                                    "opt_name",
+                                ),
+                                state: Ok {
+                                    span: 150..160,
+                                },
+                                required: true,
+                            },
+                            level2: TomlValue {
+                                value: Some(
+                                    PartialLevel2 {
+                                        data: TomlValue {
+                                            value: Some(
+                                                "opt_level2_data",
+                                            ),
+                                            state: Ok {
+                                                span: 209..226,
+                                            },
+                                            required: true,
+                                        },
+                                    },
+                                ),
+                                state: ValidationFailed {
+                                    span: 170..189,
+                                    message: "Nested struct has errors",
+                                },
+                                required: true,
+                            },
+                            opt_level2: TomlValue {
+                                value: Some(
+                                    None,
+                                ),
+                                state: Ok {
+                                    span: 0..0,
+                                },
+                                required: false,
+                            },
+                        },
+                    ),
+                ),
+                state: ValidationFailed {
+                    span: 118..130,
+                    message: "Nested struct has errors",
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_happy' (2435659) panicked at toml-pretty-deser/tests/basic.rs:615:5:
+assertion failed: result.is_ok()
+
+---- test_two_level_nested_with_optional_nested stdout ----
+[toml-pretty-deser/tests/basic.rs:643:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialRoot {
+            level1: TomlValue {
+                value: Some(
+                    PartialLevel1 {
+                        name: TomlValue {
+                            value: Some(
+                                "l1",
+                            ),
+                            state: Ok {
+                                span: 37..41,
+                            },
+                            required: true,
+                        },
+                        level2: TomlValue {
+                            value: Some(
+                                PartialLevel2 {
+                                    data: TomlValue {
+                                        value: Some(
+                                            "l2_data",
+                                        ),
+                                        state: Ok {
+                                            span: 86..95,
+                                        },
+                                        required: true,
+                                    },
+                                },
+                            ),
+                            state: ValidationFailed {
+                                span: 51..66,
+                                message: "Nested struct has errors",
+                            },
+                            required: true,
+                        },
+                        opt_level2: TomlValue {
+                            value: Some(
+                                Some(
+                                    PartialLevel2 {
+                                        data: TomlValue {
+                                            value: Some(
+                                                "opt_l2_data",
+                                            ),
+                                            state: Ok {
+                                                span: 144..157,
+                                            },
+                                            required: true,
+                                        },
+                                    },
+                                ),
+                            ),
+                            state: ValidationFailed {
+                                span: 105..124,
+                                message: "Nested struct has errors",
+                            },
+                            required: false,
+                        },
+                    },
+                ),
+                state: ValidationFailed {
+                    span: 9..17,
+                    message: "Nested struct has errors",
+                },
+                required: true,
+            },
+            opt_level1: TomlValue {
+                value: Some(
+                    None,
+                ),
+                state: Ok {
+                    span: 0..0,
+                },
+                required: false,
+            },
+        },
+    ),
+)
+
+thread 'test_two_level_nested_with_optional_nested' (2435663) panicked at toml-pretty-deser/tests/basic.rs:644:5:
+assertion failed: result.is_ok()
+
+---- test_upper_lower_mode stdout ----
+[toml-pretty-deser/tests/basic.rs:832:5] &result = Err(
+    StillIncomplete(
+        [],
+        PartialCaseOutput {
+            my_field: TomlValue {
+                value: Some(
+                    "upper case",
+                ),
+                state: Ok {
+                    span: 20..32,
+                },
+                required: true,
+            },
+            another_field: TomlValue {
+                value: Some(
+                    123,
+                ),
+                state: Ok {
+                    span: 57..60,
+                },
+                required: true,
+            },
+        },
+    ),
+)
+
+thread 'test_upper_lower_mode' (2435664) panicked at toml-pretty-deser/tests/basic.rs:833:5:
+assertion failed: result.is_ok()
+
+
+failures:
+    test_alias_exact_mode
+    test_alias_with_any_case_mode
+    test_any_case_mode_camel
+    test_any_case_mode_kebab
+    test_any_case_mode_shouty
+    test_any_case_mode_snake
+    test_any_case_mode_train
+    test_any_case_mode_upper_camel
+    test_arrays
+    test_arrays_with_optional
+    test_complex_mixed_case
+    test_enum_happy_path
+    test_enum_optional_missing
+    test_happy_path
+    test_nested_happy
+    test_nested_with_alias
+    test_nested_with_any_case_mode
+    test_optional_missing
+    test_two_level_nested_happy
+    test_two_level_nested_inline_table
+    test_two_level_nested_with_optional_nested
+    test_upper_lower_mode
+
+test result: FAILED. 16 passed; 22 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p toml-pretty-deser --test basic`
 
 *** result: Failure(101)

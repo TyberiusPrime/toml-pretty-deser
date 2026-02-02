@@ -1,0 +1,28 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace TomlValue<T>::or_default -> TomlValue<T> with TomlValue::new(Default::default())
+@@ -1684,24 +1684,17 @@
+                     },
+                 },
+             },
+             _ => self,
+         }
+     }
+ 
+     pub fn or_default(self, default: T) -> TomlValue<T> {
+-        match &self.state {
+-            TomlValueState::Missing { .. } => TomlValue {
+-                value: Some(default),
+-                required: false,
+-                state: TomlValueState::Ok { span: 0..0 },
+-            },
+-            _ => self,
+-        }
++        TomlValue::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ pub trait AsNested<P>: Sized {
+     fn as_nested(
+         self,
+         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+         mode: FieldMatchMode,

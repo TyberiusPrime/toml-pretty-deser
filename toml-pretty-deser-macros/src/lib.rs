@@ -465,7 +465,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             fn can_concrete(&self) -> bool {
                 #(#can_concrete_fields)&&*
             }
-
             fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
                 #partial_name {
                     #(#from_toml_table_fields,)*

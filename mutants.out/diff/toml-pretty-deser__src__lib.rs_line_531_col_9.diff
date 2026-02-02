@@ -15,7 +15,7 @@
  }
  
  pub trait FromTomlTable<T> {
+     fn can_concrete(&self) -> bool;
      fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &T) -> Self
      where
          Self: Sized;
- }

@@ -1,5 +1,5 @@
 --- toml-pretty-deser/src/lib.rs
-+++ replace TomlHelper<'a>::get -> TomlValue<T> with TomlValue::new(Default::default())
++++ replace TomlHelper<'a>::get -> TomlValue<T> with TomlValue::from(Default::default())
 @@ -874,17 +874,17 @@
          result
      }
@@ -10,12 +10,12 @@
          T: std::fmt::Debug,
      {
 -        self.get_with_aliases(key, vec![])
-+        TomlValue::new(Default::default()) /* ~ changed by cargo-mutants ~ */
++        TomlValue::from(Default::default()) /* ~ changed by cargo-mutants ~ */
      }
  
-     pub fn get_with_aliases<T>(&mut self, query_key: &str, aliases: Vec<&'static str>) -> TomlValue<T>
+     pub fn get_with_aliases<T>(
+         &mut self,
+         query_key: &str,
+         aliases: Vec<&'static str>,
+     ) -> TomlValue<T>
      where
-         TomlValue<T>: FromTomlItem,
-         T:std::fmt::Debug,
-     {
-         let parent_span = if let Some(table) = self.table {

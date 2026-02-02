@@ -1,0 +1,24 @@
+--- toml-pretty-deser-macros/src/lib.rs
++++ delete match arm Data::Struct(data) in make_partial
+@@ -198,20 +198,17 @@
+     let input = parse_macro_input!(item as DeriveInput);
+ 
+     let struct_name = &input.ident;
+     let partial_name = format_ident!("Partial{}", struct_name);
+     let generics = &input.generics;
+     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+ 
+     let fields = match &input.data {
+-        Data::Struct(data) => match &data.fields {
+-            Fields::Named(fields) => &fields.named,
+-            _ => panic!("make_partial only supports structs with named fields"),
+-        },
++         /* ~ changed by cargo-mutants ~ */
+         _ => panic!("make_partial only supports structs"),
+     };
+ 
+     // Create a version of the input struct with #[nested], #[as_enum], and #[alias(...)] attributes stripped
+     let mut cleaned_input = input.clone();
+     if let Data::Struct(ref mut data) = cleaned_input.data {
+         if let Fields::Named(ref mut fields) = data.fields {
+             for field in fields.named.iter_mut() {

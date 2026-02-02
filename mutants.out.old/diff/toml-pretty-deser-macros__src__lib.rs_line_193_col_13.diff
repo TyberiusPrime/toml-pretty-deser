@@ -1,0 +1,21 @@
+--- toml-pretty-deser-macros/src/lib.rs
++++ delete match arm "false" in make_partial
+@@ -185,17 +185,17 @@
+ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
+     // Parse the boolean argument (default to true)
+     let generate_verify = if attr.is_empty() {
+         true
+     } else {
+         let attr_str = attr.to_string();
+         match attr_str.as_str() {
+             "true" => true,
+-            "false" => false,
++             /* ~ changed by cargo-mutants ~ */
+             _ => panic!("make_partial expects 'true' or 'false', got: {}", attr_str),
+         }
+     };
+ 
+     let input = parse_macro_input!(item as DeriveInput);
+ 
+     let struct_name = &input.ident;
+     let partial_name = format_ident!("Partial{}", struct_name);

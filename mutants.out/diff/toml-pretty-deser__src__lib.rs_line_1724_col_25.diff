@@ -1,0 +1,46 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm toml_edit::Item::Table(table) in <impl AsNested<P> for TomlValue<toml_edit::Item>>::as_nested
+@@ -1716,42 +1716,17 @@
+         self,
+         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+         mode: FieldMatchMode,
+     ) -> TomlValue<P> {
+         match &self.state {
+             TomlValueState::Ok { span } => {
+                 if let Some(ref item) = self.value {
+                     match item {
+-                        toml_edit::Item::Table(table) => {
+-                            let mut helper = TomlHelper::new(table, errors.clone(), mode);
+-                            let partial =
+-                                P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+-                            helper.deny_unknown();
+-
+-                            // Collect any new errors from the nested deserialization
+-
+-                            if !partial.can_concrete() {
+-                                // There were errors during nested deserialization
+-                                TomlValue {
+-                                    value: Some(partial),
+-                                    required: self.required,
+-                                    state: TomlValueState::ValidationFailed {
+-                                        span: span.clone(),
+-                                        message: "Nested struct has errors".to_string(),
+-                                    },
+-                                }
+-                            } else {
+-                                TomlValue {
+-                                    value: Some(partial),
+-                                    required: self.required,
+-                                    state: TomlValueState::Ok { span: span.clone() },
+-                                }
+-                            }
+-                        }
++                         /* ~ changed by cargo-mutants ~ */
+                         toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
+                             let mut helper = TomlHelper::new_inline(table, errors.clone(), mode);
+                             let partial =
+                                 P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+                             helper.deny_unknown();
+ 
+ 
+                             if !partial.can_concrete() {

@@ -1,9 +1,9 @@
 
-*** toml-pretty-deser/src/lib.rs:151:9: replace <impl AsEnum<E> for TomlValue<String>>::as_enum -> TomlValue<E> with TomlValue::from(Default::default())
+*** toml-pretty-deser/src/lib.rs:151:9: replace <impl AsEnum<E> for TomlValue<String>>::as_enum -> TomlValue<E> with TomlValue::new()
 
 *** mutation diff:
 --- toml-pretty-deser/src/lib.rs
-+++ replace <impl AsEnum<E> for TomlValue<String>>::as_enum -> TomlValue<E> with TomlValue::from(Default::default())
++++ replace <impl AsEnum<E> for TomlValue<String>>::as_enum -> TomlValue<E> with TomlValue::new()
 @@ -143,65 +143,17 @@
  }
  
@@ -62,7 +62,7 @@
 -                state: self.state.clone(),
 -            },
 -        }
-+        TomlValue::from(Default::default()) /* ~ changed by cargo-mutants ~ */
++        TomlValue::new() /* ~ changed by cargo-mutants ~ */
      }
  }
  
@@ -78,355 +78,44 @@
        Fresh proc-macro2 v1.0.106
        Fresh autocfg v1.5.0
        Fresh quote v1.0.44
-       Fresh winnow v0.7.14
        Fresh equivalent v1.0.2
        Fresh hashbrown v0.16.1
+       Fresh winnow v0.7.14
        Fresh indexmap v2.13.0
        Fresh toml_parser v1.0.6+spec-1.1.0
        Fresh syn v2.0.114
+       Fresh memchr v2.7.6
        Fresh toml_datetime v0.7.5+spec-1.1.0
        Fresh regex-automata v0.4.13
-       Fresh memchr v2.7.6
        Fresh toml_writer v1.0.6+spec-1.1.0
+       Fresh strsim v0.11.1
+       Fresh codesnake v0.2.1
+       Fresh toml_edit v0.24.0+spec-1.1.0
+       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser-macros)
        Fresh bstr v1.12.1
        Fresh num-traits v0.2.19
-       Dirty toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros): the file `toml-pretty-deser-macros/src/lib.rs` has changed (1770035351.258490456s, 1s after last build at 1770035350.974502647s)
-   Compiling toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
-       Fresh codesnake v0.2.1
-       Fresh strsim v0.11.1
-       Fresh toml_edit v0.24.0+spec-1.1.0
-     Running `rustc --crate-name toml_pretty_deser_macros --edition=2024 toml-pretty-deser-macros/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type proc-macro --emit=dep-info,link -C prefer-dynamic -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=81120a598c00f9fa -C extra-filename=-f792c9db6a0b2842 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern proc_macro2=/home/finkernagel/.cache/cargo/target/debug/deps/libproc_macro2-3b81e34eea8b22ad.rlib --extern quote=/home/finkernagel/.cache/cargo/target/debug/deps/libquote-17bdff8842b26ed8.rlib --extern syn=/home/finkernagel/.cache/cargo/target/debug/deps/libsyn-2ef69c79628e106e.rlib --extern proc_macro -C link-arg=-fuse-ld=mold`
-       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser): the dependency `toml-pretty-deser-macros` was rebuilt
-   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
-     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+       Dirty toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser): couldn't read metadata for file `/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib`
+   Compiling toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-zBlI0F.tmp/toml-pretty-deser)
      Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold`
-warning: field `allowed` is never read
-   --> toml-pretty-deser/src/lib.rs:727:5
-    |
-719 | pub struct TomlHelper<'a> {
-    |            ---------- field in this struct
+     Running `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
+error[E0599]: no function or associated item named `new` found for struct `TomlValue<T>` in the current scope
+    --> toml-pretty-deser/src/lib.rs:151:20
+     |
+ 151 |         TomlValue::new() /* ~ changed by cargo-mutants ~ */
+     |                    ^^^ function or associated item not found in `TomlValue<_>`
 ...
-727 |     allowed: HashMap<String, String>,
-    |     ^^^^^^^
-    |
-    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+1536 | pub struct TomlValue<T> {
+     | ----------------------- function or associated item `new` not found for this struct
 
-warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
-warning: `toml-pretty-deser` (lib) generated 1 warning
-     Running `rustc --crate-name basic --edition=2024 toml-pretty-deser/tests/basic.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=608c682146c4ede0 -C extra-filename=-c7883bdc8893c706 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser-23ebeb13d54ac447.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold`
-warning: unused variable: `errors`
-    --> toml-pretty-deser/tests/basic.rs:1002:41
-     |
-1002 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
-     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
-     |
-     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `toml-pretty-deser` (lib) due to 1 previous error
 
-warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 1 suggestion)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.65s
-  Executable `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
-  Executable `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
+Caused by:
+  process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=a852430a061c5350 -C extra-filename=-23ebeb13d54ac447 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rmeta --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rmeta --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rmeta --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rmeta --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rmeta --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rmeta -C link-arg=-fuse-ld=mold` (exit status: 1)
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `toml-pretty-deser` (lib test) due to 1 previous error
 
-*** result: Success
-
-*** /nix/store/826jircl576xphx7a459njgqfmcbd4x5-cargo-1.95.0-nightly-2026-01-21-x86_64-unknown-linux-gnu/bin/cargo test --verbose --package=toml-pretty-deser@0.1.0
-       Fresh unicode-ident v1.0.22
-       Fresh proc-macro2 v1.0.106
-       Fresh autocfg v1.5.0
-       Fresh quote v1.0.44
-       Fresh winnow v0.7.14
-       Fresh equivalent v1.0.2
-       Fresh hashbrown v0.16.1
-       Fresh indexmap v2.13.0
-       Fresh toml_parser v1.0.6+spec-1.1.0
-       Fresh syn v2.0.114
-       Fresh toml_datetime v0.7.5+spec-1.1.0
-       Fresh toml_writer v1.0.6+spec-1.1.0
-       Fresh memchr v2.7.6
-       Fresh regex-automata v0.4.13
-       Fresh num-traits v0.2.19
-       Fresh toml-pretty-deser-macros v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser-macros)
-       Fresh strsim v0.11.1
-       Fresh codesnake v0.2.1
-       Fresh toml_edit v0.24.0+spec-1.1.0
-       Fresh bstr v1.12.1
-warning: field `allowed` is never read
-   --> toml-pretty-deser/src/lib.rs:727:5
-    |
-719 | pub struct TomlHelper<'a> {
-    |            ---------- field in this struct
-...
-727 |     allowed: HashMap<String, String>,
-    |     ^^^^^^^
-    |
-    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
-
-warning: `toml-pretty-deser` (lib) generated 1 warning
-warning: `toml-pretty-deser` (lib test) generated 1 warning (1 duplicate)
-warning: unused variable: `errors`
-    --> toml-pretty-deser/tests/basic.rs:1002:41
-     |
-1002 |     if let Err(DeserError::DeserFailure(errors, output)) = result {
-     |                                         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_errors`
-     |
-     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
-
-       Fresh toml-pretty-deser v0.1.0 (/tmp/nix-shell.fWA0aw/cargo-mutants-toml-pretty-deser-Ha55Kf.tmp/toml-pretty-deser)
-warning: `toml-pretty-deser` (test "basic") generated 1 warning (run `cargo fix --test "basic" -p toml-pretty-deser` to apply 1 suggestion)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
-     Running `/home/finkernagel/.cache/cargo/target/debug/deps/toml_pretty_deser-07d9828939c75c69`
-
-running 2 tests
-test tests::test_field_match_mode ... ok
-test tests::test_normalize_no_case ... ok
-
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-     Running `/home/finkernagel/.cache/cargo/target/debug/deps/basic-c7883bdc8893c706`
-
-running 37 tests
-test test_alias_exact_mode ... ok
-test test_any_case_mode_kebab ... ok
-test test_any_case_mode_snake ... ok
-test test_alias_exact_mode_failure ... ok
-test test_any_case_mode_camel ... ok
-test test_any_case_mode_unknown_key ... ok
-test test_alias_with_any_case_mode ... ok
-test test_any_case_mode_shouty ... ok
-test test_any_case_mode_train ... ok
-test test_array_wrong_element_type ... ok
-test test_arrays_and_nested ... ok
-test test_any_case_mode_upper_camel ... ok
-test test_complex_mixed_case_key_reused ... ok
-test test_enum_happy_path ... FAILED
-test test_arrays_with_optional ... ok
-test test_enum_invalid_variant ... FAILED
-test test_complex_mixed_case ... ok
-test test_enum_optional_missing ... FAILED
-test test_enum_missing_required ... FAILED
-test test_nested_with_any_case_mode ... ok
-test test_nested_happy ... ok
-test test_nested_with_alias ... ok
-test test_nested_happy_half ... ok
-test test_optional_missing ... ok
-test test_two_level_nested_happy ... ok
-test test_upper_lower_mode ... ok
-test test_happy_path ... ok
-test test_range_validation ... ok
-test test_two_level_nested_inline_table ... ok
-test test_two_level_nested_missing_inner ... ok
-test test_vec_missing ... ok
-test test_two_level_nested_with_optional_nested ... ok
-test test_validation_failure ... ok
-test test_two_level_nested_missing_inner_field ... ok
-test test_missing ... ok
-test test_two_errors_pretty ... ok
-test test_wrong_type ... ok
-
-failures:
-
----- test_enum_happy_path stdout ----
-[toml-pretty-deser/tests/basic.rs:341:5] &result = Err(
-    StillIncomplete(
-        [],
-        PartialEnumOutput {
-            an_enum: TomlValue {
-                value: None,
-                state: NotSet,
-                required: false,
-            },
-            opt_enum: TomlValue {
-                value: Some(
-                    Some(
-                        TwoThree,
-                    ),
-                ),
-                state: Ok {
-                    span: 52..62,
-                },
-                required: false,
-            },
-            vec_enum: TomlValue {
-                value: Some(
-                    [
-                        One,
-                        Four,
-                    ],
-                ),
-                state: Ok {
-                    span: 86..101,
-                },
-                required: true,
-            },
-            opt_vec_enum: TomlValue {
-                value: Some(
-                    Some(
-                        [
-                            TwoThree,
-                            One,
-                        ],
-                    ),
-                ),
-                state: Ok {
-                    span: 129..148,
-                },
-                required: false,
-            },
-        },
-    ),
-)
-
-thread 'test_enum_happy_path' (2363182) panicked at toml-pretty-deser/tests/basic.rs:342:5:
-assertion failed: result.is_ok()
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-
----- test_enum_invalid_variant stdout ----
-[toml-pretty-deser/tests/basic.rs:386:5] &result = Err(
-    StillIncomplete(
-        [],
-        PartialEnumOutput {
-            an_enum: TomlValue {
-                value: None,
-                state: NotSet,
-                required: false,
-            },
-            opt_enum: TomlValue {
-                value: Some(
-                    None,
-                ),
-                state: Ok {
-                    span: 0..0,
-                },
-                required: false,
-            },
-            vec_enum: TomlValue {
-                value: Some(
-                    [
-                        One,
-                    ],
-                ),
-                state: Ok {
-                    span: 63..70,
-                },
-                required: true,
-            },
-            opt_vec_enum: TomlValue {
-                value: Some(
-                    None,
-                ),
-                state: Ok {
-                    span: 0..0,
-                },
-                required: false,
-            },
-        },
-    ),
-)
-
-thread 'test_enum_invalid_variant' (2363183) panicked at toml-pretty-deser/tests/basic.rs:392:9:
-Expected failure due to invalid enum variant
-
----- test_enum_optional_missing stdout ----
-[toml-pretty-deser/tests/basic.rs:367:5] &result = Err(
-    StillIncomplete(
-        [],
-        PartialEnumOutput {
-            an_enum: TomlValue {
-                value: None,
-                state: NotSet,
-                required: false,
-            },
-            opt_enum: TomlValue {
-                value: Some(
-                    None,
-                ),
-                state: Ok {
-                    span: 0..0,
-                },
-                required: false,
-            },
-            vec_enum: TomlValue {
-                value: Some(
-                    [
-                        TwoThree,
-                    ],
-                ),
-                state: Ok {
-                    span: 87..99,
-                },
-                required: true,
-            },
-            opt_vec_enum: TomlValue {
-                value: Some(
-                    None,
-                ),
-                state: Ok {
-                    span: 0..0,
-                },
-                required: false,
-            },
-        },
-    ),
-)
-
-thread 'test_enum_optional_missing' (2363185) panicked at toml-pretty-deser/tests/basic.rs:368:5:
-assertion failed: result.is_ok()
-
----- test_enum_missing_required stdout ----
-[toml-pretty-deser/tests/basic.rs:404:5] &result = Err(
-    StillIncomplete(
-        [],
-        PartialEnumOutput {
-            an_enum: TomlValue {
-                value: None,
-                state: NotSet,
-                required: false,
-            },
-            opt_enum: TomlValue {
-                value: Some(
-                    None,
-                ),
-                state: Ok {
-                    span: 0..0,
-                },
-                required: false,
-            },
-            vec_enum: TomlValue {
-                value: Some(
-                    [
-                        One,
-                    ],
-                ),
-                state: Ok {
-                    span: 57..64,
-                },
-                required: true,
-            },
-            opt_vec_enum: TomlValue {
-                value: Some(
-                    None,
-                ),
-                state: Ok {
-                    span: 0..0,
-                },
-                required: false,
-            },
-        },
-    ),
-)
-
-thread 'test_enum_missing_required' (2363184) panicked at toml-pretty-deser/tests/basic.rs:410:9:
-Expected failure due to missing required enum field
-
-
-failures:
-    test_enum_happy_path
-    test_enum_invalid_variant
-    test_enum_missing_required
-    test_enum_optional_missing
-
-test result: FAILED. 33 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-error: test failed, to rerun pass `-p toml-pretty-deser --test basic`
+Caused by:
+  process didn't exit successfully: `rustc --crate-name toml_pretty_deser --edition=2024 toml-pretty-deser/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=857480bb847c9bbe -C extra-filename=-07d9828939c75c69 --out-dir /home/finkernagel/.cache/cargo/target/debug/deps -C incremental=/home/finkernagel/.cache/cargo/target/debug/incremental -L dependency=/home/finkernagel/.cache/cargo/target/debug/deps --extern bstr=/home/finkernagel/.cache/cargo/target/debug/deps/libbstr-4045620ba0449622.rlib --extern codesnake=/home/finkernagel/.cache/cargo/target/debug/deps/libcodesnake-4b12368228b7ace0.rlib --extern memchr=/home/finkernagel/.cache/cargo/target/debug/deps/libmemchr-ce879c287aae1239.rlib --extern num_traits=/home/finkernagel/.cache/cargo/target/debug/deps/libnum_traits-163a578cc7663ca5.rlib --extern strsim=/home/finkernagel/.cache/cargo/target/debug/deps/libstrsim-35e26dbaedb97986.rlib --extern toml_pretty_deser_macros=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_pretty_deser_macros-f792c9db6a0b2842.so --extern toml_edit=/home/finkernagel/.cache/cargo/target/debug/deps/libtoml_edit-6ba341dc50ff9c99.rlib -C link-arg=-fuse-ld=mold` (exit status: 1)
 
 *** result: Failure(101)

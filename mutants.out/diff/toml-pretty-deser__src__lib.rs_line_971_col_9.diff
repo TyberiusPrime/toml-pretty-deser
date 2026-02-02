@@ -1,0 +1,22 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace TomlHelper<'a>::add_err_by_key with ()
+@@ -963,18 +963,17 @@
+             // For inline tables, we can't easily get the key span, so use the table span
+             inline_table.span().unwrap_or(0..0)
+         } else {
+             0..0
+         }
+     }
+ 
+     pub fn add_err_by_key(&self, key: &str, msg: &str, help: &str) {
+-        let span = self.span_from_key(key);
+-        self.add_err_by_span(span, msg, help);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub fn add_err_by_span(&self, span: Range<usize>, msg: &str, help: &str) {
+         let err = AnnotatedError::placed(span.clone(), msg, help);
+         self.errors.borrow_mut().push(err);
+     }
+ 
+     pub fn deny_unknown(&self) {

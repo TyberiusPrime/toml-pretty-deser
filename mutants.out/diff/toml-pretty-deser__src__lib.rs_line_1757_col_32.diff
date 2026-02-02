@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete ! in <impl AsNested<P> for TomlValue<toml_edit::Item>>::as_nested
+@@ -1749,17 +1749,17 @@
+                         }
+                         toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
+                             let mut helper = TomlHelper::new_inline(table, errors.clone(), mode);
+                             let partial =
+                                 P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+                             helper.deny_unknown();
+ 
+ 
+-                            if !partial.can_concrete() {
++                            if  /* ~ changed by cargo-mutants ~ */partial.can_concrete() {
+                                 TomlValue {
+                                     value: Some(partial),
+                                     required: self.required,
+                                     state: TomlValueState::ValidationFailed {
+                                         span: span.clone(),
+                                         message: "Nested struct has errors".to_string(),
+                                     },
+                                 }

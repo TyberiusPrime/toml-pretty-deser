@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm TomlValueState::Ok{..} in TomlValue<T>::into_option
+@@ -1599,17 +1599,17 @@
+ 
+ impl<T> TomlValue<T> {
+     pub fn has_value(&self) -> bool {
+         matches!(self.state, TomlValueState::Ok { .. })
+     }
+ 
+     pub fn into_option(self) -> Option<T> {
+         match self.state {
+-            TomlValueState::Ok { .. } => self.value,
++             /* ~ changed by cargo-mutants ~ */
+             _ => None,
+         }
+     }
+ 
+     pub fn as_ref(&self) -> Option<&T> {
+         match self.state {
+             TomlValueState::Ok { .. } => self.value.as_ref(),
+             _ => None,

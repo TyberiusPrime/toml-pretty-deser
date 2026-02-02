@@ -1,0 +1,21 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace VerifyFromToml::verify -> Self with Default::default()
+@@ -539,17 +539,17 @@
+         Self: Sized;
+ }
+ 
+ pub trait VerifyFromToml<T> {
+     fn verify(self, _helper: &mut TomlHelper<'_>, _partial: &T) -> Self
+     where
+         Self: Sized,
+     {
+-        self
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ pub trait ToConcrete<T> {
+     fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>);
+     fn to_concrete(self) -> Option<T>;
+ }
+ 

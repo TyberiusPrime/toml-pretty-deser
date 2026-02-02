@@ -1,0 +1,34 @@
+--- toml-pretty-deser/src/lib.rs
++++ delete match arm toml_edit::Item::Value(toml_edit::Value::Array(array)) in <impl FromTomlItem for TomlValue<Vec<toml_edit::Item>>>::from_toml_item
+@@ -1352,30 +1352,17 @@
+                 TomlValue {
+                     required: true,
+                     value: Some(items),
+                     state: TomlValueState::Ok {
+                         span: array.span().unwrap_or(parent_span.clone()),
+                     },
+                 }
+             }
+-            toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
+-                // Also support regular arrays with inline tables
+-                let items: Vec<toml_edit::Item> = array
+-                    .iter()
+-                    .map(|val| toml_edit::Item::Value(val.clone()))
+-                    .collect();
+-                TomlValue {
+-                    required: true,
+-                    value: Some(items),
+-                    state: TomlValueState::Ok {
+-                        span: array.span().unwrap_or(parent_span.clone()),
+-                    },
+-                }
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             _ => TomlValue {
+                 required: true,
+                 value: None,
+                 state: TomlValueState::WrongType {
+                     span: item.span().unwrap_or(parent_span.clone()),
+                     expected: "array of tables",
+                     found: "other type",
+                 },

@@ -1,0 +1,53 @@
+--- toml-pretty-deser/src/lib.rs
++++ replace <impl FromTomlItem for TomlValue<toml_edit::Item>>::from_toml_item -> Self with Default::default()
+@@ -1288,49 +1288,17 @@
+ 
+ // Implementation for raw toml_edit::Item - used for nested struct deserialization
+ impl FromTomlItem for TomlValue<toml_edit::Item> {
+     fn is_optional() -> bool {
+         true
+     }
+ 
+     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+-        match item {
+-            toml_edit::Item::None => TomlValue {
+-                value: None,
+-                required: true,
+-                state: TomlValueState::Missing {
+-                    key: "".to_string(),
+-                    parent_span,
+-                },
+-            },
+-            toml_edit::Item::Table(table) => TomlValue {
+-                required: true,
+-                value: Some(toml_edit::Item::Table(table.clone())),
+-                state: TomlValueState::Ok {
+-                    span: table.span().unwrap_or(parent_span.clone()),
+-                },
+-            },
+-            toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => TomlValue {
+-                required: true,
+-                value: Some(toml_edit::Item::Value(toml_edit::Value::InlineTable(
+-                    table.clone(),
+-                ))),
+-                state: TomlValueState::Ok {
+-                    span: table.span().unwrap_or(parent_span.clone()),
+-                },
+-            },
+-            _ => TomlValue {
+-                required: true,
+-                value: Some(item.clone()),
+-                state: TomlValueState::Ok {
+-                    span: item.span().unwrap_or(parent_span.clone()),
+-                },
+-            },
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl FromTomlItem for TomlValue<Vec<toml_edit::Item>> {
+     fn is_optional() -> bool {
+         true
+     }
+ 
