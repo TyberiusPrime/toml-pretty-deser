@@ -1177,7 +1177,7 @@ fn test_complex_mixed_case_key_reused() {
         assert_eq!(
             errors[1].pretty("test.toml"),
             "  ╭─test.toml\n  ┆\n1 │ \n2 │         API_KEY = 'shouty alias'\n3 │         htmlparser= '23'\n  ┆         ─────┬────      \n  ┆              │          \n  ┆              ╰─────────── Key/alias conflict (defined multiple times)\n4 │         HTMLPARSER = 'consecutive caps'\n  ┆         ─────┬────                     \n  ┆              │                         \n  ┆              ╰────────────────────────── Also defined here\n──╯\nHint: Use only one of the keys involved. Canonical is 'html_parser'\n"
-);
+        );
     } else {
         panic!("should have been a DeserFailure");
     }
@@ -1237,3 +1237,87 @@ fn test_inline_tables() {
         assert_eq!(output.inner[1].entries[2], "e");
     }
 }
+
+#[make_partial]
+#[derive(Debug)]
+struct InnerA {
+    n: i32,
+    o: u32,
+}
+
+#[make_partial]
+#[derive(Debug)]
+struct InnerB {
+    s: u32,
+    t: u32,
+}
+
+#[derive(StringNamedEnum)]
+enum EitherOne {
+    KindA(InnerA),
+    KindB(InnerB),
+}
+
+#[make_partial]
+#[derive(Debug)]
+struct OuterEither {
+    #[enum_tagged("kind")]
+    choice: EitherOne,
+}
+
+#[test]
+fn test_either_one_happy_a() {
+    let toml = "
+    [choice]
+        kind = 'kindA'
+        n = -5
+        o = 1
+    ";
+let result: Result<_, _> = deserialize_with_mode::<
+        PartialOuterEither,
+        OuterEither,
+    >(toml, FieldMatchMode::Exact);
+  dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.choice {
+            KindA(inner) => {
+                assert_eq!(inner.n, -5);
+                assert_eq!(inner.o, 1);
+            }
+            KindB(_) => {
+                panic!("expected KindA variant");
+        }
+    }
+}
+
+
+#[test]
+fn test_either_one_happy_b() {
+    let toml = "
+    choice = {
+        kind = 'kindB',
+        s = 5,
+        t = 0
+    }
+    ";
+let result: Result<_, _> = deserialize_with_mode::<
+        PartialOuterEither,
+        OuterEither,
+    >(toml, FieldMatchMode::Exact);
+  dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.choice {
+            KindA(inner) => {
+                assert_eq!(inner.n, -5);
+                assert_eq!(inner.o, 1);
+            }
+            KindB(_) => {
+                panic!("expected KindA variant");
+        }
+    }
+}
+
+
+
