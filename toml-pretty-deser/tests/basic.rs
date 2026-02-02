@@ -793,3 +793,52 @@ fn test_two_level_nested_missing_inner_field() {
         panic!("Expected failure due to missing data field in level2");
     }
 }
+
+#[test]
+fn test_two_errors_pretty() {
+    let toml = "
+        [level1]
+            name = 'l1'
+
+        [level1.level2]
+            other = 2
+            # missing data field
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert_eq!(errors.len(), 2);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
+        );
+        assert_eq!(errors[0].pretty("test.toml"), 
+           "  ╭─test.toml
+  ┆
+5 │         [level1.level2]
+6 │             other = 2
+  ┆             ──┬──    
+  ┆               │      
+  ┆               ╰─────── Unknown key: other
+──╯
+Hint: Did you mean: 'data'?
+");
+        assert_eq!(errors[1].pretty("test.toml"), 
+            "  ╭─test.toml
+  ┆
+
+5 │         [level1.level2]
+  ┆         ───────┬───────
+  ┆                │       
+  ┆                ╰──────── Missing required key: data
+──╯
+Hint: This key is required but was not found in the TOML document.
+");
+        // let pretty = errors[0].pretty("test.toml");
+        // println!("Pretty error:\n{}", pretty);
+    } else {
+        panic!("Expected failure due to missing data field in level2");
+    }
+}

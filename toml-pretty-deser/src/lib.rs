@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-pub use toml_pretty_deser_macros::{make_partial, StringNamedEnum};
+pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
@@ -468,8 +468,16 @@ impl HydratedAnnotatedError {
             let mut spans = self.inner.spans.clone();
             spans.sort_by_key(|span| span.span.start);
 
-            let previous_newline =
+            let mut previous_newline =
                 memchr::memmem::rfind(&source.as_bytes()[..spans[0].span.start], b"\n");
+            let this_line_is_block_start = source.as_bytes()
+                [previous_newline.unwrap_or(0)..]
+                .trim_ascii_start()
+                .starts_with(b"[");
+            if this_line_is_block_start {
+                previous_newline = None;
+            }
+
             let mut labels = Vec::new();
 
             for span in spans.into_iter() {
