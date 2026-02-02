@@ -57,6 +57,13 @@ fn is_nested_field(field: &syn::Field) -> bool {
         .any(|attr| attr.path().is_ident("nested"))
 }
 
+fn is_as_enum_field(field: &syn::Field) -> bool {
+    field
+        .attrs
+        .iter()
+        .any(|attr| attr.path().is_ident("as_enum"))
+}
+
 fn extract_type_name(ty: &Type) -> Option<syn::Ident> {
     match ty {
         Type::Path(TypePath { path, .. }) => path.get_ident().cloned(),
@@ -139,7 +146,19 @@ fn is_vec_type(ty: &Type) -> bool {
 }
 
 #[proc_macro_attribute]
-pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
+    // Parse the boolean argument (default to true)
+    let generate_verify = if attr.is_empty() {
+        true
+    } else {
+        let attr_str = attr.to_string();
+        match attr_str.as_str() {
+            "true" => true,
+            "false" => false,
+            _ => panic!("make_partial expects 'true' or 'false', got: {}", attr_str),
+        }
+    };
+
     let input = parse_macro_input!(item as DeriveInput);
 
     let struct_name = &input.ident;
@@ -155,12 +174,14 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
         _ => panic!("make_partial only supports structs"),
     };
 
-    // Create a version of the input struct with #[nested] attributes stripped
+    // Create a version of the input struct with #[nested] and #[as_enum] attributes stripped
     let mut cleaned_input = input.clone();
     if let Data::Struct(ref mut data) = cleaned_input.data {
         if let Fields::Named(ref mut fields) = data.fields {
             for field in fields.named.iter_mut() {
-                field.attrs.retain(|attr| !attr.path().is_ident("nested"));
+                field.attrs.retain(|attr| {
+                    !attr.path().is_ident("nested") && !attr.path().is_ident("as_enum")
+                });
             }
         }
     }
@@ -324,6 +345,40 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect();
 
+    let from_toml_table_fields: Vec<_> = fields
+        .iter()
+        .map(|f| {
+            let name = &f.ident;
+            let name_str = name.as_ref().unwrap().to_string();
+            if is_nested_field(f) {
+                quote! {
+                    #name: helper.get(#name_str).as_nested(&helper.errors)
+                }
+            } else if is_as_enum_field(f) {
+                quote! {
+                    #name: helper.get(#name_str).as_enum()
+                }
+            } else {
+                quote! {
+                    #name: helper.get(#name_str)
+                }
+            }
+        })
+        .collect();
+
+    // Conditionally generate VerifyFromToml impl
+    let generate_verify_impl = if generate_verify {
+        quote! {
+            impl #impl_generics VerifyFromToml<()> for #partial_name #ty_generics #where_clause {
+                fn verify(self, _helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+                    self
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let expanded = quote! {
         #cleaned_input
 
@@ -353,6 +408,16 @@ pub fn make_partial(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 true
             }
         }
+
+        impl #impl_generics FromTomlTable<()> for #partial_name #ty_generics #where_clause {
+            fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+                #partial_name {
+                    #(#from_toml_table_fields,)*
+                }
+            }
+        }
+
+        #generate_verify_impl
     };
 
     TokenStream::from(expanded)

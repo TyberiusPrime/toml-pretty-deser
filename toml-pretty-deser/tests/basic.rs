@@ -1,11 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsEnum, DeserError, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper,
-    TomlValue, deserialize, make_partial,
+    deserialize, make_partial, AnnotatedError, AsEnum, AsNested, DeserError, FromTomlTable,
+    StringNamedEnum, ToConcrete, TomlHelper, TomlValue, VerifyFromToml,
 };
 
+#[make_partial(false)]
 #[derive(Debug)]
-#[make_partial]
 struct Output {
     a_u8: u8,
     a_i64: i64,
@@ -21,85 +21,19 @@ struct Output {
     defaulted_i16: i16,
 }
 
-// #[derive(Debug)]
-// struct PartialOutput {
-//     a_u8: TomlValue<u8>,
-//     a_i64: TomlValue<i64>,
-//     a_f64: TomlValue<f64>,
-//     a_string: TomlValue<String>,
-//     a_bool: TomlValue<bool>,
-//     opt_a_u8: TomlValue<Option<u8>>,
-//     opt_a_i64: TomlValue<Option<i64>>,
-//     opt_a_f64: TomlValue<Option<f64>>,
-//     opt_a_string: TomlValue<Option<String>>,
-//     opt_a_bool: TomlValue<Option<bool>>,
-//     verified_i16: TomlValue<i16>,
-//     defaulted_i16: TomlValue<i16>,
-// }
-
-impl FromTomlTable<()> for PartialOutput {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        PartialOutput {
-            a_u8: helper.get("a_u8"),
-            a_i64: helper.get("a_i64"),
-            a_f64: helper.get("a_f64"),
-            a_string: helper.get("a_string"),
-            a_bool: helper.get("a_bool"),
-            opt_a_u8: helper.get("opt_a_u8"),
-            opt_a_i64: helper.get("opt_a_i64"),
-            opt_a_f64: helper.get("opt_a_f64"),
-            opt_a_string: helper.get("opt_a_string"),
-            opt_a_bool: helper.get("opt_a_bool"),
-            verified_i16: helper.get("verified_i16").verify(|v: &i16| {
-                if *v > 5 {
-                    Ok(())
-                } else {
-                    Err("Too small".to_string())
-                }
-            }),
-            defaulted_i16: helper.get("defaulted_i16").or_default(42),
-        }
+impl VerifyFromToml<()> for PartialOutput {
+    fn verify(mut self, _helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        self.verified_i16 = self.verified_i16.verify(|v: &i16| {
+            if *v > 5 {
+                Ok(())
+            } else {
+                Err("Too small".to_string())
+            }
+        });
+        self.defaulted_i16 = self.defaulted_i16.or_default(42);
+        self
     }
 }
-//
-// impl ToConcrete<Output> for PartialOutput {
-//     fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
-//         self.a_u8.register_error(errors);
-//         self.a_i64.register_error(errors);
-//         self.a_f64.register_error(errors);
-//         self.a_string.register_error(errors);
-//         self.a_bool.register_error(errors);
-//         self.verified_i16.register_error(errors);
-//         self.defaulted_i16.register_error(errors);
-//     }
-//
-//     fn can_concrete(&self) -> bool {
-//         self.a_u8.has_value()
-//             && self.a_i64.has_value()
-//             && self.a_f64.has_value()
-//             && self.a_string.has_value()
-//             && self.a_bool.has_value()
-//             && self.verified_i16.has_value()
-//             && self.defaulted_i16.has_value()
-//     }
-//
-//     fn to_concrete(self) -> Option<Output> {
-//         Some(Output {
-//             a_u8: self.a_u8.unwrap(),
-//             a_i64: self.a_i64.unwrap(),
-//             a_f64: self.a_f64.unwrap(),
-//             a_string: self.a_string.unwrap(),
-//             a_bool: self.a_bool.unwrap(),
-//             opt_a_u8: self.opt_a_u8.unwrap(),
-//             opt_a_i64: self.opt_a_i64.unwrap(),
-//             opt_a_f64: self.opt_a_f64.unwrap(),
-//             opt_a_string: self.opt_a_string.unwrap(),
-//             opt_a_bool: self.opt_a_bool.unwrap(),
-//             verified_i16: self.verified_i16.unwrap(),
-//             defaulted_i16: self.defaulted_i16.unwrap(),
-//         })
-//     }
-// }
 
 #[test]
 fn test_happy_path() {
@@ -299,16 +233,6 @@ struct ComplexOutput {
     opt_items: Option<Vec<String>>,
 }
 
-impl FromTomlTable<()> for PartialComplexOutput {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        PartialComplexOutput {
-            items: helper.get("items"),
-            numbers: helper.get("numbers"),
-            opt_items: helper.get("opt_items"),
-        }
-    }
-}
-
 #[test]
 fn test_arrays_and_nested() {
     let toml = "
@@ -357,11 +281,9 @@ fn test_vec_missing() {
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("numbers"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("numbers")));
     } else {
         panic!("Expected failure due to missing numbers field")
     }
@@ -395,21 +317,14 @@ enum Example {
 #[make_partial]
 #[derive(Debug)]
 struct EnumOutput {
+    #[as_enum]
     an_enum: Example,
+    #[as_enum]
     opt_enum: Option<Example>,
+    #[as_enum]
     vec_enum: Vec<Example>,
+    #[as_enum]
     opt_vec_enum: Option<Vec<Example>>,
-}
-
-impl FromTomlTable<()> for PartialEnumOutput {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        PartialEnumOutput {
-            an_enum: helper.get("an_enum").as_enum(),
-            opt_enum: helper.get("opt_enum").as_enum(),
-            vec_enum: helper.get("vec_enum").as_enum(),
-            opt_vec_enum: helper.get("opt_vec_enum").as_enum(),
-        }
-    }
 }
 
 #[test]
@@ -469,11 +384,9 @@ fn test_enum_invalid_variant() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
     } else {
         panic!("Expected failure due to invalid enum variant")
     }
@@ -489,11 +402,9 @@ fn test_enum_missing_required() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("an_enum"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("an_enum")));
     } else {
         panic!("Expected failure due to missing required enum field")
     }
@@ -505,15 +416,6 @@ fn test_enum_missing_required() {
 struct Nested {
     name: String,
     value: i32,
-}
-
-impl FromTomlTable<()> for PartialNested {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        PartialNested {
-            name: helper.get("name"),
-            value: helper.get("value"),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -529,18 +431,6 @@ struct Outer {
 
     #[nested]
     vec_nested: Vec<Nested>,
-}
-
-impl FromTomlTable<()> for PartialOuter {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        use toml_pretty_deser::AsNested;
-        PartialOuter {
-            inline_nested: helper.get("inline_nested").as_nested(&helper.errors),
-            nested: helper.get("nested").as_nested(&helper.errors),
-            opt_nested: helper.get("opt_nested").as_nested(&helper.errors),
-            vec_nested: helper.get("vec_nested").as_nested(&helper.errors),
-        }
-    }
 }
 
 #[test]
@@ -616,14 +506,6 @@ struct Level2 {
     data: String,
 }
 
-impl FromTomlTable<()> for PartialLevel2 {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        PartialLevel2 {
-            data: helper.get("data"),
-        }
-    }
-}
-
 #[derive(Debug)]
 #[make_partial]
 struct Level1 {
@@ -634,17 +516,6 @@ struct Level1 {
     opt_level2: Option<Level2>,
 }
 
-impl FromTomlTable<()> for PartialLevel1 {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        use toml_pretty_deser::AsNested;
-        PartialLevel1 {
-            name: helper.get("name"),
-            level2: helper.get("level2").as_nested(&helper.errors),
-            opt_level2: helper.get("opt_level2").as_nested(&helper.errors),
-        }
-    }
-}
-
 #[derive(Debug)]
 #[make_partial]
 struct Root {
@@ -652,16 +523,6 @@ struct Root {
     level1: Level1,
     #[nested]
     opt_level1: Option<Level1>,
-}
-
-impl FromTomlTable<()> for PartialRoot {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        use toml_pretty_deser::AsNested;
-        PartialRoot {
-            level1: helper.get("level1").as_nested(&helper.errors),
-            opt_level1: helper.get("opt_level1").as_nested(&helper.errors),
-        }
-    }
 }
 
 #[test]
@@ -784,11 +645,9 @@ fn test_two_level_nested_missing_inner_field() {
     let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Missing required key: data")));
     } else {
         panic!("Expected failure due to missing data field in level2");
     }
@@ -809,13 +668,12 @@ fn test_two_errors_pretty() {
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert_eq!(errors.len(), 2);
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
-        );
-        assert_eq!(errors[0].pretty("test.toml"), 
-           "  ╭─test.toml
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Missing required key: data")));
+        assert_eq!(
+            errors[0].pretty("test.toml"),
+            "  ╭─test.toml
   ┆
 5 │         [level1.level2]
 6 │             other = 2
@@ -824,8 +682,10 @@ fn test_two_errors_pretty() {
   ┆               ╰─────── Unknown key: other
 ──╯
 Hint: Did you mean: 'data'?
-");
-        assert_eq!(errors[1].pretty("test.toml"), 
+"
+        );
+        assert_eq!(
+            errors[1].pretty("test.toml"),
             "  ╭─test.toml
   ┆
 
@@ -835,7 +695,8 @@ Hint: Did you mean: 'data'?
   ┆                ╰──────── Missing required key: data
 ──╯
 Hint: This key is required but was not found in the TOML document.
-");
+"
+        );
         // let pretty = errors[0].pretty("test.toml");
         // println!("Pretty error:\n{}", pretty);
     } else {

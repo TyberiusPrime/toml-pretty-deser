@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial};
+pub use toml_pretty_deser_macros::{make_partial, StringNamedEnum};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
@@ -282,7 +282,7 @@ impl<E: StringNamedEnum> AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>
 
 pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
-    P: FromTomlTable<()> + ToConcrete<T>,
+    P: FromTomlTable<()> + VerifyFromToml<()> + ToConcrete<T>,
 {
     let parsed_toml = source.parse::<Document<String>>()?;
     let source = Rc::new(RefCell::new(source.to_string()));
@@ -290,7 +290,7 @@ where
     let errors = Rc::new(RefCell::new(Vec::new()));
     let mut helper = TomlHelper::new(parsed_toml.as_table(), errors.clone());
 
-    let partial = P::from_toml_table(&mut helper, &());
+    let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
     helper.deny_unknown();
 
     partial.collect_errors(&errors);
@@ -394,9 +394,18 @@ impl<P> From<TomlError> for DeserError<P> {
 }
 
 pub trait FromTomlTable<T> {
-    fn from_toml_table(helper: &mut TomlHelper<'_>, partial: &T) -> Self
+    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &T) -> Self
     where
         Self: Sized;
+}
+
+pub trait VerifyFromToml<T> {
+    fn verify(self, _helper: &mut TomlHelper<'_>, _partial: &T) -> Self
+    where
+        Self: Sized,
+    {
+        self
+    }
 }
 
 pub trait ToConcrete<T> {
@@ -470,8 +479,7 @@ impl HydratedAnnotatedError {
 
             let mut previous_newline =
                 memchr::memmem::rfind(&source.as_bytes()[..spans[0].span.start], b"\n");
-            let this_line_is_block_start = source.as_bytes()
-                [previous_newline.unwrap_or(0)..]
+            let this_line_is_block_start = source.as_bytes()[previous_newline.unwrap_or(0)..]
                 .trim_ascii_start()
                 .starts_with(b"[");
             if this_line_is_block_start {
@@ -1327,6 +1335,16 @@ pub struct TomlValue<T> {
     pub(crate) required: bool,
 }
 
+impl<T> Default for TomlValue<T> {
+    fn default() -> Self {
+        TomlValue {
+            value: None,
+            state: TomlValueState::NotSet,
+            required: false,
+        }
+    }
+}
+
 impl<T> TomlValue<T> {
     pub fn has_value(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
@@ -1425,7 +1443,7 @@ pub trait AsNested<P>: Sized {
 
 impl<P> AsNested<P> for TomlValue<toml_edit::Item>
 where
-    P: FromTomlTable<()>,
+    P: FromTomlTable<()> + VerifyFromToml<()>,
 {
     fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<P> {
         match &self.state {
@@ -1435,7 +1453,8 @@ where
                         toml_edit::Item::Table(table) => {
                             let error_count_before = errors.borrow().len();
                             let mut helper = TomlHelper::new(table, errors.clone());
-                            let partial = P::from_toml_table(&mut helper, &());
+                            let partial =
+                                P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                             helper.deny_unknown();
 
                             // Collect any new errors from the nested deserialization
@@ -1462,7 +1481,8 @@ where
                         toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
                             let error_count_before = errors.borrow().len();
                             let mut helper = TomlHelper::new_inline(table, errors.clone());
-                            let partial = P::from_toml_table(&mut helper, &());
+                            let partial =
+                                P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                             helper.deny_unknown();
 
                             let error_count_after = errors.borrow().len();
@@ -1524,7 +1544,7 @@ where
 
 impl<P> AsNested<Option<P>> for TomlValue<Option<toml_edit::Item>>
 where
-    P: FromTomlTable<()>,
+    P: FromTomlTable<()> + VerifyFromToml<()>,
 {
     fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<Option<P>> {
         match &self.state {
@@ -1535,7 +1555,8 @@ where
                             toml_edit::Item::Table(table) => {
                                 let error_count_before = errors.borrow().len();
                                 let mut helper = TomlHelper::new(table, errors.clone());
-                                let partial = P::from_toml_table(&mut helper, &());
+                                let partial =
+                                    P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
 
                                 let error_count_after = errors.borrow().len();
@@ -1560,7 +1581,8 @@ where
                             toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
                                 let error_count_before = errors.borrow().len();
                                 let mut helper = TomlHelper::new_inline(table, errors.clone());
-                                let partial = P::from_toml_table(&mut helper, &());
+                                let partial =
+                                    P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
 
                                 let error_count_after = errors.borrow().len();
@@ -1632,7 +1654,7 @@ where
 
 impl<P> AsNested<Vec<P>> for TomlValue<Vec<toml_edit::Item>>
 where
-    P: FromTomlTable<()>,
+    P: FromTomlTable<()> + VerifyFromToml<()>,
 {
     fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<Vec<P>> {
         match &self.state {
@@ -1646,7 +1668,8 @@ where
                             toml_edit::Item::Table(table) => {
                                 let item_error_count_before = errors.borrow().len();
                                 let mut helper = TomlHelper::new(table, errors.clone());
-                                let partial = P::from_toml_table(&mut helper, &());
+                                let partial =
+                                    P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
 
                                 let item_error_count_after = errors.borrow().len();
