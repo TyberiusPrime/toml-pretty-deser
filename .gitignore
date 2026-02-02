@@ -1,4 +1,7 @@
 target/
 target*/
+**/target*/
 .bacon-locations
 **/.bacon-locations
+mutants.out
+mutants.out*
