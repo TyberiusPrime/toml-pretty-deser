@@ -64,6 +64,42 @@ fn is_as_enum_field(field: &syn::Field) -> bool {
         .any(|attr| attr.path().is_ident("as_enum"))
 }
 
+/// Extract aliases from #[alias("name1", "name2", ...)] attribute
+fn extract_aliases(field: &syn::Field) -> Vec<String> {
+    let mut aliases = Vec::new();
+
+    for attr in &field.attrs {
+        if attr.path().is_ident("alias") {
+            // Parse the alias attribute
+            // Expected format: #[alias("name1")] or #[alias("name1", "name2")]
+            let result: Result<Vec<String>, _> =
+                attr.parse_args_with(|input: syn::parse::ParseStream| {
+                    // input is already the content inside the parentheses
+                    let mut names = Vec::new();
+                    loop {
+                        if input.is_empty() {
+                            break;
+                        }
+
+                        let lit: syn::LitStr = input.parse()?;
+                        names.push(lit.value());
+
+                        if !input.is_empty() {
+                            input.parse::<syn::Token![,]>()?;
+                        }
+                    }
+                    Ok(names)
+                });
+
+            if let Ok(found_aliases) = result {
+                aliases.extend(found_aliases);
+            }
+        }
+    }
+
+    aliases
+}
+
 fn extract_type_name(ty: &Type) -> Option<syn::Ident> {
     match ty {
         Type::Path(TypePath { path, .. }) => path.get_ident().cloned(),
@@ -174,13 +210,15 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         _ => panic!("make_partial only supports structs"),
     };
 
-    // Create a version of the input struct with #[nested] and #[as_enum] attributes stripped
+    // Create a version of the input struct with #[nested], #[as_enum], and #[alias(...)] attributes stripped
     let mut cleaned_input = input.clone();
     if let Data::Struct(ref mut data) = cleaned_input.data {
         if let Fields::Named(ref mut fields) = data.fields {
             for field in fields.named.iter_mut() {
                 field.attrs.retain(|attr| {
-                    !attr.path().is_ident("nested") && !attr.path().is_ident("as_enum")
+                    !attr.path().is_ident("nested")
+                        && !attr.path().is_ident("as_enum")
+                        && !attr.path().is_ident("alias")
                 });
             }
         }
@@ -350,17 +388,34 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         .map(|f| {
             let name = &f.ident;
             let name_str = name.as_ref().unwrap().to_string();
+            let aliases = extract_aliases(f);
+            
             if is_nested_field(f) {
+                // For nested fields, we need to pass mode to as_nested
                 quote! {
-                    #name: helper.get(#name_str).as_nested(&helper.errors)
+                    #name: helper.get_with_aliases(#name_str, vec![]).as_nested(&helper.errors, helper.match_mode)
                 }
             } else if is_as_enum_field(f) {
-                quote! {
-                    #name: helper.get(#name_str).as_enum()
+                // For enum fields, use aliases if present
+                if aliases.is_empty() {
+                    quote! {
+                        #name: helper.get(#name_str).as_enum()
+                    }
+                } else {
+                    quote! {
+                        #name: helper.get_with_aliases(#name_str, vec![]).as_enum()
+                    }
                 }
             } else {
-                quote! {
-                    #name: helper.get(#name_str)
+                // For regular fields, use aliases if present
+                if aliases.is_empty() {
+                    quote! {
+                        #name: helper.get(#name_str)
+                    }
+                } else {
+                    quote! {
+                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*])
+                    }
                 }
             }
         })

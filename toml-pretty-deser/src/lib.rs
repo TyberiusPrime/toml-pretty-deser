@@ -3,11 +3,152 @@ use std::fmt::Display;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-pub use toml_pretty_deser_macros::{make_partial, StringNamedEnum};
+pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
     fn from_str(s: &str) -> Option<Self>;
+}
+
+/// Controls how field names are matched against TOML keys
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FieldMatchMode {
+    /// Exact match only (field name must match exactly)
+    #[default]
+    Exact,
+    /// Case insensitive match (case insensitive exact match only)
+    UpperLower,
+    /// Any case variant match (allows camelCase, snake_case, kebab-case, etc.)
+    AnyCase,
+}
+
+impl FieldMatchMode {
+    /// Normalize a name according to the match mode
+    pub fn normalize(&self, name: &str) -> String {
+        match self {
+            FieldMatchMode::Exact => name.to_string(),
+            FieldMatchMode::UpperLower => name.to_lowercase(),
+            FieldMatchMode::AnyCase => normalize_to_no_case(name),
+        }
+    }
+
+    /// Check if two names match under this mode
+    pub fn matches(&self, a: &str, b: &str) -> bool {
+        self.normalize(a) == self.normalize(b)
+    }
+}
+
+/// Convert any case variant to snake_case for comparison
+/// Supports: camelCase, UpperCamelCase, snake_case, kebab-case, SHOUTY_SNAKE_CASE, Train-Case
+pub fn normalize_to_no_case(s: &str) -> String {
+    s.chars()
+        .filter_map(|c| match c {
+            'A'..='Z' => Some(c.to_lowercase().next().unwrap()),
+            'a'..='z' | '0'..='9' => Some(c),
+            _ => None,
+        })
+        .collect()
+    // let mut result = String::with_capacity(s.len() * 2);
+    // let mut chars = s.chars().peekable();
+    // let mut prev_was_uppercase = false;
+    // let mut prev_was_separator = true;
+    //
+    // while let Some(c) = chars.next() {
+    //     if c == '-' || c == '_' {
+    //         if !prev_was_separator {
+    //             result.push('_');
+    //         }
+    //         prev_was_separator = true;
+    //         prev_was_uppercase = false;
+    //     } else if c.is_uppercase() {
+    //         // Check if we need to insert an underscore
+    //         let next_is_lowercase = chars
+    //             .peek()
+    //             .map(|next| next.is_lowercase())
+    //             .unwrap_or(false);
+    //
+    //         if !prev_was_separator {
+    //             // Insert underscore if:
+    //             // 1. Previous was lowercase (camelCase to snake_case)
+    //             // 2. Previous was uppercase AND next is lowercase (HTMLParser to html_parser)
+    //             if !prev_was_uppercase || next_is_lowercase {
+    //                 result.push('_');
+    //             }
+    //         }
+    //
+    //         result.push(c.to_lowercase().next().unwrap());
+    //         prev_was_uppercase = true;
+    //         prev_was_separator = false;
+    //     } else {
+    //         // Lowercase letter or other char
+    //         result.push(c);
+    //         prev_was_uppercase = false;
+    //         prev_was_separator = false;
+    //     }
+    // }
+    //
+    // // Remove leading/trailing underscores
+    // while result.starts_with('_') {
+    //     result.remove(0);
+    // }
+    // while result.ends_with('_') {
+    //     result.pop();
+    // }
+    //
+    // result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_no_case() {
+        assert_eq!(normalize_to_no_case("snake_case"), "snakecase");
+        assert_eq!(normalize_to_no_case("camelCase"), "camelcase");
+        assert_eq!(
+            normalize_to_no_case("UpperCamelCase"),
+            "uppercamelcase"
+        );
+        assert_eq!(normalize_to_no_case("kebab-case"), "kebabcase");
+        assert_eq!(
+            normalize_to_no_case("SHOUTY_SNAKE_CASE"),
+            "shoutysnakecase"
+        );
+        assert_eq!(normalize_to_no_case("Train-Case"), "traincase");
+        assert_eq!(
+            normalize_to_no_case("mixed_Case-Variant"),
+            "mixedcasevariant"
+        );
+        assert_eq!(normalize_to_no_case("already_snake"), "alreadysnake");
+        assert_eq!(normalize_to_no_case("HTMLParser"), "htmlparser");
+        assert_eq!(
+            normalize_to_no_case("getHTTPResponse"),
+            "gethttpresponse"
+        );
+    }
+
+    #[test]
+    fn test_field_match_mode() {
+        let exact = FieldMatchMode::Exact;
+        assert!(exact.matches("field_name", "field_name"));
+        assert!(!exact.matches("field_name", "Field_Name"));
+        assert!(!exact.matches("field_name", "fieldName"));
+
+        let upper_lower = FieldMatchMode::UpperLower;
+        assert!(upper_lower.matches("field_name", "field_name"));
+        assert!(upper_lower.matches("field_name", "FIELD_NAME"));
+        assert!(upper_lower.matches("field_name", "Field_Name"));
+        assert!(!upper_lower.matches("field_name", "fieldName"));
+
+        let any_case = FieldMatchMode::AnyCase;
+        assert!(any_case.matches("field_name", "field_name"));
+        assert!(any_case.matches("field_name", "fieldName"));
+        assert!(any_case.matches("field_name", "FieldName"));
+        assert!(any_case.matches("field_name", "field-name"));
+        assert!(any_case.matches("field_name", "FIELD_NAME"));
+        assert!(any_case.matches("field_name", "Field-Name"));
+    }
 }
 
 pub trait AsEnum<E>: Sized {
@@ -284,11 +425,18 @@ pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
     P: FromTomlTable<()> + VerifyFromToml<()> + ToConcrete<T>,
 {
+    deserialize_with_mode(source, FieldMatchMode::default())
+}
+
+pub fn deserialize_with_mode<P, T>(source: &str, mode: FieldMatchMode) -> Result<T, DeserError<P>>
+where
+    P: FromTomlTable<()> + VerifyFromToml<()> + ToConcrete<T>,
+{
     let parsed_toml = source.parse::<Document<String>>()?;
     let source = Rc::new(RefCell::new(source.to_string()));
 
     let errors = Rc::new(RefCell::new(Vec::new()));
-    let mut helper = TomlHelper::new(parsed_toml.as_table(), errors.clone());
+    let mut helper = TomlHelper::new(parsed_toml.as_table(), errors.clone(), mode);
 
     let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
     helper.deny_unknown();
@@ -581,36 +729,89 @@ impl HydratedAnnotatedError {
     }
 }
 
+/// Stores information about expected fields and their aliases
+#[derive(Debug, Clone)]
+pub struct FieldInfo {
+    pub name: String,
+    pub aliases: Vec<&'static str>,
+}
+
+impl FieldInfo {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            aliases: Vec::new(),
+        }
+    }
+
+    pub fn with_alias(mut self, alias: &'static str) -> Self {
+        self.aliases.push(alias);
+        self
+    }
+
+    pub fn with_aliases(mut self, aliases: &Vec<&'static str>) -> Self {
+        self.aliases.extend(aliases);
+        self
+    }
+
+    /// Get all normalized names for this field (primary name + aliases)
+    pub fn all_normalized_names(&self, mode: &FieldMatchMode) -> Vec<String> {
+        let mut names = vec![mode.normalize(&self.name)];
+        for alias in &self.aliases {
+            names.push(mode.normalize(alias));
+        }
+        names
+    }
+}
+
 pub struct TomlHelper<'a> {
     table: Option<&'a toml_edit::Table>,
     inline_table: Option<&'a toml_edit::InlineTable>,
-    expected: Vec<String>,
+    /// Expected field info (what we allow to see)
+    expected: Vec<FieldInfo>,
+    /// Normalized names that were actually observed (matched against table keys)
+    observed: Vec<String>,
+    /// Original field names that were allowed
     allowed: Vec<String>,
     pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
+    pub match_mode: FieldMatchMode,
 }
 
 impl<'a> TomlHelper<'a> {
-    pub fn new(table: &'a toml_edit::Table, errors: Rc<RefCell<Vec<AnnotatedError>>>) -> Self {
+    pub fn new(
+        table: &'a toml_edit::Table,
+        errors: Rc<RefCell<Vec<AnnotatedError>>>,
+        match_mode: FieldMatchMode,
+    ) -> Self {
         Self {
             table: Some(table),
             inline_table: None,
             expected: vec![],
+            observed: vec![],
             allowed: vec![],
             errors,
+            match_mode,
         }
     }
 
     pub fn new_inline(
         inline_table: &'a toml_edit::InlineTable,
         errors: Rc<RefCell<Vec<AnnotatedError>>>,
+        match_mode: FieldMatchMode,
     ) -> Self {
         Self {
             table: None,
             inline_table: Some(inline_table),
             expected: vec![],
+            observed: vec![],
             allowed: vec![],
             errors,
+            match_mode,
         }
+    }
+
+    pub fn with_match_mode(&mut self, mode: FieldMatchMode) {
+        self.match_mode = mode;
     }
 
     pub fn into_inner(self, source: &Rc<RefCell<String>>) -> Vec<HydratedAnnotatedError> {
@@ -624,7 +825,82 @@ impl<'a> TomlHelper<'a> {
             .collect()
     }
 
+    /// Register a field with optional aliases
+    pub fn expect_field(&mut self, name: impl Into<String>, aliases: &Vec<&'static str>) {
+        let field_info = FieldInfo::new(name).with_aliases(aliases);
+        self.expected.push(field_info);
+    }
+
+    /// Find a key in the table that matches the given field name (considering aliases and match mode)
+    fn find_matching_key(
+        &self,
+        name: &str,
+        aliases: &[&'static str],
+    ) -> Option<(String, Option<toml_edit::Item>)> {
+        let _normalized_target = self.match_mode.normalize(name);
+        let candidates = std::iter::once(name.to_string())
+            .chain(aliases.iter().map(|x| x.to_string()))
+            .collect::<Vec<_>>();
+
+        // Collect all table keys
+        let table_keys: Vec<String> = if let Some(table) = self.table {
+            table.iter().map(|(k, _)| k.to_string()).collect()
+        } else if let Some(inline_table) = self.inline_table {
+            inline_table.iter().map(|(k, _)| k.to_string()).collect()
+        } else {
+            vec![]
+        };
+
+        // Try to find a match
+        for candidate in &candidates {
+            let _normalized_candidate = self.match_mode.normalize(candidate);
+
+            // First try exact match (faster)
+            if self.match_mode == FieldMatchMode::Exact {
+                if let Some(table) = self.table {
+                    if let Some(item) = table.get(candidate) {
+                        return Some((candidate.clone(), Some(item.clone())));
+                    }
+                } else if let Some(inline_table) = self.inline_table {
+                    if let Some(value) = inline_table.get(candidate) {
+                        return Some((
+                            candidate.clone(),
+                            Some(toml_edit::Item::Value(value.clone())),
+                        ));
+                    }
+                }
+            } else {
+                // For non-exact modes, compare normalized names
+                for table_key in &table_keys {
+                    if self.match_mode.matches(candidate, table_key) {
+                        if let Some(table) = self.table {
+                            if let Some(item) = table.get(table_key) {
+                                return Some((table_key.clone(), Some(item.clone())));
+                            }
+                        } else if let Some(inline_table) = self.inline_table {
+                            if let Some(value) = inline_table.get(table_key) {
+                                return Some((
+                                    table_key.clone(),
+                                    Some(toml_edit::Item::Value(value.clone())),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
     pub fn get<T>(&mut self, key: &str) -> TomlValue<T>
+    where
+        TomlValue<T>: FromTomlItem,
+    {
+        self.get_with_aliases(key, vec![])
+    }
+
+    pub fn get_with_aliases<T>(&mut self, key: &str, aliases: Vec<&'static str>) -> TomlValue<T>
     where
         TomlValue<T>: FromTomlItem,
     {
@@ -635,76 +911,37 @@ impl<'a> TomlHelper<'a> {
         } else {
             0..0
         };
-        self.expected.push(key.to_string());
 
-        // Handle regular table
-        if let Some(table) = self.table {
-            return match table.get(key) {
-                Some(item) => {
-                    let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
-                    match &res.state {
-                        TomlValueState::NotSet => unreachable!(),
-                        TomlValueState::Missing { .. } => {}
-                        _ => {
-                            self.allowed.push(key.to_string());
-                        }
-                    }
-                    res
-                }
-                None => {
-                    let key_str = key.to_string();
-                    let mut res: TomlValue<T> =
-                        FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
-                    if let TomlValueState::Missing { ref mut key, .. } = res.state {
-                        if key.is_empty() {
-                            *key = key_str;
-                        }
-                    }
-                    res
-                }
-            };
-        }
+        // Register this field as expected
+        self.expect_field(key, &aliases);
 
-        // Handle inline table
-        if let Some(inline_table) = self.inline_table {
-            let wrapped_item = inline_table
-                .get(key)
-                .map(|v| toml_edit::Item::Value(v.clone()));
-            return match wrapped_item {
-                Some(ref item) => {
-                    let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
-                    match &res.state {
-                        TomlValueState::NotSet => unreachable!(),
-                        TomlValueState::Missing { .. } => {}
-                        _ => {
-                            self.allowed.push(key.to_string());
-                        }
+        // Try to find a matching key (considering aliases and match mode)
+        match self.find_matching_key(key, &aliases) {
+            Some((matched_key, Some(item))) => {
+                let res: TomlValue<T> = FromTomlItem::from_toml_item(&item, parent_span);
+                match &res.state {
+                    TomlValueState::NotSet => unreachable!(),
+                    TomlValueState::Missing { .. } => {}
+                    _ => {
+                        self.allowed.push(key.to_string());
+                        self.observed.push(self.match_mode.normalize(&matched_key));
                     }
-                    res
                 }
-                None => {
-                    let key_str = key.to_string();
-                    let mut res: TomlValue<T> =
-                        FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
-                    if let TomlValueState::Missing { ref mut key, .. } = res.state {
-                        if key.is_empty() {
-                            *key = key_str;
-                        }
+                res
+            }
+            _ => {
+                // No match found
+                let key_str = key.to_string();
+                let mut res: TomlValue<T> =
+                    FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span);
+                if let TomlValueState::Missing { ref mut key, .. } = res.state {
+                    if key.is_empty() {
+                        *key = key_str;
                     }
-                    res
                 }
-            };
-        }
-
-        // Neither table type is set - return missing
-        let key_str = key.to_string();
-        let mut res: TomlValue<T> = FromTomlItem::from_toml_item(&toml_edit::Item::None, 0..0);
-        if let TomlValueState::Missing { ref mut key, .. } = res.state {
-            if key.is_empty() {
-                *key = key_str;
+                res
             }
         }
-        res
     }
 
     pub fn add_err(&self, err: AnnotatedError) {
@@ -730,7 +967,13 @@ impl<'a> TomlHelper<'a> {
     }
 
     pub fn deny_unknown(&self) {
-        let expected_set: HashSet<String> = self.expected.iter().cloned().collect();
+        // Build set of normalized expected names (including aliases)
+        let mut expected_normalized: HashSet<String> = HashSet::new();
+        for field_info in &self.expected {
+            for normalized_name in field_info.all_normalized_names(&self.match_mode) {
+                expected_normalized.insert(normalized_name);
+            }
+        }
 
         // Collect all keys from either table type
         let keys: Vec<String> = if let Some(table) = self.table {
@@ -741,20 +984,18 @@ impl<'a> TomlHelper<'a> {
             vec![]
         };
 
+        // Build set of observed normalized names
+        let observed_set: HashSet<String> = self.observed.iter().cloned().collect();
+
         for key in keys {
-            if !self
-                .allowed
-                .iter()
-                .any(|allowed| allowed.eq_ignore_ascii_case(&key))
-            {
-                let still_available: Vec<_> = expected_set
+            let normalized_key = self.match_mode.normalize(&key);
+
+            // Check if this key was observed (i.e., it matched an expected field)
+            if !observed_set.contains(&normalized_key) {
+                // This is an unknown key - find available (expected but not yet observed) fields
+                let still_available: Vec<_> = expected_normalized
                     .iter()
-                    .filter(|expected| {
-                        !self
-                            .allowed
-                            .iter()
-                            .any(|allowed| allowed.eq_ignore_ascii_case(expected))
-                    })
+                    .filter(|expected| !observed_set.contains(*expected))
                     .map(|s| s.as_str())
                     .collect();
 
@@ -1438,21 +1679,29 @@ impl<T> TomlValue<T> {
 }
 
 pub trait AsNested<P>: Sized {
-    fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<P>;
+    fn as_nested(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<P>;
 }
 
 impl<P> AsNested<P> for TomlValue<toml_edit::Item>
 where
     P: FromTomlTable<()> + VerifyFromToml<()>,
 {
-    fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<P> {
+    fn as_nested(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<P> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     match item {
                         toml_edit::Item::Table(table) => {
                             let error_count_before = errors.borrow().len();
-                            let mut helper = TomlHelper::new(table, errors.clone());
+                            let mut helper = TomlHelper::new(table, errors.clone(), mode);
                             let partial =
                                 P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                             helper.deny_unknown();
@@ -1480,7 +1729,7 @@ where
                         }
                         toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
                             let error_count_before = errors.borrow().len();
-                            let mut helper = TomlHelper::new_inline(table, errors.clone());
+                            let mut helper = TomlHelper::new_inline(table, errors.clone(), mode);
                             let partial =
                                 P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                             helper.deny_unknown();
@@ -1546,7 +1795,11 @@ impl<P> AsNested<Option<P>> for TomlValue<Option<toml_edit::Item>>
 where
     P: FromTomlTable<()> + VerifyFromToml<()>,
 {
-    fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<Option<P>> {
+    fn as_nested(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Option<P>> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref opt_item) = self.value {
@@ -1554,7 +1807,7 @@ where
                         match item {
                             toml_edit::Item::Table(table) => {
                                 let error_count_before = errors.borrow().len();
-                                let mut helper = TomlHelper::new(table, errors.clone());
+                                let mut helper = TomlHelper::new(table, errors.clone(), mode);
                                 let partial =
                                     P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
@@ -1580,7 +1833,8 @@ where
                             }
                             toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
                                 let error_count_before = errors.borrow().len();
-                                let mut helper = TomlHelper::new_inline(table, errors.clone());
+                                let mut helper =
+                                    TomlHelper::new_inline(table, errors.clone(), mode);
                                 let partial =
                                     P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();
@@ -1656,7 +1910,11 @@ impl<P> AsNested<Vec<P>> for TomlValue<Vec<toml_edit::Item>>
 where
     P: FromTomlTable<()> + VerifyFromToml<()>,
 {
-    fn as_nested(self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) -> TomlValue<Vec<P>> {
+    fn as_nested(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Vec<P>> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref items) = self.value {
@@ -1667,7 +1925,7 @@ where
                         match item {
                             toml_edit::Item::Table(table) => {
                                 let item_error_count_before = errors.borrow().len();
-                                let mut helper = TomlHelper::new(table, errors.clone());
+                                let mut helper = TomlHelper::new(table, errors.clone(), mode);
                                 let partial =
                                     P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
                                 helper.deny_unknown();

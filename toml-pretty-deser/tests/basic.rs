@@ -1,7 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    deserialize, make_partial, AnnotatedError, AsEnum, AsNested, DeserError, FromTomlTable,
-    StringNamedEnum, ToConcrete, TomlHelper, TomlValue, VerifyFromToml,
+    deserialize, deserialize_with_mode, make_partial, AnnotatedError, AsEnum, AsNested, DeserError,
+    FieldMatchMode, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper, TomlValue,
+    VerifyFromToml,
 };
 
 #[make_partial(false)]
@@ -673,33 +674,335 @@ fn test_two_errors_pretty() {
             .any(|e| e.inner.spans[0].msg.contains("Missing required key: data")));
         assert_eq!(
             errors[0].pretty("test.toml"),
-            "  ╭─test.toml
-  ┆
-5 │         [level1.level2]
-6 │             other = 2
-  ┆             ──┬──    
-  ┆               │      
-  ┆               ╰─────── Unknown key: other
-──╯
-Hint: Did you mean: 'data'?
-"
+            "  ╭─test.toml\n  ┆\n5 │         [level1.level2]\n6 │             other = 2\n  ┆             ──┬──    \n  ┆               │      \n  ┆               ╰─────── Unknown key: other\n──╯\nHint: Did you mean: 'data'?\n"
         );
         assert_eq!(
             errors[1].pretty("test.toml"),
-            "  ╭─test.toml
-  ┆
-
-5 │         [level1.level2]
-  ┆         ───────┬───────
-  ┆                │       
-  ┆                ╰──────── Missing required key: data
-──╯
-Hint: This key is required but was not found in the TOML document.
-"
+            "  ╭─test.toml\n  ┆\n\n5 │         [level1.level2]\n  ┆         ───────┬───────\n  ┆                │       \n  ┆                ╰──────── Missing required key: data\n──╯\nHint: This key is required but was not found in the TOML document.\n"
         );
         // let pretty = errors[0].pretty("test.toml");
         // println!("Pretty error:\n{}", pretty);
     } else {
         panic!("Expected failure due to missing data field in level2");
+    }
+}
+
+// =============================================================================
+// Tests for new FieldMatchMode and alias features
+// =============================================================================
+
+// Test struct with aliases
+#[derive(Debug)]
+#[make_partial]
+struct AliasedOutput {
+    #[alias("alsoAName")]
+    my_name: String,
+    #[alias("myValue")]
+    my_value: i32,
+    regular_field: String,
+}
+
+#[test]
+fn test_alias_exact_mode() {
+    // In Exact mode, aliases should work but different cases should not
+    let toml = "
+        alsoAName = 'using alias'
+        myValue = 42
+        regular_field = 'no alias'
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialAliasedOutput, AliasedOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_name, "using alias");
+        assert_eq!(output.my_value, 42);
+        assert_eq!(output.regular_field, "no alias");
+    }
+}
+
+#[test]
+fn test_alias_exact_mode_failure() {
+    // In Exact mode, different case should NOT work
+    let toml = "
+        my_Name = 'wrong case'
+        myValue = 42
+        regular_field = 'no alias'
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialAliasedOutput, AliasedOutput>(toml);
+    // Should fail because 'myname' is not 'myName' or 'my_name'
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        // Should have errors about missing my_name and unknown myname
+        assert!(errors.len() >= 1);
+    }
+}
+
+// Test struct for case-insensitive matching
+#[derive(Debug)]
+#[make_partial]
+struct CaseOutput {
+    my_field: String,
+    another_field: i32,
+}
+
+#[test]
+fn test_upper_lower_mode() {
+    // In UpperLower mode, different cases should work
+    let toml = "
+        MY_FIELD = 'upper case'
+        Another_Field = 123
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::UpperLower);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_field, "upper case");
+        assert_eq!(output.another_field, 123);
+    }
+}
+
+#[test]
+fn test_any_case_mode_snake() {
+    // In AnyCase mode, snake_case should match
+    let toml = "
+        my_field = 'snake case'
+        another_field = 456
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_field, "snake case");
+        assert_eq!(output.another_field, 456);
+    }
+}
+
+#[test]
+fn test_any_case_mode_camel() {
+    // In AnyCase mode, camelCase should match snake_case field
+    let toml = "
+        myField = 'camel case'
+        anotherField = 789
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_field, "camel case");
+        assert_eq!(output.another_field, 789);
+    }
+}
+
+#[test]
+fn test_any_case_mode_kebab() {
+    // In AnyCase mode, kebab-case should match snake_case field
+    let toml = "
+        my-field = 'kebab case'
+        another-field = 101
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_field, "kebab case");
+        assert_eq!(output.another_field, 101);
+    }
+}
+
+#[test]
+fn test_any_case_mode_upper_camel() {
+    // In AnyCase mode, UpperCamelCase should match snake_case field
+    let toml = "
+        MyField = 'upper camel'
+        AnotherField = 202
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_field, "upper camel");
+        assert_eq!(output.another_field, 202);
+    }
+}
+
+#[test]
+fn test_any_case_mode_shouty() {
+    // In AnyCase mode, SHOUTY_SNAKE_CASE should match snake_case field
+    let toml = "
+        MY_FIELD = 'shouty'
+        ANOTHER_FIELD = 303
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_field, "shouty");
+        assert_eq!(output.another_field, 303);
+    }
+}
+
+#[test]
+fn test_any_case_mode_train() {
+    // In AnyCase mode, Train-Case should match snake_case field
+    let toml = "
+        My-Field = 'train case'
+        Another-Field = 404
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_field, "train case");
+        assert_eq!(output.another_field, 404);
+    }
+}
+
+// Test unknown key detection with case variants
+#[test]
+fn test_any_case_mode_unknown_key() {
+    // In AnyCase mode, unknown keys should still be detected
+    let toml = "
+        my_field = 'correct'
+        unknown_field = 'this should error'
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("unknown_field")));
+    }
+}
+
+// Test aliases with AnyCase mode
+#[test]
+fn test_alias_with_any_case_mode() {
+    let toml = "
+        myName = 'alias match'
+        myValue = 111
+        regularField = 'case variant'
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialAliasedOutput, AliasedOutput>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_name, "alias match");
+        assert_eq!(output.my_value, 111);
+        assert_eq!(output.regular_field, "case variant");
+    }
+}
+
+// Test nested struct with aliases and case variants
+#[derive(Debug)]
+#[make_partial]
+struct AliasedNested {
+    #[alias("nestedName")]
+    nested_name: String,
+}
+
+#[derive(Debug)]
+#[make_partial]
+struct OuterAliased {
+    #[nested]
+    nested: AliasedNested,
+}
+
+#[test]
+fn test_nested_with_alias() {
+    let toml = "
+        [nested]
+        nestedName = 'aliased nested field'
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialOuterAliased, OuterAliased>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.nested.nested_name, "aliased nested field");
+    }
+}
+
+#[test]
+fn test_nested_with_any_case_mode() {
+    let toml = "
+        [nested]
+        NestedName = 'case variant in nested'
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterAliased, OuterAliased>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.nested.nested_name, "case variant in nested");
+    }
+}
+
+// Test complex case with mixed conventions
+#[derive(Debug)]
+#[make_partial]
+struct MixedCase {
+    api_key: String,
+    html_parser: String,
+    get_http_response: i32,
+}
+
+#[test]
+fn test_complex_mixed_case() {
+    let toml = "
+        API_KEY = 'shouty alias'
+        HTMLPARSER = 'consecutive caps'
+        getHTTPResponse = 42
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.api_key, "shouty alias");
+        assert_eq!(output.html_parser, "consecutive caps");
+        assert_eq!(output.get_http_response, 42);
+    }
+}
+
+#[test]
+fn test_complex_mixed_case_key_reused() {
+    let toml = "
+        API_KEY = 'shouty alias'
+        htmlparser= '23'
+        HTMLPARSER = 'consecutive caps'
+        api-key = 24
+        getHTTPResponse = 42
+    ";
+
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.api_key, "shouty alias");
+        assert_eq!(output.html_parser, "consecutive caps");
+        assert_eq!(output.get_http_response, 42);
     }
 }
