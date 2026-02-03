@@ -1,10 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use toml_pretty_deser::{
     AnnotatedError, AsMap, AsMapEnum, AsMapNested, AsMapTaggedEnum, AsMapVec, AsMapVecEnum,
-    AsMapVecNested, AsMapVecTaggedEnum, AsOptionalTaggedEnum, AsTaggedEnum, AsVecTaggedEnum,
-    DeserError, FieldMatchMode, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper, TomlValue,
-    TomlValueState, VerifyFromToml, deserialize, deserialize_with_mode, make_partial,
-    make_partial_enum,
+    AsMapVecNested, AsMapVecTaggedEnum, DeserError, FromTomlTable, StringNamedEnum, ToConcrete,
+    TomlHelper, TomlValue, VerifyFromToml, deserialize, make_partial, make_partial_enum,
 };
 
 #[make_partial]
@@ -102,7 +100,6 @@ fn test_mapped_happy() {
 
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
-    dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
         assert_eq!(output.mapped_u8.get("a"), Some(&1));
@@ -287,7 +284,10 @@ fn test_mapped_missing() {
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(errors.len() >= 3);
-        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key.");
+        assert_eq!(
+            errors[0].inner.spans[0].msg,
+            "Missing required key: 'mapped_enum'."
+        );
         assert_eq!(
             errors[0].inner.help,
             Some("This key is required but was not found in the TOML document.".to_string())
@@ -445,7 +445,7 @@ fn test_mapped_tagged_enum_missing_variant_field() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key.")
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
         );
     } else {
         panic!("Expected failure due to missing variant field");
@@ -463,7 +463,50 @@ fn test_mapped_nested_missing_field() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key.")
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
+        );
+        assert_eq!(
+            errors[1].inner.spans[0].msg,
+            "Missing required key: 'mapped_u8'."
+        );
+        assert_eq!(
+            errors[2].inner.spans[0].msg,
+            "Missing required key: 'mapped_enum'."
+        );
+        assert_eq!(
+            errors[3].inner.spans[0].msg,
+            "Missing required key: 'mapped_either'."
+        );
+        assert_eq!(
+            errors[4].inner.spans[0].msg,
+            "Missing required key: 'mapped_vec_string'."
+        );
+        assert_eq!(
+            errors[5].inner.spans[0].msg,
+            "Missing required key: 'mapped_vec_enum'."
+        );
+        assert_eq!(
+            errors[6].inner.spans[0].msg,
+            "Missing required key: 'mapped_vec_either'."
+        );
+        assert_eq!(
+            errors[7].inner.spans[0].msg,
+            "Missing required key: 'mapped_vec_struct'."
+        );
+        let pretty = errors[0].pretty("test.toml");
+        println!("{}", pretty);
+        assert_eq!(
+            pretty,
+            "  ╭─test.toml
+  ┆
+2 │         [mapped_struct]
+3 │             a = { }  # missing n field
+  ┆                 ─┬─                   
+  ┆                  │                    
+  ┆                  ╰───────────────────── Missing required key: 'n'.
+──╯
+Hint: This key is required but was not found in the TOML document.
+"
         );
     } else {
         panic!("Expected failure due to missing nested field");
@@ -477,11 +520,12 @@ fn test_mapped_vec_struct_missing_field() {
             a = [ { n = 5 }, { } ]  # second element missing n
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
-    if let Err(DeserError::DeserFailure(errors, _)) = result {
+    if let Err(DeserError::DeserFailure(errors, output)) = result {
+        dbg!(&output);
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key.")
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
         );
     } else {
         panic!("Expected failure due to missing field in vec struct");
@@ -701,10 +745,24 @@ fn test_mapped_struct_wrong_field_type() {
             a = [{ n = 5 }]
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
-    assert!(result.is_ok());
-    if let Ok(output) = result {
-        assert_eq!(output.mapped_u8.get("a"), Some(&1));
-        assert!(output.mapped_struct.get("a").is_none());
+    assert!(!result.is_ok());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        let pretty = errors[0].pretty("test.toml");
+        assert_eq!(
+            pretty,
+            "  ╭─test.toml
+  ┆
+8 │         [mapped_struct]
+9 │             a = { n = 'not a number' }
+  ┆                       ───────┬──────  
+  ┆                              │        
+  ┆                              ╰───────── Wrong type: expected u8, found string
+──╯
+Hint: The value has the wrong type.
+"
+        );
+    } else {
+        panic!("expected Deserfailure")
     }
 }
 
@@ -766,7 +824,7 @@ fn test_mapped_optional_struct_missing_field() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key.")
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
         );
     } else {
         panic!("Expected failure due to missing field in optional struct");

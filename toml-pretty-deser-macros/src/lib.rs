@@ -516,11 +516,6 @@ pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         impl #impl_generics ToConcrete<#enum_name #ty_generics> for #partial_name #ty_generics #where_clause {
-            fn collect_errors(&self, errors: &std::rc::Rc<std::cell::RefCell<Vec<AnnotatedError>>>) {
-                match self {
-                    #(#collect_errors_variants)*
-                }
-            }
 
             fn to_concrete(self) -> Option<#enum_name #ty_generics> {
                 match self {
@@ -533,6 +528,12 @@ pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
             fn can_concrete(&self) -> bool {
                 match self {
                     #(#can_concrete_variants)*
+                }
+            }
+
+            fn collect_errors(&self, errors: &std::rc::Rc<std::cell::RefCell<Vec<AnnotatedError>>>) {
+                match self {
+                    #(#collect_errors_variants)*
                 }
             }
 
@@ -1203,7 +1204,8 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         HashMapValueKind::VecNested(_inner_name) => {
                             // Note: The type is inferred from the return type, no turbofish needed
                             quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec_nested(&helper.errors, helper.match_mode)
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*])
+                                    .as_map_vec_nested(&helper.errors, helper.match_mode)
                             }
                         }
                         HashMapValueKind::VecTaggedEnum(inner_name) => {
@@ -1289,10 +1291,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         impl #impl_generics ToConcrete<#struct_name #ty_generics> for #partial_name #ty_generics #where_clause {
-            fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
-            dbg!(&self);
-                #(#collect_errors_fields;)*
-            }
 
 
             fn to_concrete(self) -> Option<#struct_name #ty_generics> {
@@ -1312,6 +1310,11 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             fn can_concrete(&self) -> bool {
                 #(#can_concrete_fields)&&*
             }
+
+            fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
+                #(#collect_errors_fields;)*
+            }
+
             fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
                 #partial_name {
                     #(#from_toml_table_fields,)*

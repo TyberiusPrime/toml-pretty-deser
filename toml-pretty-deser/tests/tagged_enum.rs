@@ -242,7 +242,7 @@ fn test_either_one_missing_variant_field() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key.")
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
         );
     } else {
         panic!("expected missing required key for variant field");
@@ -291,13 +291,19 @@ fn test_either_one_fields_mismatch_variant() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Unknown key"))
+                .filter(|e| e.inner.spans[0].msg.contains("Unknown key"))
+                .count()
+                == 2
         );
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key."
-                    || e.inner.spans[0].msg == "Missing required key.")
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
         );
     } else {
         panic!("expected errors due to field/variant mismatch");
@@ -343,7 +349,7 @@ fn test_either_one_missing_choice_field() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key.")
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'.")
         );
     } else {
         panic!("expected missing required key.");
@@ -481,5 +487,22 @@ fn test_many_either_one_happy() {
             output.choices[2],
             EitherOne::KindB(InnerB { s: 23, t: 10 })
         ));
+    }
+}
+
+#[test]
+fn test_many_either_empty() {
+    let toml = "";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterManyTagged, OuterManyTagged>(
+        toml,
+        FieldMatchMode::Exact,
+    );
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, output)) = result {
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: 'choices'.");
+        assert!(output.choices.value.is_none());
+    } else {
+        panic!("expected error when both kind and type are present");
     }
 }
