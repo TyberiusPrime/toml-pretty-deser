@@ -1,27 +1,28 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsOptionalTaggedEnum, AsTaggedEnum, AsVecTaggedEnum, DeserError,
+    deserialize, deserialize_with_mode, make_partial, make_partial_enum, AnnotatedError, AsMap,
+    AsMapEnum, AsMapNested, AsMapTaggedEnum, AsMapVec, AsMapVecEnum, AsMapVecNested,
+    AsMapVecTaggedEnum, AsOptionalTaggedEnum, AsTaggedEnum, AsVecTaggedEnum, DeserError,
     FieldMatchMode, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper, TomlValue,
-    TomlValueState, VerifyFromToml, deserialize, deserialize_with_mode, make_partial,
-    make_partial_enum,
+    TomlValueState, VerifyFromToml,
 };
 
 #[make_partial]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
 #[make_partial]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct InnerB {
     s: u32,
     t: u32,
 }
 
 #[make_partial_enum] // creates PartialEitherOne { KindA(PartialInnerA, ...)}
-#[derive(Debug)]
+#[derive(Debug, Clone)] //todo: whi does this need clone
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
@@ -34,7 +35,7 @@ enum ByString {
 }
 
 #[make_partial]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Inner {
     n: u8,
 }
@@ -43,16 +44,25 @@ struct Inner {
 #[derive(Debug)]
 struct Mapped {
     mapped_u8: HashMap<String, u8>,
+    #[as_enum]
     mapped_enum: HashMap<String, ByString>,
+    #[enum_tagged("_unused")]
     mapped_either: HashMap<String, EitherOne>,
+    #[nested]
     mapped_struct: HashMap<String, Inner>,
     mapped_vec_string: HashMap<String, Vec<String>>,
+    #[as_enum]
     mapped_vec_enum: HashMap<String, Vec<ByString>>,
+    #[enum_tagged("_unused")]
     mapped_vec_either: HashMap<String, Vec<EitherOne>>,
+    #[nested]
     mapped_vec_struct: HashMap<String, Vec<Inner>>,
     opt_mapped_u8: Option<HashMap<String, u8>>,
+    #[as_enum]
     opt_mapped_enum: Option<HashMap<String, ByString>>,
+    #[enum_tagged("_unused")]
     opt_mapped_either: Option<HashMap<String, EitherOne>>,
+    #[nested]
     opt_mapped_struct: Option<HashMap<String, Inner>>,
 }
 
@@ -114,30 +124,36 @@ fn test_mapped_happy() {
         assert_eq!(output.mapped_either.len(), 2);
         assert_eq!(output.mapped_struct.len(), 1);
 
-        assert_eq!(output.opt_mapped_u8.as_ref().unwrap().get("a"), Some(&1));
+        assert_eq!(output.opt_mapped_u8.as_ref().unwrap().get("a"), Some(&10));
         assert_eq!(
             output.opt_mapped_enum.as_ref().unwrap().get("b"),
             Some(&ByString::GammaDelta)
         );
         assert!(matches!(
             output.opt_mapped_either.as_ref().unwrap().get("a"),
-            Some(EitherOne::KindA(inner)) if inner.n == 10 && inner.o == 20
+            Some(EitherOne::KindA(inner)) if inner.n == 100 && inner.o == 200
         ));
         assert!(matches!(
             output.opt_mapped_either.as_ref().unwrap().get("b"),
-            Some(EitherOne::KindB(inner)) if inner.s == 30 && inner.t == 40
+            Some(EitherOne::KindB(inner)) if inner.s == 300 && inner.t == 400
         ));
         assert!(matches!(
             output.opt_mapped_struct.as_ref().unwrap().get("a"),
-            Some(inner) if inner.n == 5
+            Some(inner) if inner.n == 50
         ));
         assert_eq!(output.opt_mapped_u8.as_ref().unwrap().len(), 2);
         assert_eq!(output.opt_mapped_enum.as_ref().unwrap().len(), 2);
         assert_eq!(output.opt_mapped_either.as_ref().unwrap().len(), 2);
         assert_eq!(output.opt_mapped_struct.as_ref().unwrap().len(), 1);
 
-        assert_eq!(output.mapped_vec_string.get("a").unwrap(), &vec!["hello".to_string(), "world".to_string()]);
-        assert_eq!(output.mapped_vec_enum.get("a").unwrap(), &vec![ByString::AlphaBeta, ByString::GammaDelta]);
+        assert_eq!(
+            output.mapped_vec_string.get("a").unwrap(),
+            &vec!["hello".to_string(), "world".to_string()]
+        );
+        assert_eq!(
+            output.mapped_vec_enum.get("a").unwrap(),
+            &vec![ByString::AlphaBeta, ByString::GammaDelta]
+        );
         assert_eq!(output.mapped_vec_either.get("a").unwrap().len(), 2);
         assert!(matches!(
             &output.mapped_vec_either.get("a").unwrap()[0],

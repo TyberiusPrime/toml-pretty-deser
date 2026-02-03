@@ -188,6 +188,169 @@ fn is_enum_tagged_field(field: &syn::Field) -> bool {
         .any(|attr| attr.path().is_ident("enum_tagged"))
 }
 
+/// Check if a type is HashMap<String, T>
+fn is_hashmap_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if let Some(segment) = path.segments.last() {
+                segment.ident == "HashMap"
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
+/// Check if a type is Option<HashMap<String, T>>
+fn is_option_hashmap_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if let Some(segment) = path.segments.last() {
+                if segment.ident == "Option" {
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
+                            return is_hashmap_type(&inner_ty);
+                        }
+                    }
+                }
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+/// Extract the value type from HashMap<String, T> - returns the full Type
+fn extract_hashmap_value_type(ty: &Type) -> Option<Type> {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if let Some(segment) = path.segments.last() {
+                if segment.ident == "HashMap" {
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        // HashMap<String, T> has two type arguments
+                        let mut iter = args.args.iter();
+                        iter.next(); // Skip String (the key type)
+                        if let Some(GenericArgument::Type(value_ty)) = iter.next() {
+                            return Some(value_ty.clone());
+                        }
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Extract HashMap value type from Option<HashMap<String, T>>
+fn extract_option_hashmap_value_type(ty: &Type) -> Option<Type> {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if let Some(segment) = path.segments.last() {
+                if segment.ident == "Option" {
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
+                            return extract_hashmap_value_type(&inner_ty);
+                        }
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Check if type is a Vec type and extract its inner type
+fn extract_vec_inner_full_type(ty: &Type) -> Option<Type> {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if let Some(segment) = path.segments.last() {
+                if segment.ident == "Vec" {
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
+                            return Some(inner_ty.clone());
+                        }
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Information about a HashMap field type
+#[derive(Clone)]
+enum HashMapValueKind {
+    /// Primitive type like u8, i32, String, etc.
+    Primitive,
+    /// StringNamedEnum type
+    Enum(()),
+    /// Nested struct type (needs #[nested] or similar)
+    Nested(syn::Ident),
+    /// Tagged enum type (needs #[enum_tagged])
+    TaggedEnum(syn::Ident),
+    /// Vec of primitive
+    VecPrimitive,
+    /// Vec of StringNamedEnum
+    VecEnum(()),
+    /// Vec of nested struct
+    VecNested(syn::Ident),
+    /// Vec of tagged enum
+    VecTaggedEnum(syn::Ident),
+}
+
+/// Analyze the value type of a HashMap and determine what kind it is
+fn analyze_hashmap_value_type(value_ty: &Type, field: &syn::Field) -> HashMapValueKind {
+    let is_nested = is_nested_field(field);
+    let is_enum_tagged = is_enum_tagged_field(field);
+    let is_enum = is_as_enum_field(field);
+
+    // Check if value type is Vec<T>
+    if let Some(vec_inner) = extract_vec_inner_full_type(value_ty) {
+        // It's a Vec<T>, now determine what T is
+        if is_nested {
+            if let Some(ident) = extract_type_name(&vec_inner) {
+                return HashMapValueKind::VecNested(ident);
+            }
+        }
+        if is_enum_tagged {
+            if let Some(ident) = extract_type_name(&vec_inner) {
+                return HashMapValueKind::VecTaggedEnum(ident);
+            }
+        }
+        if is_enum {
+            if let Some(_ident) = extract_type_name(&vec_inner) {
+                return HashMapValueKind::VecEnum(());
+            }
+        }
+        // Otherwise it's a Vec of primitive
+        return HashMapValueKind::VecPrimitive;
+    }
+
+    // Not a Vec, check if it's a struct/enum type
+    if is_nested {
+        if let Some(ident) = extract_type_name(value_ty) {
+            return HashMapValueKind::Nested(ident);
+        }
+    }
+    if is_enum_tagged {
+        if let Some(ident) = extract_type_name(value_ty) {
+            return HashMapValueKind::TaggedEnum(ident);
+        }
+    }
+    if is_enum {
+        if let Some(_ident) = extract_type_name(value_ty) {
+            return HashMapValueKind::Enum(());
+        }
+    }
+
+    // Otherwise it's a primitive type
+    HashMapValueKind::Primitive
+}
+
 fn extract_tag_key(field: &syn::Field) -> Option<String> {
     for attr in &field.attrs {
         if attr.path().is_ident("enum_tagged") {
@@ -436,8 +599,11 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Validate nested and enum_tagged fields first
     for f in fields.iter() {
-        if is_nested_field(f) {
-            let ty = &f.ty;
+        let ty = &f.ty;
+        // Skip validation for HashMap types - they're validated via analyze_hashmap_value_type
+        let is_hashmap = is_hashmap_type(ty) || is_option_hashmap_type(ty);
+
+        if is_nested_field(f) && !is_hashmap {
             if is_option_type(ty) {
                 if extract_option_inner_type(ty).is_none() {
                     panic!("nested attribute on Option field requires a simple inner type name");
@@ -450,8 +616,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 panic!("nested attribute requires a simple type name");
             }
         }
-        if is_enum_tagged_field(f) {
-            let ty = &f.ty;
+        if is_enum_tagged_field(f) && !is_hashmap {
             // enum_tagged can be applied to EnumType, Option<EnumType>, or Vec<EnumType>
             if is_option_type(ty) {
                 if extract_option_inner_type(ty).is_none() {
@@ -478,7 +643,60 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             let name = &f.ident;
             let ty = &f.ty;
 
-            if is_nested_field(f) {
+            // Check for HashMap types first
+            if is_hashmap_type(ty) || is_option_hashmap_type(ty) {
+                let is_optional = is_option_hashmap_type(ty);
+                let value_ty = if is_optional {
+                    extract_option_hashmap_value_type(ty).unwrap()
+                } else {
+                    extract_hashmap_value_type(ty).unwrap()
+                };
+                let kind = analyze_hashmap_value_type(&value_ty, f);
+
+                match kind {
+                    HashMapValueKind::Nested(inner_name) => {
+                        let partial_type = format_ident!("Partial{}", inner_name);
+                        if is_optional {
+                            quote! { #name: TomlValue<Option<std::collections::HashMap<String, #partial_type>>> }
+                        } else {
+                            quote! { #name: TomlValue<std::collections::HashMap<String, #partial_type>> }
+                        }
+                    }
+                    HashMapValueKind::TaggedEnum(inner_name) => {
+                        let partial_type = format_ident!("Partial{}", inner_name);
+                        if is_optional {
+                            quote! { #name: TomlValue<Option<std::collections::HashMap<String, #partial_type>>> }
+                        } else {
+                            quote! { #name: TomlValue<std::collections::HashMap<String, #partial_type>> }
+                        }
+                    }
+                    HashMapValueKind::VecNested(inner_name) => {
+                        let partial_type = format_ident!("Partial{}", inner_name);
+                        if is_optional {
+                            quote! { #name: TomlValue<Option<std::collections::HashMap<String, Vec<#partial_type>>>> }
+                        } else {
+                            quote! { #name: TomlValue<std::collections::HashMap<String, Vec<#partial_type>>> }
+                        }
+                    }
+                    HashMapValueKind::VecTaggedEnum(inner_name) => {
+                        let partial_type = format_ident!("Partial{}", inner_name);
+                        if is_optional {
+                            quote! { #name: TomlValue<Option<std::collections::HashMap<String, Vec<#partial_type>>>> }
+                        } else {
+                            quote! { #name: TomlValue<std::collections::HashMap<String, Vec<#partial_type>>> }
+                        }
+                    }
+                    // For primitives and regular enums, keep the original type
+                    _ => {
+                        if is_optional {
+                            // Extract the inner HashMap type from Option<HashMap<...>>
+                            quote! { #name: TomlValue<#ty> }
+                        } else {
+                            quote! { #name: TomlValue<#ty> }
+                        }
+                    }
+                }
+            } else if is_nested_field(f) {
                 // Check if this is Option<InnerType>, Vec<InnerType>, or just InnerType
                 if is_option_type(ty) {
                     // For Option<Nested> fields, use Option<PartialType>
@@ -535,7 +753,77 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         .iter()
         .map(|f| {
             let name = &f.ident;
-            if is_nested_field(f) {
+            let ty = &f.ty;
+
+            // Check for HashMap types first
+            if is_hashmap_type(ty) || is_option_hashmap_type(ty) {
+                let is_optional = is_option_hashmap_type(ty);
+                let value_ty = if is_optional {
+                    extract_option_hashmap_value_type(ty).unwrap()
+                } else {
+                    extract_hashmap_value_type(ty).unwrap()
+                };
+                let kind = analyze_hashmap_value_type(&value_ty, f);
+
+                match kind {
+                    HashMapValueKind::Nested(_) | HashMapValueKind::TaggedEnum(_) => {
+                        if is_optional {
+                            quote! {
+                                if let Some(Some(ref map)) = self.#name.value {
+                                    for partial in map.values() {
+                                        partial.collect_errors(errors);
+                                    }
+                                } else if self.#name.value.is_none() {
+                                    self.#name.register_error(errors);
+                                }
+                            }
+                        } else {
+                            quote! {
+                                if let Some(ref map) = self.#name.value {
+                                    for partial in map.values() {
+                                        partial.collect_errors(errors);
+                                    }
+                                } else {
+                                    self.#name.register_error(errors);
+                                }
+                            }
+                        }
+                    }
+                    HashMapValueKind::VecNested(_) | HashMapValueKind::VecTaggedEnum(_) => {
+                        if is_optional {
+                            quote! {
+                                if let Some(Some(ref map)) = self.#name.value {
+                                    for vec in map.values() {
+                                        for partial in vec.iter() {
+                                            partial.collect_errors(errors);
+                                        }
+                                    }
+                                } else if self.#name.value.is_none() {
+                                    self.#name.register_error(errors);
+                                }
+                            }
+                        } else {
+                            quote! {
+                                if let Some(ref map) = self.#name.value {
+                                    for vec in map.values() {
+                                        for partial in vec.iter() {
+                                            partial.collect_errors(errors);
+                                        }
+                                    }
+                                } else {
+                                    self.#name.register_error(errors);
+                                }
+                            }
+                        }
+                    }
+                    // For primitives and regular enums, just register errors on the TomlValue
+                    _ => {
+                        quote! {
+                            self.#name.register_error(errors)
+                        }
+                    }
+                }
+            } else if is_nested_field(f) {
                 // For nested fields (including Option<Nested> and Vec<Nested>), recursively collect errors
                 if is_option_type(&f.ty) {
                     // For Option<Nested>, value is Option<Option<PartialType>>
@@ -603,7 +891,57 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         .iter()
         .map(|f| {
             let name = &f.ident;
-            if is_nested_field(f) {
+            let ty = &f.ty;
+
+            // Check for HashMap types first
+            if is_hashmap_type(ty) || is_option_hashmap_type(ty) {
+                let is_optional = is_option_hashmap_type(ty);
+                let value_ty = if is_optional {
+                    extract_option_hashmap_value_type(ty).unwrap()
+                } else {
+                    extract_hashmap_value_type(ty).unwrap()
+                };
+                let kind = analyze_hashmap_value_type(&value_ty, f);
+
+                match kind {
+                    HashMapValueKind::Nested(_) | HashMapValueKind::TaggedEnum(_) => {
+                        if is_optional {
+                            quote! {
+                                self.#name.value.as_ref().map(|opt| {
+                                    opt.as_ref().map(|map| map.values().all(|p| p.can_concrete())).unwrap_or(true)
+                                }).unwrap_or(false)
+                            }
+                        } else {
+                            quote! {
+                                self.#name.value.as_ref().map(|map| {
+                                    map.values().all(|p| p.can_concrete())
+                                }).unwrap_or(false)
+                            }
+                        }
+                    }
+                    HashMapValueKind::VecNested(_) | HashMapValueKind::VecTaggedEnum(_) => {
+                        if is_optional {
+                            quote! {
+                                self.#name.value.as_ref().map(|opt| {
+                                    opt.as_ref().map(|map| map.values().all(|vec| vec.iter().all(|p| p.can_concrete()))).unwrap_or(true)
+                                }).unwrap_or(false)
+                            }
+                        } else {
+                            quote! {
+                                self.#name.value.as_ref().map(|map| {
+                                    map.values().all(|vec| vec.iter().all(|p| p.can_concrete()))
+                                }).unwrap_or(false)
+                            }
+                        }
+                    }
+                    // For primitives and regular enums, just check has_value
+                    _ => {
+                        quote! {
+                            self.#name.has_value()
+                        }
+                    }
+                }
+            } else if is_nested_field(f) {
                 // For nested fields, check if the partial can become concrete
                 // For Option<PartialType>, it's concrete if Some and inner can_concrete, or if None
                 if is_option_type(&f.ty) {
@@ -657,7 +995,61 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         .iter()
         .map(|f| {
             let name = &f.ident;
-            if is_nested_field(f) {
+            let ty = &f.ty;
+
+            // Check for HashMap types first
+            if is_hashmap_type(ty) || is_option_hashmap_type(ty) {
+                let is_optional = is_option_hashmap_type(ty);
+                let value_ty = if is_optional {
+                    extract_option_hashmap_value_type(ty).unwrap()
+                } else {
+                    extract_hashmap_value_type(ty).unwrap()
+                };
+                let kind = analyze_hashmap_value_type(&value_ty, f);
+
+                match kind {
+                    HashMapValueKind::Nested(_) | HashMapValueKind::TaggedEnum(_) => {
+                        if is_optional {
+                            quote! {
+                                #name: self.#name.value.flatten().map(|map| {
+                                    map.into_iter().filter_map(|(k, p)| p.to_concrete().map(|v| (k, v))).collect()
+                                })
+                            }
+                        } else {
+                            quote! {
+                                #name: self.#name.value.map(|map| {
+                                    map.into_iter().filter_map(|(k, p)| p.to_concrete().map(|v| (k, v))).collect()
+                                }).unwrap()
+                            }
+                        }
+                    }
+                    HashMapValueKind::VecNested(_) | HashMapValueKind::VecTaggedEnum(_) => {
+                        if is_optional {
+                            quote! {
+                                #name: self.#name.value.flatten().map(|map| {
+                                    map.into_iter().map(|(k, vec)| {
+                                        (k, vec.into_iter().filter_map(|p| p.to_concrete()).collect())
+                                    }).collect()
+                                })
+                            }
+                        } else {
+                            quote! {
+                                #name: self.#name.value.map(|map| {
+                                    map.into_iter().map(|(k, vec)| {
+                                        (k, vec.into_iter().filter_map(|p| p.to_concrete()).collect())
+                                    }).collect()
+                                }).unwrap()
+                            }
+                        }
+                    }
+                    // For primitives and regular enums, just unwrap
+                    _ => {
+                        quote! {
+                            #name: self.#name.unwrap()
+                        }
+                    }
+                }
+            } else if is_nested_field(f) {
                 if is_option_type(&f.ty) {
                     // For Option<Nested>, convert Option<Partial> to Option<Concrete>
                     // self.#name.value is Option<Option<PartialNested>>
@@ -712,8 +1104,117 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             let name = &f.ident;
             let name_str = name.as_ref().unwrap().to_string();
             let aliases = extract_aliases(f);
+            let ty = &f.ty;
             
-            if is_nested_field(f) {
+            // Check for HashMap types first
+            if is_hashmap_type(ty) || is_option_hashmap_type(ty) {
+                let is_optional = is_option_hashmap_type(ty);
+                let value_ty = if is_optional {
+                    extract_option_hashmap_value_type(ty).unwrap()
+                } else {
+                    extract_hashmap_value_type(ty).unwrap()
+                };
+                let kind = analyze_hashmap_value_type(&value_ty, f);
+
+                // For optional HashMaps, we need to get Option<Item> and use fully-qualified as_opt_map_* trait methods
+                if is_optional {
+                    match kind {
+                        HashMapValueKind::Primitive => {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptMap::as_opt_map(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::Enum(_) => {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptMapEnum::as_opt_map_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::Nested(_) => {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptMapNested::as_opt_map_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::TaggedEnum(inner_name) => {
+                            let partial_type = format_ident!("Partial{}", inner_name);
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptMapTaggedEnum::as_opt_map_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                            }
+                        }
+                        HashMapValueKind::VecPrimitive => {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptMapVec::as_opt_map_vec(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::VecEnum(_) => {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptMapVecEnum::as_opt_map_vec_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::VecNested(_) => {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptMapVecNested::as_opt_map_vec_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::VecTaggedEnum(inner_name) => {
+                            let partial_type = format_ident!("Partial{}", inner_name);
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptMapVecTaggedEnum::as_opt_map_vec_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                            }
+                        }
+                    }
+                } else {
+                    match kind {
+                        HashMapValueKind::Primitive => {
+                            // as_map for primitives
+                            quote! {
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map(&helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::Enum(_) => {
+                            // as_map_enum for string enums
+                            quote! {
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_enum(&helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::Nested(_inner_name) => {
+                            // Note: The type is inferred from the return type, no turbofish needed
+                            quote! {
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_nested(&helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::TaggedEnum(inner_name) => {
+                            let partial_type = format_ident!("Partial{}", inner_name);
+                            quote! {
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_tagged_enum(&helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                            }
+                        }
+                        HashMapValueKind::VecPrimitive => {
+                            // as_map_vec for Vec of primitives
+                            quote! {
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec(&helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::VecEnum(_) => {
+                            // as_map_vec_enum for Vec of string enums
+                            quote! {
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec_enum(&helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::VecNested(_inner_name) => {
+                            // Note: The type is inferred from the return type, no turbofish needed
+                            quote! {
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec_nested(&helper.errors, helper.match_mode)
+                            }
+                        }
+                        HashMapValueKind::VecTaggedEnum(inner_name) => {
+                            let partial_type = format_ident!("Partial{}", inner_name);
+                            quote! {
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec_tagged_enum(&helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                            }
+                        }
+                    }
+                }
+            } else if is_nested_field(f) {
                 // For nested fields, we need to pass mode to as_nested
                 quote! {
                     #name: helper.get_with_aliases(#name_str, vec![]).as_nested(&helper.errors, helper.match_mode)
