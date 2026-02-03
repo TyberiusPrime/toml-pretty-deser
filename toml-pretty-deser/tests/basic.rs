@@ -1252,7 +1252,7 @@ struct InnerB {
     t: u32,
 }
 
-#[derive(StringNamedEnum)]
+#[make_partial_enum] // creates PartialEitherOne { KindA(PartialInnerA, ...)}
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
