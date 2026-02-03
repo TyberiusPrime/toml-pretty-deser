@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath,
+    Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath, parse_macro_input,
 };
 
 #[proc_macro_derive(StringNamedEnum)]
@@ -1106,7 +1106,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             let name_str = name.as_ref().unwrap().to_string();
             let aliases = extract_aliases(f);
             let ty = &f.ty;
-            
             // Check for HashMap types first
             if is_hashmap_type(ty) || is_option_hashmap_type(ty) {
                 let is_optional = is_option_hashmap_type(ty);

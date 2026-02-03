@@ -47,54 +47,6 @@ pub fn normalize_to_no_case(s: &str) -> String {
             _ => None,
         })
         .collect()
-    // let mut result = String::with_capacity(s.len() * 2);
-    // let mut chars = s.chars().peekable();
-    // let mut prev_was_uppercase = false;
-    // let mut prev_was_separator = true;
-    //
-    // while let Some(c) = chars.next() {
-    //     if c == '-' || c == '_' {
-    //         if !prev_was_separator {
-    //             result.push('_');
-    //         }
-    //         prev_was_separator = true;
-    //         prev_was_uppercase = false;
-    //     } else if c.is_uppercase() {
-    //         // Check if we need to insert an underscore
-    //         let next_is_lowercase = chars
-    //             .peek()
-    //             .map(|next| next.is_lowercase())
-    //             .unwrap_or(false);
-    //
-    //         if !prev_was_separator {
-    //             // Insert underscore if:
-    //             // 1. Previous was lowercase (camelCase to snake_case)
-    //             // 2. Previous was uppercase AND next is lowercase (HTMLParser to html_parser)
-    //             if !prev_was_uppercase || next_is_lowercase {
-    //                 result.push('_');
-    //             }
-    //         }
-    //
-    //         result.push(c.to_lowercase().next().unwrap());
-    //         prev_was_uppercase = true;
-    //         prev_was_separator = false;
-    //     } else {
-    //         // Lowercase letter or other char
-    //         result.push(c);
-    //         prev_was_uppercase = false;
-    //         prev_was_separator = false;
-    //     }
-    // }
-    //
-    // // Remove leading/trailing underscores
-    // while result.starts_with('_') {
-    //     result.remove(0);
-    // }
-    // while result.ends_with('_') {
-    //     result.pop();
-    // }
-    //
-    // result
 }
 
 #[cfg(test)]
@@ -434,20 +386,6 @@ pub enum DeserError<P> {
     DeserFailure(Vec<HydratedAnnotatedError>, P),
     StillIncomplete(Vec<HydratedAnnotatedError>, P),
 }
-
-// impl<P> Display for DeserError<P> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             DeserError::ParsingFailure(e) => write!(f, "TOML parsing error: {}", e),
-//             DeserError::DeserFailure(errors, _) => {
-//                 write!(f, "Deserialization failed with {} errors", errors.len())
-//             }
-//             DeserError::StillIncomplete(errors, _) => {
-//                 write!(f, "Incomplete deserialization with {} errors", errors.len())
-//             }
-//         }
-//     }
-// }
 
 impl<P> From<TomlError> for DeserError<P> {
     fn from(value: TomlError) -> Self {
@@ -875,18 +813,6 @@ impl<'a> TomlHelper<'a> {
                     spans,
                 };
                 res
-                // let res = TomlValue<T> =
-                // let iter = found_keys.iter();
-                // let first = iter.next().unwrap();
-                // let first_span = first[1].span().unwrap_or(0..0);
-                // let mut err = AnnotatedError::placed(
-                //     first_span,
-                //     &format!("Key/alias conflict with key."),
-                //     "Use only one of the keys involved",
-                // );
-                // for (_matched_key, item) in iter {
-                //     err.add_span(item.span().unwrap_or(0..0), "Also defined here");
-                // }
             }
         }
     }
@@ -1219,24 +1145,7 @@ impl FromTomlItem for TomlValue<toml_edit::Item> {
                     parent_span,
                 },
             },
-            // same as below
-            // toml_edit::Item::Table(table) => {TomlValue {
-            //     required: true,
-            //     value: Some(toml_edit::Item::Table(table.clone())),
-            //     state: TomlValueState::Ok {
-            //         span: table.span().unwrap_or(parent_span.clone()),
-            //     },
-            // }},
-            // toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
-            //     TomlValue {
-            //     required: true,
-            //     value: Some(toml_edit::Item::Value(toml_edit::Value::InlineTable(
-            //         table.clone(),
-            //     ))),
-            //     state: TomlValueState::Ok {
-            //         span: table.span().unwrap_or(parent_span.clone()),
-            //     },
-            // }},
+
             _ => TomlValue {
                 required: true,
                 value: Some(item.clone()),
@@ -1923,19 +1832,7 @@ where
                     },
                 },
             },
-            // TomlValueState::Missing {
-            //     key: _,
-            //     parent_span,
-            // } => {
-            //     // For optional fields, missing is OK - return None
-            //     TomlValue {
-            //         value: Some(None),
-            //         required: self.required,
-            //         state: TomlValueState::Ok {
-            //             span: parent_span.clone(),
-            //         },
-            //     }
-            // }
+
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -2046,19 +1943,6 @@ where
                     },
                 },
             },
-            // TomlValueState::Missing {
-            //     key: _,
-            //     parent_span,
-            // } => {
-            //     // For Vec fields, missing means empty array
-            //     TomlValue {
-            //         value: Some(Vec::new()),
-            //         required: self.required,
-            //         state: TomlValueState::Ok {
-            //             span: parent_span.clone(),
-            //         },
-            //     }
-            // }
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -2513,75 +2397,6 @@ impl<E: StringNamedEnum> AsMapEnum<E> for TomlValue<toml_edit::Item> {
     }
 }
 
-// impl<E: StringNamedEnum> AsMapEnum<Option<E>> for TomlValue<Option<toml_edit::Item>> {
-//     fn as_map_enum(
-//         self,
-//         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-//         mode: FieldMatchMode,
-//     ) -> TomlValue<HashMap<String, Option<E>>> {
-//         match &self.state {
-//             TomlValueState::Ok { span } => match self.value {
-//                 Some(Some(item)) => {
-//                     let single: TomlValue<toml_edit::Item> = TomlValue {
-//                         value: Some(item),
-//                         required: false,
-//                         state: TomlValueState::Ok { span: span.clone() },
-//                     };
-//                     let result: TomlValue<HashMap<String, E>> = single.as_map_enum(errors, mode);
-//                     match result.state {
-//                         TomlValueState::Ok { span } => {
-//                             let converted: HashMap<String, Option<E>> = result
-//                                 .value
-//                                 .unwrap()
-//                                 .into_iter()
-//                                 .map(|(k, v)| (k, Some(v)))
-//                                 .collect();
-//                             TomlValue {
-//                                 value: Some(converted),
-//                                 required: self.required,
-//                                 state: TomlValueState::Ok { span },
-//                             }
-//                         }
-//                         other => TomlValue {
-//                             value: None,
-//                             required: self.required,
-//                             state: other,
-//                         },
-//                     }
-//                 }
-//                 Some(None) => TomlValue {
-//                     value: Some(HashMap::new()),
-//                     required: self.required,
-//                     state: TomlValueState::Ok { span: span.clone() },
-//                 },
-//                 None => TomlValue {
-//                     value: None,
-//                     required: self.required,
-//                     state: TomlValueState::ValidationFailed {
-//                         span: span.clone(),
-//                         message: "Cannot convert empty value to optional enum map".to_string(),
-//                         help: None,
-//                     },
-//                 },
-//             },
-//             TomlValueState::Missing { parent_span, .. } => {
-//                 unreachable!();
-//                 // TomlValue {
-//                 // value: Some(HashMap::new()),
-//                 // required: self.required,
-//                 // state: TomlValueState::Ok {
-//                 //     span: parent_span.clone(),
-//                 // },
-//             },
-//             _ => TomlValue {
-//                 value: None,
-//                 required: self.required,
-//                 state: self.state.clone(),
-//             },
-//         }
-//     }
-// }
-
 /// Trait for converting a TOML table into a HashMap<String, P> where P is a nested struct
 pub trait AsMapNested<P>: Sized {
     fn as_map_nested(
@@ -2675,77 +2490,6 @@ where
         }
     }
 }
-
-// impl<P> AsMapNested<Option<P>> for TomlValue<Option<toml_edit::Item>> //deleteme
-// where
-//     P: FromTomlTable<()> + VerifyFromToml<()>,
-// {
-//     fn as_map_nested(
-//         self,
-//         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-//         mode: FieldMatchMode,
-//     ) -> TomlValue<HashMap<String, Option<P>>> {
-//         panic!();
-//         match &self.state {
-//             TomlValueState::Ok { span } => match self.value {
-//                 Some(Some(item)) => {
-//                     let single: TomlValue<toml_edit::Item> = TomlValue {
-//                         value: Some(item),
-//                         required: false,
-//                         state: TomlValueState::Ok { span: span.clone() },
-//                     };
-//                     let result: TomlValue<HashMap<String, P>> = single.as_map_nested(errors, mode);
-//                     match result.state {
-//                         TomlValueState::Ok { span } => {
-//                             let converted: HashMap<String, Option<P>> = result
-//                                 .value
-//                                 .unwrap()
-//                                 .into_iter()
-//                                 .map(|(k, v)| (k, Some(v)))
-//                                 .collect();
-//                             TomlValue {
-//                                 value: Some(converted),
-//                                 required: self.required,
-//                                 state: TomlValueState::Ok { span },
-//                             }
-//                         }
-//                         other => TomlValue {
-//                             value: None,
-//                             required: self.required,
-//                             state: other,
-//                         },
-//                     }
-//                 }
-//                 Some(None) => TomlValue {
-//                     value: Some(HashMap::new()),
-//                     required: self.required,
-//                     state: TomlValueState::Ok { span: span.clone() },
-//                 },
-//                 None => TomlValue {
-//                     value: None,
-//                     required: self.required,
-//                     state: TomlValueState::ValidationFailed {
-//                         span: span.clone(),
-//                         message: "Cannot convert empty value to optional nested map".to_string(),
-//                         help: None,
-//                     },
-//                 },
-//             },
-//             TomlValueState::Missing { parent_span, .. } => TomlValue {
-//                 value: Some(HashMap::new()),
-//                 required: self.required,
-//                 state: TomlValueState::Ok {
-//                     span: parent_span.clone(),
-//                 },
-//             },
-//             _ => TomlValue {
-//                 value: None,
-//                 required: self.required,
-//                 state: self.state.clone(),
-//             },
-//         }
-//     }
-// }
 
 /// Trait for converting a TOML table into a HashMap<String, E> where E is a tagged enum (externally tagged)
 pub trait AsMapTaggedEnum<E>: Sized {
@@ -3602,12 +3346,6 @@ impl<E: StringNamedEnum> AsOptMapEnum<E> for TomlValue<Option<toml_edit::Item>> 
             },
             TomlValueState::Missing { .. } => {
                 unreachable!();
-                // TomlValue {
-                // value: Some(None),
-                // required: self.required,
-                // state: TomlValueState::Ok {
-                //     span: parent_span.clone(),
-                // },
             }
             _ => TomlValue {
                 value: None,
@@ -3817,190 +3555,3 @@ impl_as_opt_map_vec_primitive!(u64);
 impl_as_opt_map_vec_primitive!(f64);
 impl_as_opt_map_vec_primitive!(bool);
 impl_as_opt_map_vec_primitive!(String);
-
-// /// Implementation for AsOptMapVecEnum on Option<Item> returning Option<HashMap<String, Vec<E>>>
-// impl<E: StringNamedEnum> AsOptMapVecEnum<E> for TomlValue<Option<toml_edit::Item>> {
-//     fn as_opt_map_vec_enum(
-//         self,
-//         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-//         mode: FieldMatchMode,
-//     ) -> TomlValue<Option<HashMap<String, Vec<E>>>> {
-//         match &self.state {
-//             TomlValueState::Ok { span } => match self.value {
-//                 Some(Some(item)) => {
-//                     let single: TomlValue<toml_edit::Item> = TomlValue {
-//                         value: Some(item),
-//                         required: false,
-//                         state: TomlValueState::Ok { span: span.clone() },
-//                     };
-//                     let result: TomlValue<HashMap<String, Vec<E>>> =
-//                         single.as_map_vec_enum(errors, mode);
-//                     match result.state {
-//                         TomlValueState::Ok { span } => TomlValue {
-//                             value: Some(result.value),
-//                             required: self.required,
-//                             state: TomlValueState::Ok { span },
-//                         },
-//                         other => TomlValue {
-//                             value: None,
-//                             required: self.required,
-//                             state: other,
-//                         },
-//                     }
-//                 }
-//                 Some(None) => TomlValue {
-//                     value: Some(None),
-//                     required: self.required,
-//                     state: TomlValueState::Ok { span: span.clone() },
-//                 },
-//                 None => TomlValue {
-//                     value: Some(None),
-//                     required: self.required,
-//                     state: TomlValueState::Ok { span: span.clone() },
-//                 },
-//             },
-//             TomlValueState::Missing { .. } => {
-//                 unreachable!();
-//                 // TomlValue {
-//                 // value: Some(None),
-//                 // required: self.required,
-//                 // state: TomlValueState::Ok {
-//                 //     span: parent_span.clone(),
-//                 // },
-//             },
-//             _ => TomlValue {
-//                 value: None,
-//                 required: self.required,
-//                 state: self.state.clone(),
-//             },
-//         }
-//     }
-// }
-
-// /// Implementation for AsOptMapVecNested on Option<Item> returning Option<HashMap<String, Vec<P>>>
-// impl<P> AsOptMapVecNested<P> for TomlValue<Option<toml_edit::Item>>
-// where
-//     P: FromTomlTable<()> + VerifyFromToml<()>,
-// {
-//     fn as_opt_map_vec_nested(
-//         self,
-//         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-//         mode: FieldMatchMode,
-//     ) -> TomlValue<Option<HashMap<String, Vec<P>>>> {
-//         match &self.state {
-//             TomlValueState::Ok { span } => match self.value {
-//                 Some(Some(item)) => {
-//                     let single: TomlValue<toml_edit::Item> = TomlValue {
-//                         value: Some(item),
-//                         required: false,
-//                         state: TomlValueState::Ok { span: span.clone() },
-//                     };
-//                     let result: TomlValue<HashMap<String, Vec<P>>> =
-//                         single.as_map_vec_nested(errors, mode);
-//                     match result.state {
-//                         TomlValueState::Ok { span } => TomlValue {
-//                             value: Some(result.value),
-//                             required: self.required,
-//                             state: TomlValueState::Ok { span },
-//                         },
-//                         other => TomlValue {
-//                             value: None,
-//                             required: self.required,
-//                             state: other,
-//                         },
-//                     }
-//                 }
-//                 Some(None) => TomlValue {
-//                     value: Some(None),
-//                     required: self.required,
-//                     state: TomlValueState::Ok { span: span.clone() },
-//                 },
-//                 None => TomlValue {
-//                     value: Some(None),
-//                     required: self.required,
-//                     state: TomlValueState::Ok { span: span.clone() },
-//                 },
-//             },
-//             TomlValueState::Missing { parent_span, .. } => {
-//                 unreachable!();
-//                 // TomlValue {
-//                 // value: Some(None),
-//                 // required: self.required,
-//                 // state: TomlValueState::Ok {
-//                 //     span: parent_span.clone(),
-//                 // },
-//             },
-//             _ => TomlValue {
-//                 value: None,
-//                 required: self.required,
-//                 state: self.state.clone(),
-//             },
-//         }
-//     }
-// }
-
-// /// Implementation for AsOptMapVecTaggedEnum on Option<Item> returning Option<HashMap<String, Vec<E>>>
-// impl<E: StringNamedEnum> AsOptMapVecTaggedEnum<E> for TomlValue<Option<toml_edit::Item>> {
-//     fn as_opt_map_vec_tagged_enum(
-//         self,
-//         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-//         mode: FieldMatchMode,
-//         deserialize_variant: fn(
-//             &str,
-//             &toml_edit::Item,
-//             &Rc<RefCell<Vec<AnnotatedError>>>,
-//             FieldMatchMode,
-//             &[&str],
-//         ) -> Option<E>,
-//     ) -> TomlValue<Option<HashMap<String, Vec<E>>>> {
-//         match &self.state {
-//             TomlValueState::Ok { span } => match self.value {
-//                 Some(Some(item)) => {
-//                     let single: TomlValue<toml_edit::Item> = TomlValue {
-//                         value: Some(item),
-//                         required: false,
-//                         state: TomlValueState::Ok { span: span.clone() },
-//                     };
-//                     let result: TomlValue<HashMap<String, Vec<E>>> =
-//                         single.as_map_vec_tagged_enum(errors, mode, deserialize_variant);
-//                     match result.state {
-//                         TomlValueState::Ok { span } => TomlValue {
-//                             value: Some(result.value),
-//                             required: self.required,
-//                             state: TomlValueState::Ok { span },
-//                         },
-//                         other => TomlValue {
-//                             value: None,
-//                             required: self.required,
-//                             state: other,
-//                         },
-//                     }
-//                 }
-//                 Some(None) => TomlValue {
-//                     value: Some(None),
-//                     required: self.required,
-//                     state: TomlValueState::Ok { span: span.clone() },
-//                 },
-//                 None => TomlValue {
-//                     value: Some(None),
-//                     required: self.required,
-//                     state: TomlValueState::Ok { span: span.clone() },
-//                 },
-//             },
-//             TomlValueState::Missing { parent_span, .. } => {
-//                 unreachable!();
-//                 // TomlValue {
-//                 // value: Some(None),
-//                 // required: self.required,
-//                 // state: TomlValueState::Ok {
-//                 //     span: parent_span.clone(),
-//                 // },
-//             },
-//             _ => TomlValue {
-//                 value: None,
-//                 required: self.required,
-//                 state: self.state.clone(),
-//             },
-//         }
-//     }
-// }

@@ -500,7 +500,10 @@ fn test_many_either_empty() {
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, output)) = result {
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: 'choices'.");
+        assert_eq!(
+            errors[0].inner.spans[0].msg,
+            "Missing required key: 'choices'."
+        );
         assert!(output.choices.value.is_none());
     } else {
         panic!("expected error when both kind and type are present");

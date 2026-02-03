@@ -99,7 +99,10 @@ fn test_missing() {
         assert_eq!(output.a_u8.into_option(), None);
         assert_eq!(output.a_i64.into_option(), Some(-123));
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: 'a_u8'.");
+        assert_eq!(
+            errors[0].inner.spans[0].msg,
+            "Missing required key: 'a_u8'."
+        );
     } else {
         panic!("wrong result")
     }
@@ -507,7 +510,10 @@ fn test_nested_happy_half() {
                 .is_none()
         );
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: 'value'.");
+        assert_eq!(
+            errors[0].inner.spans[0].msg,
+            "Missing required key: 'value'."
+        );
         assert!(output.opt_nested.as_ref().unwrap().is_none());
         assert!(matches!(output.opt_nested.state, TomlValueState::Ok { .. }));
 
@@ -803,11 +809,11 @@ fn test_two_level_nested_missing_inner_field() {
     let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Missing required key: 'data'."))
-        );
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
+                .msg
+                .contains("Missing required key: 'data'.")
+        }));
     } else {
         panic!("Expected failure due to missing data field in level2");
     }
@@ -828,11 +834,11 @@ fn test_two_errors_pretty() {
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert_eq!(errors.len(), 2);
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Missing required key: 'data'."))
-        );
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
+                .msg
+                .contains("Missing required key: 'data'.")
+        }));
         assert_eq!(
             errors[0].pretty("test.toml"),
             "  ╭─test.toml\n  ┆\n5 │         [level1.level2]\n6 │             other = 2\n  ┆             ──┬──    \n  ┆               │      \n  ┆               ╰─────── Unknown key.\n──╯\nHint: Did you mean: 'data'?\n"
