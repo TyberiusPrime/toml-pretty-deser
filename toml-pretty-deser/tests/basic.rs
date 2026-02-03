@@ -99,7 +99,7 @@ fn test_missing() {
         assert_eq!(output.a_u8.into_option(), None);
         assert_eq!(output.a_i64.into_option(), Some(-123));
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: a_u8");
+        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key.");
     } else {
         panic!("wrong result")
     }
@@ -285,7 +285,7 @@ fn test_vec_missing() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg.contains("numbers"))
+                .any(|e| e.inner.spans[0].msg == "Missing required key.")
         );
     } else {
         panic!("Expected failure due to missing numbers field")
@@ -409,7 +409,7 @@ fn test_enum_missing_required() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg.contains("an_enum"))
+                .any(|e| e.inner.spans[0].msg == "Missing required key."),
         );
     } else {
         panic!("Expected failure due to missing required enum field")
@@ -507,7 +507,7 @@ fn test_nested_happy_half() {
                 .is_none()
         );
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: value");
+        assert_eq!(errors[0].inner.spans[0].msg, "Missing required key.");
         assert!(output.opt_nested.as_ref().unwrap().is_none());
         assert!(matches!(output.opt_nested.state, TomlValueState::Ok { .. }));
 
@@ -806,7 +806,7 @@ fn test_two_level_nested_missing_inner_field() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
+                .any(|e| e.inner.spans[0].msg.contains("Missing required key."))
         );
     } else {
         panic!("Expected failure due to missing data field in level2");
@@ -831,15 +831,15 @@ fn test_two_errors_pretty() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
+                .any(|e| e.inner.spans[0].msg.contains("Missing required key."))
         );
         assert_eq!(
             errors[0].pretty("test.toml"),
-            "  ╭─test.toml\n  ┆\n5 │         [level1.level2]\n6 │             other = 2\n  ┆             ──┬──    \n  ┆               │      \n  ┆               ╰─────── Unknown key: other\n──╯\nHint: Did you mean: 'data'?\n"
+            "  ╭─test.toml\n  ┆\n5 │         [level1.level2]\n6 │             other = 2\n  ┆             ──┬──    \n  ┆               │      \n  ┆               ╰─────── Unknown key.\n──╯\nHint: Did you mean: 'data'?\n"
         );
         assert_eq!(
             errors[1].pretty("test.toml"),
-            "  ╭─test.toml\n  ┆\n\n5 │         [level1.level2]\n  ┆         ───────┬───────\n  ┆                │       \n  ┆                ╰──────── Missing required key: data\n──╯\nHint: This key is required but was not found in the TOML document.\n"
+            "  ╭─test.toml\n  ┆\n\n5 │         [level1.level2]\n  ┆         ───────┬───────\n  ┆                │       \n  ┆                ╰──────── Missing required key.\n──╯\nHint: This key is required but was not found in the TOML document.\n"
         );
         // let pretty = errors[0].pretty("test.toml");
         // println!("Pretty error:\n{}", pretty);
@@ -1050,7 +1050,7 @@ fn test_any_case_mode_unknown_key() {
         assert!(
             errors
                 .iter()
-                .any(|e| e.inner.spans[0].msg.contains("unknown_field"))
+                .any(|e| e.inner.spans[0].msg == "Unknown key.")
         );
     }
 }

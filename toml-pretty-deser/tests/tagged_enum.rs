@@ -107,3 +107,213 @@ fn test_either_one_unknown_kind() {
         panic!();
     }
 }
+
+#[test]
+fn test_either_one_missing_kind_tag() {
+    let toml = "
+    [choice]
+        # kind is missing
+        n = 3
+        o = 7
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].inner.spans[0].msg,
+            "Missing required tag field: kind"
+        );
+        assert_eq!(
+            errors[0].inner.help,
+            Some("Available are: 'KindA' or 'KindB'".to_string())
+        )
+    } else {
+        panic!("expected Missing required tag field: kind");
+    }
+}
+
+#[test]
+fn test_either_one_wrong_tag_type() {
+    let toml = "
+    [choice]
+        kind = 1
+        n = -1
+        o = 2
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Wrong type: integer, expected string")
+        );
+        assert_eq!(
+            errors[0].inner.help,
+            Some("Available are: 'KindA' or 'KindB'".to_string())
+        );
+        let pretty = errors[0].pretty("test.toml");
+        println!("{}", pretty);
+        assert_eq!(
+            pretty,
+            "  ╭─test.toml
+  ┆
+
+2 │     [choice]
+  ┆     ────┬───
+  ┆         │   
+  ┆         ╰──── Wrong type: integer, expected string
+──╯
+Hint: Available are: 'KindA' or 'KindB'
+"
+        );
+    } else {
+        panic!("expected tag validation error");
+    }
+}
+
+#[test]
+fn test_either_one_missing_variant_field() {
+    let toml = "
+    [choice]
+        kind = 'KindA'
+        n = -5
+        # o missing
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key.")
+        );
+    } else {
+        panic!("expected missing required key for variant field");
+    }
+}
+
+#[test]
+fn test_either_one_unknown_key_in_variant() {
+    let toml = "
+    choice = {
+        kind = 'KindB',
+        s = 5,
+        t = 6,
+        x = 9
+    }
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Unknown key.")
+        );
+    } else {
+        panic!("expected unknown key error inside variant");
+    }
+}
+
+#[test]
+fn test_either_one_fields_mismatch_variant() {
+    // Tag says KindA, but fields for KindB are provided
+    let toml = "
+    choice = {
+        kind = 'KindA',
+        s = 1,
+        t = 2
+    }
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        // Expect at least one unknown key (s or t) and one missing key (n or o)
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Unknown key"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key."
+                    || e.inner.spans[0].msg == "Missing required key.")
+        );
+    } else {
+        panic!("expected errors due to field/variant mismatch");
+    }
+}
+
+#[test]
+fn test_either_one_tag_key_anycase_mode_still_requires_exact_tag() {
+    // Tag field name itself is not case-flexible; must be 'kind'
+    let toml = "
+    choice = {
+        Kind = 'KindB',
+        s = 10,
+        t = 11
+    }
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::AnyCase);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required tag field: kind")
+        );
+    } else {
+        panic!("expected tag field to require exact case");
+    }
+}
+
+#[test]
+fn test_either_one_missing_choice_field() {
+    let toml = "
+        # missing choice entirely
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key.")
+        );
+    } else {
+        panic!("expected missing required key.");
+    }
+}
+
+#[test]
+fn test_either_one_wrong_field_type_in_variant() {
+    let toml = "
+    choice = {
+        kind = 'KindB',
+        s = 'oops',
+        t = 3
+    }
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
+    } else {
+        panic!("expected wrong type error in variant field");
+    }
+}

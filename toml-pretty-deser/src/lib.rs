@@ -945,7 +945,7 @@ impl<'a> TomlHelper<'a> {
 
                 self.add_err_by_key(
                     &key,
-                    &format!("Unknown key: {}", key),
+                    "Unknown key.",
                     &suggest_alternatives(&key, &still_available),
                 );
             }
@@ -1524,11 +1524,11 @@ impl<T> TomlValue<T> {
     pub fn register_error(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
         match &self.state {
             TomlValueState::NotSet => {}
-            TomlValueState::Missing { key, parent_span } => {
+            TomlValueState::Missing { key: _, parent_span } => {
                 if self.required {
                     errors.borrow_mut().push(AnnotatedError::placed(
                         parent_span.clone(),
-                        &format!("Missing required key: {}", key),
+                        "Missing required key.",
                         "This key is required but was not found in the TOML document.",
                     ));
                 }
@@ -1724,17 +1724,16 @@ where
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     // Look for the tag field to determine variant
-                    let tag_value = match item {
-                        toml_edit::Item::Table(table) => table
-                            .get(tag_key)
-                            .and_then(|i| i.as_str())
-                            .map(|s| s.to_string()),
-                        toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => table
-                            .get(tag_key)
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
+                    let tag_item = match item {
+                        toml_edit::Item::Table(table) => {
+                            table.get(tag_key).and_then(|x| x.as_value())
+                        }
+                        toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
+                            table.get(tag_key)
+                        }
                         _ => None,
                     };
+                    let tag_value = tag_item.and_then(|v| v.as_str()).map(|s| s.to_string());
 
                     match tag_value {
                         Some(tag_str) => {
@@ -1785,7 +1784,11 @@ where
                             required: self.required,
                             state: TomlValueState::ValidationFailed {
                                 span: span.clone(),
-                                message: format!("Missing required tag field: {}", tag_key),
+                                message: if let Some(tag_item) = tag_item {
+                                    format!("Wrong type: {}, expected string", tag_item.type_name())
+                                } else {
+                                    format!("Missing required tag field: {}", tag_key)
+                                },
                                 help: Some(format!(
                                     "{}",
                                     suggest_alternatives("", E::all_variant_names())
