@@ -30,6 +30,7 @@ enum EitherOne {
 #[derive(Debug)]
 struct OuterEither {
     #[enum_tagged("kind")]
+    #[alias("type")]
     choice: EitherOne,
 }
 
@@ -43,6 +44,56 @@ fn test_either_one_happy_a() {
     ";
     let result: Result<_, _> =
         deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.choice {
+            EitherOne::KindA(inner) => {
+                assert_eq!(inner.n, -5);
+                assert_eq!(inner.o, 1);
+            }
+            EitherOne::KindB(_) => {
+                panic!("expected KindA variant");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_either_one_happy_a_case_insensitive() {
+    let toml = "
+    [choice]
+        KiNd = 'KindA'
+        n = -5
+        o = 1
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::UpperLower);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.choice {
+            EitherOne::KindA(inner) => {
+                assert_eq!(inner.n, -5);
+                assert_eq!(inner.o, 1);
+            }
+            EitherOne::KindB(_) => {
+                panic!("expected KindA variant");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_either_one_happy_a_alias() {
+    let toml = "
+    [choice]
+        type = 'KindA'
+        n = -5
+        o = 1
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::UpperLower);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -317,3 +368,37 @@ fn test_either_one_wrong_field_type_in_variant() {
         panic!("expected wrong type error in variant field");
     }
 }
+
+//
+// #[make_partial]
+// #[derive(Debug)]
+// struct OuterMaybeEither {
+//     #[enum_tagged("kind")]
+//     choice: Option<EitherOne>,
+// }
+//
+//
+// #[test]
+// fn test_maybe_either_one_happy_a() {
+//     let toml = "
+//     [choice]
+//         kind = 'KindA'
+//         n = -5
+//         o = 1
+//     ";
+//     let result: Result<_, _> =
+//         deserialize_with_mode::<PartialOuterMaybeEither, OuterMaybeEither>(toml, FieldMatchMode::Exact);
+//     dbg!(&result);
+//     assert!(result.is_ok());
+//     if let Ok(output) = result {
+//         match output.choice {
+//             Some(EitherOne::KindA(inner)) => {
+//                 assert_eq!(inner.n, -5);
+//                 assert_eq!(inner.o, 1);
+//             }
+//             _ => {
+//                 panic!("expected KindA variant");
+//             }
+//         }
+//     }
+//}

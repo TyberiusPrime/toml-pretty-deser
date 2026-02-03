@@ -1524,7 +1524,10 @@ impl<T> TomlValue<T> {
     pub fn register_error(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
         match &self.state {
             TomlValueState::NotSet => {}
-            TomlValueState::Missing { key: _, parent_span } => {
+            TomlValueState::Missing {
+                key: _,
+                parent_span,
+            } => {
                 if self.required {
                     errors.borrow_mut().push(AnnotatedError::placed(
                         parent_span.clone(),
@@ -1723,6 +1726,10 @@ where
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
+                    //TODO: We need to incarnate a TomlHelper
+                    //and use that to get the correct key
+                    //might need to expand deserialize_variant to take both the canonical
+                    //and the observed key.
                     // Look for the tag field to determine variant
                     let tag_item = match item {
                         toml_edit::Item::Table(table) => {
