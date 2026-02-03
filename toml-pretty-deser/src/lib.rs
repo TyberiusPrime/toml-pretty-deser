@@ -890,14 +890,7 @@ macro_rules! impl_from_toml_item_integer {
         impl FromTomlItem for TomlValue<$ty> {
             fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
                 match item {
-                    toml_edit::Item::None => TomlValue {
-                        value: None,
-                        required: true,
-                        state: TomlValueState::Missing {
-                            key: "".to_string(),
-                            parent_span,
-                        },
-                    },
+                    toml_edit::Item::None => TomlValue::empty_missing(parent_span),
                     toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
                         let value_i64 = *formatted.value();
                         if value_i64 < <$ty>::MIN as i64 || value_i64 > <$ty>::MAX as i64 {
@@ -966,14 +959,7 @@ macro_rules! impl_from_toml_item_value {
         impl FromTomlItem for TomlValue<$ty> {
             fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
                 match item {
-                    toml_edit::Item::None => TomlValue {
-                        value: None,
-                        required: true,
-                        state: TomlValueState::Missing {
-                            key: "".to_string(),
-                            parent_span,
-                        },
-                    },
+                    toml_edit::Item::None => TomlValue::empty_missing(parent_span),
                     toml_edit::Item::Value(toml_edit::Value::$variant(formatted)) => {
                         let value = formatted.value();
                         TomlValue {
@@ -1022,14 +1008,7 @@ impl_from_toml_item_value!(bool, "bool", Boolean);
 impl FromTomlItem for TomlValue<String> {
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
-            toml_edit::Item::None => TomlValue {
-                value: None,
-                required: true,
-                state: TomlValueState::Missing {
-                    key: "".to_string(),
-                    parent_span,
-                },
-            },
+            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
             toml_edit::Item::Value(toml_edit::Value::String(formatted)) => {
                 let value = formatted.value().to_string();
                 TomlValue {
@@ -1040,31 +1019,15 @@ impl FromTomlItem for TomlValue<String> {
                     },
                 }
             }
-            toml_edit::Item::Value(value) => TomlValue {
+            toml_edit::Item::Table(_)
+            | toml_edit::Item::ArrayOfTables(_)
+            | toml_edit::Item::Value(_) => TomlValue {
                 required: true,
                 value: None,
                 state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
+                    span: item.span().unwrap_or(parent_span.clone()),
                     expected: "string",
-                    found: value.type_name(),
-                },
-            },
-            toml_edit::Item::Table(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "string",
-                    found: "table",
-                },
-            },
-            toml_edit::Item::ArrayOfTables(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "string",
-                    found: "array of tables",
+                    found: item.type_name(),
                 },
             },
         }
@@ -1074,14 +1037,7 @@ impl FromTomlItem for TomlValue<String> {
 impl FromTomlItem for TomlValue<f64> {
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
-            toml_edit::Item::None => TomlValue {
-                value: None,
-                required: true,
-                state: TomlValueState::Missing {
-                    key: "".to_string(),
-                    parent_span,
-                },
-            },
+            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
             toml_edit::Item::Value(toml_edit::Value::Float(formatted)) => {
                 let value = *formatted.value();
                 TomlValue {
@@ -1102,31 +1058,15 @@ impl FromTomlItem for TomlValue<f64> {
                     },
                 }
             }
-            toml_edit::Item::Value(value) => TomlValue {
+            toml_edit::Item::Value(_)
+            | toml_edit::Item::ArrayOfTables(_)
+            | toml_edit::Item::Table(_) => TomlValue {
                 required: true,
                 value: None,
                 state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
+                    span: item.span().unwrap_or(parent_span.clone()),
                     expected: "f64",
-                    found: value.type_name(),
-                },
-            },
-            toml_edit::Item::Table(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "f64",
-                    found: "table",
-                },
-            },
-            toml_edit::Item::ArrayOfTables(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "f64",
-                    found: "array of tables",
+                    found: item.type_name(),
                 },
             },
         }
@@ -1137,14 +1077,7 @@ impl FromTomlItem for TomlValue<f64> {
 impl FromTomlItem for TomlValue<toml_edit::Item> {
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
-            toml_edit::Item::None => TomlValue {
-                value: None,
-                required: true,
-                state: TomlValueState::Missing {
-                    key: "".to_string(),
-                    parent_span,
-                },
-            },
+            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
 
             _ => TomlValue {
                 required: true,
@@ -1160,14 +1093,7 @@ impl FromTomlItem for TomlValue<toml_edit::Item> {
 impl FromTomlItem for TomlValue<Vec<toml_edit::Item>> {
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
         match item {
-            toml_edit::Item::None => TomlValue {
-                value: None,
-                required: true,
-                state: TomlValueState::Missing {
-                    key: "".to_string(),
-                    parent_span,
-                },
-            },
+            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
             toml_edit::Item::ArrayOfTables(array) => {
                 let items: Vec<toml_edit::Item> = array
                     .iter()
@@ -1274,14 +1200,7 @@ macro_rules! impl_from_toml_item_vec {
         impl FromTomlItem for TomlValue<Vec<$ty>> {
             fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
                 match item {
-                    toml_edit::Item::None => TomlValue {
-                        value: None,
-                        required: true,
-                        state: TomlValueState::Missing {
-                            key: "".to_string(),
-                            parent_span,
-                        },
-                    },
+                    toml_edit::Item::None => TomlValue::empty_missing(parent_span),
                     toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
                         let mut values = Vec::with_capacity(array.len());
                         let mut has_error = false;
@@ -1409,6 +1328,17 @@ impl<T> Default for TomlValue<T> {
 }
 
 impl<T> TomlValue<T> {
+    pub fn empty_missing(parent_span: Range<usize>) -> Self {
+        TomlValue {
+            value: None,
+            required: true,
+            state: TomlValueState::Missing {
+                key: "".to_string(),
+                parent_span,
+            },
+        }
+    }
+
     pub fn has_value(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
     }
