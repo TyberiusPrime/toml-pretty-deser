@@ -304,7 +304,7 @@ pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                 errors,
                                 mode,
                                 true,
-                                &[tag_field],
+                                fields_to_ignore,
                             );
                             result.value.map(#partial_name::#variant_name)
                         }
@@ -331,7 +331,7 @@ pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 item: &::toml_edit::Item,
                 errors: &std::rc::Rc<std::cell::RefCell<Vec<::toml_pretty_deser::AnnotatedError>>>,
                 mode: ::toml_pretty_deser::FieldMatchMode,
-                tag_field: &str
+                fields_to_ignore: &[&str]
             ) -> Option<Self> {
                 match variant_name {
                     #(#deserialize_variant_arms,)*
@@ -641,12 +641,12 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     #name: helper.get_with_aliases(#name_str, vec![]).as_nested(&helper.errors, helper.match_mode)
                 }
             } else if is_enum_tagged_field(f) {
-                // For enum_tagged fields, use as_tagged_enum with the tag key and deserialize function
+                // For enum_tagged fields, use as_tagged_enum with the tag key, aliases, and deserialize function
                 let tag_key = extract_tag_key(f).unwrap();
                 let type_name = extract_type_name(&f.ty).unwrap();
                 let partial_type = format_ident!("Partial{}", type_name);
                 quote! {
-                    #name: helper.get_with_aliases(#name_str, vec![]).as_tagged_enum(#tag_key, &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                    #name: helper.get_with_aliases(#name_str, vec![]).as_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
                 }
             } else if is_as_enum_field(f) {
                 // For enum fields, use aliases if present

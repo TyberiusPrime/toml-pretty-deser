@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
     AnnotatedError, AsTaggedEnum, DeserError, FieldMatchMode, FromTomlTable, StringNamedEnum,
-    ToConcrete, TomlHelper, TomlValue, VerifyFromToml, deserialize_with_mode, make_partial,
-    make_partial_enum,
+    ToConcrete, TomlHelper, TomlValue, TomlValueState, VerifyFromToml, deserialize_with_mode,
+    make_partial, make_partial_enum,
 };
 
 #[make_partial]
@@ -208,15 +208,16 @@ fn test_either_one_wrong_tag_type() {
         );
         let pretty = errors[0].pretty("test.toml");
         println!("{}", pretty);
+        // The span now points to the actual value `1` which is more precise
         assert_eq!(
             pretty,
             "  ╭─test.toml
   ┆
-
 2 │     [choice]
-  ┆     ────┬───
-  ┆         │   
-  ┆         ╰──── Wrong type: integer, expected string
+3 │         kind = 1
+  ┆                ┬
+  ┆                │
+  ┆                ╰─ Wrong type: integer, expected string
 ──╯
 Hint: Available are: 'KindA' or 'KindB'
 "
@@ -304,8 +305,8 @@ fn test_either_one_fields_mismatch_variant() {
 }
 
 #[test]
-fn test_either_one_tag_key_anycase_mode_still_requires_exact_tag() {
-    // Tag field name itself is not case-flexible; must be 'kind'
+fn test_either_one_tag_key_is_case_flexible_in_anycase_mode() {
+    // In AnyCase mode, tag field name IS case-flexible - 'Kind' matches 'kind'
     let toml = "
     choice = {
         Kind = 'KindB',
@@ -316,14 +317,17 @@ fn test_either_one_tag_key_anycase_mode_still_requires_exact_tag() {
     let result: Result<_, _> =
         deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::AnyCase);
     dbg!(&result);
-    if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required tag field: kind")
-        );
-    } else {
-        panic!("expected tag field to require exact case");
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.choice {
+            EitherOne::KindA(_) => {
+                panic!("expected KindB variant");
+            }
+            EitherOne::KindB(inner) => {
+                assert_eq!(inner.s, 10);
+                assert_eq!(inner.t, 11);
+            }
+        }
     }
 }
 
@@ -366,6 +370,37 @@ fn test_either_one_wrong_field_type_in_variant() {
         );
     } else {
         panic!("expected wrong type error in variant field");
+    }
+}
+
+#[test]
+fn test_either_one_both_kind_and_type_present() {
+    // Both 'kind' and 'type' are present - should error out
+    let toml = "
+    [choice]
+        kind = 'KindA'
+        type = 'KindB'
+        n = -5
+        o = 1
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, output)) = result {
+        assert!(
+            errors.iter().any(
+                |e| e.inner.spans[0].msg.contains("Multiple tag fields defined")
+                    || e.inner.spans[0].msg.contains("Key/alias conflict")
+            ),
+            "expected error about multiple tag fields, got: {:?}",
+            errors
+        );
+        assert!(matches!(
+            output.choice.state,
+            TomlValueState::MultiDefined { .. }
+        ));
+    } else {
+        panic!("expected error when both kind and type are present");
     }
 }
 

@@ -11,3 +11,4 @@ num-traits = "0.2.19"
 strsim = "0.11.1"
 toml_edit = "0.24.0"
 toml-pretty-deser-macros = { path = "../toml-pretty-deser-macros" }
+mutants = "0.0.4"

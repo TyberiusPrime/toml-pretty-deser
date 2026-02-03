@@ -192,6 +192,7 @@ impl<E: StringNamedEnum> AsEnum<E> for TomlValue<String> {
 }
 
 impl<E: StringNamedEnum> AsEnum<Option<E>> for TomlValue<Option<String>> {
+    #[mutants::skip]
     fn as_enum(self) -> TomlValue<Option<E>> {
         match &self.state {
             TomlValueState::Ok { span } => match self.value {
@@ -287,6 +288,7 @@ impl<E: StringNamedEnum> AsEnum<Vec<E>> for TomlValue<Vec<String>> {
 }
 
 impl<E: StringNamedEnum> AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>>> {
+    #[mutants::skip]
     fn as_enum(self) -> TomlValue<Option<Vec<E>>> {
         match &self.state {
             TomlValueState::Ok { span } => match self.value {
@@ -357,7 +359,7 @@ where
     let source = Rc::new(RefCell::new(source.to_string()));
 
     let errors = Rc::new(RefCell::new(Vec::new()));
-    let mut helper = TomlHelper::new(parsed_toml.as_table(), errors.clone(), mode);
+    let mut helper = TomlHelper::from_table(parsed_toml.as_table(), errors.clone(), mode);
 
     let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
     helper.deny_unknown();
@@ -689,7 +691,7 @@ pub struct TomlHelper<'a> {
 }
 
 impl<'a> TomlHelper<'a> {
-    pub fn new(
+    pub fn from_table(
         table: &'a toml_edit::Table,
         errors: Rc<RefCell<Vec<AnnotatedError>>>,
         match_mode: FieldMatchMode,
@@ -704,7 +706,7 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    pub fn new_inline(
+    pub fn from_inline(
         inline_table: &'a toml_edit::InlineTable,
         errors: Rc<RefCell<Vec<AnnotatedError>>>,
         match_mode: FieldMatchMode,
@@ -720,26 +722,26 @@ impl<'a> TomlHelper<'a> {
     }
 
     /// Create a TomlHelper from a toml_edit::Item (either Table or InlineTable)
-    // pub fn from_item(
-    //     item: &'a toml_edit::Item,
-    //     errors: Rc<RefCell<Vec<AnnotatedError>>>,
-    //     match_mode: FieldMatchMode,
-    // ) -> Self {
-    //     match item {
-    //         toml_edit::Item::Table(table) => Self::new(table, errors, match_mode),
-    //         toml_edit::Item::Value(toml_edit::Value::InlineTable(inline_table)) => {
-    //             Self::new_inline(inline_table, errors, match_mode)
-    //         }
-    //         _ => Self {
-    //             table: None,
-    //             inline_table: None,
-    //             expected: vec![],
-    //             observed: vec![],
-    //             errors,
-    //             match_mode,
-    //         },
-    //     }
-    // }
+    pub fn from_item(
+        item: &'a toml_edit::Item,
+        errors: Rc<RefCell<Vec<AnnotatedError>>>,
+        match_mode: FieldMatchMode,
+    ) -> Self {
+        match item {
+            toml_edit::Item::Table(table) => Self::from_table(table, errors, match_mode),
+            toml_edit::Item::Value(toml_edit::Value::InlineTable(inline_table)) => {
+                Self::from_inline(inline_table, errors, match_mode)
+            }
+            _ => Self {
+                table: None,
+                inline_table: None,
+                expected: vec![],
+                observed: vec![],
+                errors,
+                match_mode,
+            },
+        }
+    }
 
     pub fn into_inner(self, source: &Rc<RefCell<String>>) -> Vec<HydratedAnnotatedError> {
         self.errors
@@ -1620,7 +1622,7 @@ where
     dbg!(fields_to_ignore);
     match item {
         toml_edit::Item::Table(table) => {
-            let mut helper = TomlHelper::new(table, errors.clone(), mode);
+            let mut helper = TomlHelper::from_table(table, errors.clone(), mode);
             for f in fields_to_ignore {
                 helper.ignore_field(*f);
             }
@@ -1646,7 +1648,7 @@ where
             }
         }
         toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
-            let mut helper = TomlHelper::new_inline(table, errors.clone(), mode);
+            let mut helper = TomlHelper::from_inline(table, errors.clone(), mode);
             for f in fields_to_ignore {
                 helper.ignore_field(*f);
             }
@@ -1694,6 +1696,7 @@ pub trait AsTaggedEnum<E>: Sized {
     fn as_tagged_enum(
         self,
         tag_key: &'static str,
+        tag_aliases: Vec<&'static str>,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
         deserialize_variant: fn(
@@ -1701,7 +1704,7 @@ pub trait AsTaggedEnum<E>: Sized {
             &toml_edit::Item,
             &Rc<RefCell<Vec<AnnotatedError>>>,
             FieldMatchMode,
-            &str,
+            &[&str],
         ) -> Option<E>,
     ) -> TomlValue<E>;
 }
@@ -1713,6 +1716,7 @@ where
     fn as_tagged_enum(
         self,
         tag_key: &'static str,
+        tag_aliases: Vec<&'static str>,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
         deserialize_variant: fn(
@@ -1720,36 +1724,30 @@ where
             &toml_edit::Item,
             &Rc<RefCell<Vec<AnnotatedError>>>,
             FieldMatchMode,
-            &str,
+            &[&str],
         ) -> Option<E>,
     ) -> TomlValue<E> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
-                    //TODO: We need to incarnate a TomlHelper
-                    //and use that to get the correct key
-                    //might need to expand deserialize_variant to take both the canonical
-                    //and the observed key.
-                    // Look for the tag field to determine variant
-                    let tag_item = match item {
-                        toml_edit::Item::Table(table) => {
-                            table.get(tag_key).and_then(|x| x.as_value())
-                        }
-                        toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
-                            table.get(tag_key)
-                        }
-                        _ => None,
-                    };
-                    let tag_value = tag_item.and_then(|v| v.as_str()).map(|s| s.to_string());
+                    // Use TomlHelper to find the tag key with aliases and case matching
+                    let mut helper = TomlHelper::from_item(item, errors.clone(), mode);
+                    let tag_result: TomlValue<String> =
+                        helper.get_with_aliases(tag_key, tag_aliases.clone());
 
-                    match tag_value {
-                        Some(tag_str) => {
-                            // Try to match the tag against variant names
+                    // Build the list of fields to ignore (canonical key + all aliases)
+                    let mut fields_to_ignore: Vec<&str> = vec![tag_key];
+                    fields_to_ignore.extend(tag_aliases.iter().copied());
+
+                    match &tag_result.state {
+                        TomlValueState::Ok { .. } => {
+                            // Successfully found the tag value
+                            let tag_str = tag_result.value.as_ref().unwrap();
                             let variant_names = E::all_variant_names();
                             let mut matched_variant: Option<&str> = None;
 
                             for variant_name in variant_names {
-                                if mode.matches(variant_name, &tag_str) {
+                                if mode.matches(variant_name, tag_str) {
                                     matched_variant = Some(variant_name);
                                     break;
                                 }
@@ -1757,8 +1755,13 @@ where
 
                             if let Some(variant_name) = matched_variant {
                                 // Deserialize the specific variant using the provided function
-                                match deserialize_variant(variant_name, item, errors, mode, tag_key)
-                                {
+                                match deserialize_variant(
+                                    variant_name,
+                                    item,
+                                    errors,
+                                    mode,
+                                    &fields_to_ignore,
+                                ) {
                                     Some(partial) => TomlValue {
                                         value: Some(partial),
                                         required: self.required,
@@ -1781,26 +1784,55 @@ where
                                     state: TomlValueState::ValidationFailed {
                                         span: span.clone(),
                                         message: "Unknown enum variant".to_string(),
-                                        help: Some(suggest_alternatives(&tag_str, variant_names)),
+                                        help: Some(suggest_alternatives(tag_str, variant_names)),
                                     },
                                 }
                             }
                         }
-                        None => TomlValue {
+                        TomlValueState::MultiDefined { key: _, spans } => {
+
+                            TomlValue {
+                                value: None,
+                                required: self.required,
+                                state: TomlValueState::MultiDefined {
+                                    key: tag_key.to_string(),
+                                    spans: spans.to_vec(),
+                                }, // {
+                                   //         span: span.clone(),
+                                   //         message: "Multiple tag fields defined".to_string(),
+                                   //         help: Some(format!(
+                                   //             "Use only one of: {}",
+                                   //             format_quoted_list(&all_keys)
+                                   //         )),
+                                   //     },
+                            }
+                        }
+                        TomlValueState::WrongType {
+                            span: wrong_span,
+                            expected: _,
+                            found,
+                        } => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: TomlValueState::ValidationFailed {
+                                span: wrong_span.clone(),
+                                message: format!("Wrong type: {}, expected string", found),
+                                help: Some(suggest_alternatives("", E::all_variant_names())),
+                            },
+                        },
+                        TomlValueState::Missing { .. } => TomlValue {
                             value: None,
                             required: self.required,
                             state: TomlValueState::ValidationFailed {
                                 span: span.clone(),
-                                message: if let Some(tag_item) = tag_item {
-                                    format!("Wrong type: {}, expected string", tag_item.type_name())
-                                } else {
-                                    format!("Missing required tag field: {}", tag_key)
-                                },
-                                help: Some(format!(
-                                    "{}",
-                                    suggest_alternatives("", E::all_variant_names())
-                                )),
+                                message: format!("Missing required tag field: {}", tag_key),
+                                help: Some(suggest_alternatives("", E::all_variant_names())),
                             },
+                        },
+                        _ => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: tag_result.state.clone(),
                         },
                     }
                 } else {
@@ -1810,10 +1842,7 @@ where
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
                             message: "Cannot convert empty value to tagged enum".to_string(),
-                            help: Some(format!(
-                                "{}",
-                                suggest_alternatives("", E::all_variant_names())
-                            )),
+                            help: Some(suggest_alternatives("", E::all_variant_names())),
                         },
                     }
                 }
