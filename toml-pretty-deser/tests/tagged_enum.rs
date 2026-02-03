@@ -404,36 +404,82 @@ fn test_either_one_both_kind_and_type_present() {
     }
 }
 
-//
-// #[make_partial]
-// #[derive(Debug)]
-// struct OuterMaybeEither {
-//     #[enum_tagged("kind")]
-//     choice: Option<EitherOne>,
-// }
-//
-//
-// #[test]
-// fn test_maybe_either_one_happy_a() {
-//     let toml = "
-//     [choice]
-//         kind = 'KindA'
-//         n = -5
-//         o = 1
-//     ";
-//     let result: Result<_, _> =
-//         deserialize_with_mode::<PartialOuterMaybeEither, OuterMaybeEither>(toml, FieldMatchMode::Exact);
-//     dbg!(&result);
-//     assert!(result.is_ok());
-//     if let Ok(output) = result {
-//         match output.choice {
-//             Some(EitherOne::KindA(inner)) => {
-//                 assert_eq!(inner.n, -5);
-//                 assert_eq!(inner.o, 1);
-//             }
-//             _ => {
-//                 panic!("expected KindA variant");
-//             }
-//         }
-//     }
-//}
+#[make_partial]
+#[derive(Debug)]
+struct OuterMaybeEither {
+    #[enum_tagged("kind")]
+    choice: Option<EitherOne>,
+}
+
+#[test]
+fn test_maybe_either_one_happy_a() {
+    let toml = "
+    [choice]
+        kind = 'KindA'
+        n = -5
+        o = 1
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterMaybeEither, OuterMaybeEither>(
+        toml,
+        FieldMatchMode::Exact,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.choice {
+            Some(EitherOne::KindA(inner)) => {
+                assert_eq!(inner.n, -5);
+                assert_eq!(inner.o, 1);
+            }
+            _ => {
+                panic!("expected KindA variant");
+            }
+        }
+    }
+}
+#[make_partial]
+#[derive(Debug)]
+struct OuterManyTagged {
+    #[enum_tagged("kind")]
+    choices: Vec<EitherOne>,
+}
+
+#[test]
+fn test_many_either_one_happy() {
+    let toml = "
+    [[choices]]
+        kind = 'KindA'
+        n = -5
+        o = 1
+
+    [[choices]]
+        kind = 'KindA'
+        n = 5
+        o = 2
+    [[choices]]
+        kind = 'kindB'
+        s = 23
+        t = 10
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterManyTagged, OuterManyTagged>(
+        toml,
+        FieldMatchMode::Exact,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.choices.len(), 3);
+        assert!(matches!(
+            output.choices[0],
+            EitherOne::KindA(InnerA { n: -5, o: 1 })
+        ));
+        assert!(matches!(
+            output.choices[1],
+            EitherOne::KindA(InnerA { n: 5, o: 2 })
+        ));
+        assert!(matches!(
+            output.choices[2],
+            EitherOne::KindB(InnerB { s: 23, t: 10 })
+        ));
+    }
+}
