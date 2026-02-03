@@ -1787,23 +1787,14 @@ where
                                 }
                             }
                         }
-                        TomlValueState::MultiDefined { key: _, spans } => {
-                            TomlValue {
-                                value: None,
-                                required: self.required,
-                                state: TomlValueState::MultiDefined {
-                                    key: tag_key.to_string(),
-                                    spans: spans.to_vec(),
-                                }, // {
-                                   //         span: span.clone(),
-                                   //         message: "Multiple tag fields defined".to_string(),
-                                   //         help: Some(format!(
-                                   //             "Use only one of: {}",
-                                   //             format_quoted_list(&all_keys)
-                                   //         )),
-                                   //     },
-                            }
-                        }
+                        TomlValueState::MultiDefined { key: _, spans } => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: TomlValueState::MultiDefined {
+                                key: tag_key.to_string(),
+                                spans: spans.to_vec(),
+                            },
+                        },
                         TomlValueState::WrongType {
                             span: wrong_span,
                             expected: _,
@@ -1932,19 +1923,19 @@ where
                     },
                 },
             },
-            TomlValueState::Missing {
-                key: _,
-                parent_span,
-            } => {
-                // For optional fields, missing is OK - return None
-                TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok {
-                        span: parent_span.clone(),
-                    },
-                }
-            }
+            // TomlValueState::Missing {
+            //     key: _,
+            //     parent_span,
+            // } => {
+            //     // For optional fields, missing is OK - return None
+            //     TomlValue {
+            //         value: Some(None),
+            //         required: self.required,
+            //         state: TomlValueState::Ok {
+            //             span: parent_span.clone(),
+            //         },
+            //     }
+            // }
             _ => TomlValue {
                 value: None,
                 required: self.required,
@@ -3797,13 +3788,15 @@ macro_rules! impl_as_opt_map_vec_primitive {
                             state: TomlValueState::Ok { span: span.clone() },
                         },
                     },
-                    TomlValueState::Missing { parent_span, .. } => TomlValue {
-                        value: Some(None),
-                        required: self.required,
-                        state: TomlValueState::Ok {
-                            span: parent_span.clone(),
-                        },
-                    },
+                    TomlValueState::Missing { .. } => {
+                        unreachable!();
+                        // TomlValue {
+                        //                 value: Some(None),
+                        //                 required: self.required,
+                        //                 state: TomlValueState::Ok {
+                        //                     span: parent_span.clone(),
+                        //                 },
+                    }
                     _ => TomlValue {
                         value: None,
                         required: self.required,
