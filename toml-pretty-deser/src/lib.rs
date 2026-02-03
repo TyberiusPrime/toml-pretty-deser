@@ -720,26 +720,26 @@ impl<'a> TomlHelper<'a> {
     }
 
     /// Create a TomlHelper from a toml_edit::Item (either Table or InlineTable)
-    pub fn from_item(
-        item: &'a toml_edit::Item,
-        errors: Rc<RefCell<Vec<AnnotatedError>>>,
-        match_mode: FieldMatchMode,
-    ) -> Self {
-        match item {
-            toml_edit::Item::Table(table) => Self::new(table, errors, match_mode),
-            toml_edit::Item::Value(toml_edit::Value::InlineTable(inline_table)) => {
-                Self::new_inline(inline_table, errors, match_mode)
-            }
-            _ => Self {
-                table: None,
-                inline_table: None,
-                expected: vec![],
-                observed: vec![],
-                errors,
-                match_mode,
-            },
-        }
-    }
+    // pub fn from_item(
+    //     item: &'a toml_edit::Item,
+    //     errors: Rc<RefCell<Vec<AnnotatedError>>>,
+    //     match_mode: FieldMatchMode,
+    // ) -> Self {
+    //     match item {
+    //         toml_edit::Item::Table(table) => Self::new(table, errors, match_mode),
+    //         toml_edit::Item::Value(toml_edit::Value::InlineTable(inline_table)) => {
+    //             Self::new_inline(inline_table, errors, match_mode)
+    //         }
+    //         _ => Self {
+    //             table: None,
+    //             inline_table: None,
+    //             expected: vec![],
+    //             observed: vec![],
+    //             errors,
+    //             match_mode,
+    //         },
+    //     }
+    // }
 
     pub fn into_inner(self, source: &Rc<RefCell<String>>) -> Vec<HydratedAnnotatedError> {
         self.errors
