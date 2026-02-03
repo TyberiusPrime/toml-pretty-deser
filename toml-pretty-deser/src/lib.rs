@@ -2,6 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
+
+mod tablelike;
+use tablelike::{TableLikePlus, AsTableLike};
 pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial, make_partial_enum};
 
 pub trait StringNamedEnum: Sized + Clone {
@@ -617,8 +620,7 @@ impl FieldInfo {
 }
 
 pub struct TomlHelper<'a> {
-    table: Option<&'a toml_edit::Table>,
-    inline_table: Option<&'a toml_edit::InlineTable>,
+    table: Option<&'a dyn TableLikePlus>,
     /// Expected field info (what we allow to see)
     expected: Vec<FieldInfo>,
     /// Normalized names that were actually observed (matched against table keys)
@@ -630,28 +632,12 @@ pub struct TomlHelper<'a> {
 
 impl<'a> TomlHelper<'a> {
     pub fn from_table(
-        table: &'a toml_edit::Table,
+        table: &'a dyn TableLikePlus,
         errors: Rc<RefCell<Vec<AnnotatedError>>>,
         match_mode: FieldMatchMode,
     ) -> Self {
         Self {
             table: Some(table),
-            inline_table: None,
-            expected: vec![],
-            observed: vec![],
-            errors,
-            match_mode,
-        }
-    }
-
-    pub fn from_inline(
-        inline_table: &'a toml_edit::InlineTable,
-        errors: Rc<RefCell<Vec<AnnotatedError>>>,
-        match_mode: FieldMatchMode,
-    ) -> Self {
-        Self {
-            table: None,
-            inline_table: Some(inline_table),
             expected: vec![],
             observed: vec![],
             errors,
@@ -665,14 +651,10 @@ impl<'a> TomlHelper<'a> {
         errors: Rc<RefCell<Vec<AnnotatedError>>>,
         match_mode: FieldMatchMode,
     ) -> Self {
-        match item {
-            toml_edit::Item::Table(table) => Self::from_table(table, errors, match_mode),
-            toml_edit::Item::Value(toml_edit::Value::InlineTable(inline_table)) => {
-                Self::from_inline(inline_table, errors, match_mode)
-            }
+        match item.as_table_like_plus() {
+            Some(table) => Self::from_table(table, errors, match_mode),
             _ => Self {
                 table: None,
-                inline_table: None,
                 expected: vec![],
                 observed: vec![],
                 errors,
@@ -720,9 +702,7 @@ impl<'a> TomlHelper<'a> {
         // Collect all table keys
         let table_keys: Vec<String> = if let Some(table) = self.table {
             table.iter().map(|(k, _)| k.to_string()).collect()
-        } else if let Some(inline_table) = self.inline_table {
-            inline_table.iter().map(|(k, _)| k.to_string()).collect()
-        } else {
+        }  else {
             vec![]
         };
 
@@ -735,12 +715,7 @@ impl<'a> TomlHelper<'a> {
                             result.push((table_key.clone(), item.clone()));
                             break;
                         }
-                    } else if let Some(inline_table) = self.inline_table {
-                        if let Some(value) = inline_table.get(table_key) {
-                            result.push((table_key.clone(), toml_edit::Item::Value(value.clone())));
-                            break;
-                        }
-                    }
+                    } 
                 }
             }
         }
@@ -767,8 +742,6 @@ impl<'a> TomlHelper<'a> {
     {
         let parent_span = if let Some(table) = self.table {
             table.span().unwrap_or(0..0)
-        } else if let Some(inline_table) = self.inline_table {
-            inline_table.span().unwrap_or(0..0)
         } else {
             0..0
         };
@@ -782,7 +755,7 @@ impl<'a> TomlHelper<'a> {
         match found_keys.len() {
             0 => {
                 // No match found
-                let mut res: TomlValue<T> = //todo: refactor into new_empty_missing...
+                let mut res: TomlValue<T> =  //needs flexibility for required/non required
                     FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span.clone());
                 if let TomlValueState::Missing { ref mut key, .. } = res.state {
                     if key.is_empty() {
@@ -820,9 +793,9 @@ impl<'a> TomlHelper<'a> {
     fn span_from_key(&self, key: &str) -> Range<usize> {
         if let Some(table) = self.table {
             table.key(key).and_then(|item| item.span()).unwrap_or(0..0)
-        } else if let Some(inline_table) = self.inline_table {
-            // For inline tables, we can't easily get the key span, so use the table span
-            inline_table.span().unwrap_or(0..0)
+        // } else if let Some(inline_table) = self.inline_table {
+        //     // For inline tables, we can't easily get the key span, so use the table span
+        //     inline_table.span().unwrap_or(0..0)
         } else {
             0..0
         }
@@ -850,8 +823,6 @@ impl<'a> TomlHelper<'a> {
         // Collect all keys from either table type
         let keys: Vec<String> = if let Some(table) = self.table {
             table.iter().map(|(k, _)| k.to_string()).collect()
-        } else if let Some(inline_table) = self.inline_table {
-            inline_table.iter().map(|(k, _)| k.to_string()).collect()
         } else {
             vec![]
         };
@@ -1004,74 +975,9 @@ macro_rules! impl_from_toml_item_value {
 }
 
 impl_from_toml_item_value!(bool, "bool", Boolean);
+impl_from_toml_item_value!(String, "String", String);
+impl_from_toml_item_value!(f64, "Float", Float);
 
-impl FromTomlItem for TomlValue<String> {
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
-        match item {
-            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
-            toml_edit::Item::Value(toml_edit::Value::String(formatted)) => {
-                let value = formatted.value().to_string();
-                TomlValue {
-                    required: true,
-                    value: Some(value),
-                    state: TomlValueState::Ok {
-                        span: formatted.span().unwrap_or(parent_span.clone()),
-                    },
-                }
-            }
-            toml_edit::Item::Table(_)
-            | toml_edit::Item::ArrayOfTables(_)
-            | toml_edit::Item::Value(_) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: item.span().unwrap_or(parent_span.clone()),
-                    expected: "string",
-                    found: item.type_name(),
-                },
-            },
-        }
-    }
-}
-
-impl FromTomlItem for TomlValue<f64> {
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
-        match item {
-            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
-            toml_edit::Item::Value(toml_edit::Value::Float(formatted)) => {
-                let value = *formatted.value();
-                TomlValue {
-                    required: true,
-                    value: Some(value),
-                    state: TomlValueState::Ok {
-                        span: formatted.span().unwrap_or(parent_span.clone()),
-                    },
-                }
-            }
-            toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
-                let value = *formatted.value() as f64;
-                TomlValue {
-                    required: true,
-                    value: Some(value),
-                    state: TomlValueState::Ok {
-                        span: formatted.span().unwrap_or(parent_span.clone()),
-                    },
-                }
-            }
-            toml_edit::Item::Value(_)
-            | toml_edit::Item::ArrayOfTables(_)
-            | toml_edit::Item::Table(_) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: item.span().unwrap_or(parent_span.clone()),
-                    expected: "f64",
-                    found: item.type_name(),
-                },
-            },
-        }
-    }
-}
 
 // Implementation for raw toml_edit::Item - used for nested struct deserialization
 impl FromTomlItem for TomlValue<toml_edit::Item> {
@@ -1084,50 +990,6 @@ impl FromTomlItem for TomlValue<toml_edit::Item> {
                 value: Some(item.clone()),
                 state: TomlValueState::Ok {
                     span: item.span().unwrap_or(parent_span.clone()),
-                },
-            },
-        }
-    }
-}
-
-impl FromTomlItem for TomlValue<Vec<toml_edit::Item>> {
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
-        match item {
-            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
-            toml_edit::Item::ArrayOfTables(array) => {
-                let items: Vec<toml_edit::Item> = array
-                    .iter()
-                    .map(|table| toml_edit::Item::Table(table.clone()))
-                    .collect();
-                TomlValue {
-                    required: true,
-                    value: Some(items),
-                    state: TomlValueState::Ok {
-                        span: array.span().unwrap_or(parent_span.clone()),
-                    },
-                }
-            }
-            toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
-                // Also support regular arrays with inline tables
-                let items: Vec<toml_edit::Item> = array
-                    .iter()
-                    .map(|val| toml_edit::Item::Value(val.clone()))
-                    .collect();
-                TomlValue {
-                    required: true,
-                    value: Some(items),
-                    state: TomlValueState::Ok {
-                        span: array.span().unwrap_or(parent_span.clone()),
-                    },
-                }
-            }
-            _ => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: item.span().unwrap_or(parent_span.clone()),
-                    expected: "array of tables",
-                    found: "other type",
                 },
             },
         }
@@ -1169,34 +1031,12 @@ impl_from_toml_item_option!(i64);
 impl_from_toml_item_option!(f64);
 impl_from_toml_item_option!(bool);
 impl_from_toml_item_option!(String);
+// implementation for Option<toml_edit::Item> to support optional nested structs
+impl_from_toml_item_option!(toml_edit::Item);
 
-// Special implementation for Option<toml_edit::Item> to support optional nested structs
-impl FromTomlItem for TomlValue<Option<toml_edit::Item>> {
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
-        let mut res: TomlValue<toml_edit::Item> = FromTomlItem::from_toml_item(item, parent_span);
-        res.required = false;
-        match res.state {
-            TomlValueState::Ok { span } => TomlValue {
-                required: false,
-                value: Some(res.value),
-                state: TomlValueState::Ok { span },
-            },
-            TomlValueState::Missing { .. } => TomlValue {
-                required: false,
-                value: Some(None),
-                state: TomlValueState::Ok { span: 0..0 },
-            },
-            _ => TomlValue {
-                value: None,
-                required: false,
-                state: res.state,
-            },
-        }
-    }
-}
 
 macro_rules! impl_from_toml_item_vec {
-    ($ty:ty, $name:expr) => {
+    ($ty:ty) => {
         impl FromTomlItem for TomlValue<Vec<$ty>> {
             fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
                 match item {
@@ -1300,15 +1140,59 @@ macro_rules! impl_from_toml_item_vec {
     };
 }
 
-impl_from_toml_item_vec!(u8, "u8");
-impl_from_toml_item_vec!(i16, "i16");
-impl_from_toml_item_vec!(i32, "i32");
-impl_from_toml_item_vec!(u32, "u32");
-impl_from_toml_item_vec!(i64, "i64");
-impl_from_toml_item_vec!(u64, "u64");
-impl_from_toml_item_vec!(f64, "f64");
-impl_from_toml_item_vec!(bool, "bool");
-impl_from_toml_item_vec!(String, "string");
+impl_from_toml_item_vec!(u8);
+impl_from_toml_item_vec!(i16);
+impl_from_toml_item_vec!(i32);
+impl_from_toml_item_vec!(u32);
+impl_from_toml_item_vec!(i64);
+impl_from_toml_item_vec!(u64);
+impl_from_toml_item_vec!(f64);
+impl_from_toml_item_vec!(bool);
+impl_from_toml_item_vec!(String);
+
+impl FromTomlItem for TomlValue<Vec<toml_edit::Item>> {
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        match item {
+            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
+            toml_edit::Item::ArrayOfTables(array) => {
+                let items: Vec<toml_edit::Item> = array
+                    .iter()
+                    .map(|table| toml_edit::Item::Table(table.clone()))
+                    .collect();
+                TomlValue {
+                    required: true,
+                    value: Some(items),
+                    state: TomlValueState::Ok {
+                        span: array.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
+            toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
+                // Also support regular arrays with inline tables
+                let items: Vec<toml_edit::Item> = array
+                    .iter()
+                    .map(|val| toml_edit::Item::Value(val.clone()))
+                    .collect();
+                TomlValue {
+                    required: true,
+                    value: Some(items),
+                    state: TomlValueState::Ok {
+                        span: array.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
+            _ => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: item.span().unwrap_or(parent_span.clone()),
+                    expected: "array of tables",
+                    found: "other type",
+                },
+            },
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TomlValue<T> {
@@ -1441,7 +1325,7 @@ impl<T> TomlValue<T> {
                 required: false,
                 state: TomlValueState::Ok { span: 0..0 },
             },
-            _ => self,
+          _ => self,
         }
     }
 }
@@ -1457,8 +1341,8 @@ pub fn deserialize_nested<P>(
 where
     P: FromTomlTable<()> + VerifyFromToml<()>,
 {
-    match item {
-        toml_edit::Item::Table(table) => {
+    match item.as_table_like_plus() {
+        Some(table) => {
             let mut helper = TomlHelper::from_table(table, errors.clone(), mode);
             for f in fields_to_ignore {
                 helper.ignore_field(*f);
@@ -1484,34 +1368,7 @@ where
                 }
             }
         }
-        toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
-            let mut helper = TomlHelper::from_inline(table, errors.clone(), mode);
-            for f in fields_to_ignore {
-                helper.ignore_field(*f);
-            }
-
-            let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
-            helper.deny_unknown();
-
-            if partial.can_concrete() {
-                TomlValue {
-                    value: Some(partial),
-                    required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                }
-            } else {
-                TomlValue {
-                    value: Some(partial),
-                    required,
-                    state: TomlValueState::ValidationFailed {
-                        span: span.clone(),
-                        message: "Nested struct has errors".to_string(),
-                        help: None,
-                    },
-                }
-            }
-        }
-        _ => TomlValue {
+        None => TomlValue {
             value: None,
             required,
             state: TomlValueState::WrongType {
@@ -2086,7 +1943,7 @@ macro_rules! impl_as_map_primitive {
                 match &self.state {
                     TomlValueState::Ok { span } => {
                         if let Some(ref item) = self.value {
-                            match item.as_table_like() {
+                            match item.as_table_like_plus() {
                                 Some(table) => {
                                     let mut map = HashMap::new();
                                     let mut has_errors = false;
@@ -2255,7 +2112,7 @@ impl<E: StringNamedEnum> AsMapEnum<E> for TomlValue<toml_edit::Item> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
-                    match item.as_table_like() {
+                    match item.as_table_like_plus() {
                         Some(table) => {
                             let mut map = HashMap::new();
                             let mut has_errors = false;
@@ -2348,7 +2205,7 @@ where
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
-                    match item.as_table_like() {
+                    match item.as_table_like_plus() {
                         Some(table) => {
                             let mut map = HashMap::new();
                             let mut has_errors = false;
@@ -2453,7 +2310,7 @@ impl<E: StringNamedEnum> AsMapTaggedEnum<E> for TomlValue<toml_edit::Item> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
-                    match item.as_table_like() {
+                    match item.as_table_like_plus() {
                         Some(table) => {
                             let mut map = HashMap::new();
                             let mut has_errors = false;
@@ -2461,7 +2318,7 @@ impl<E: StringNamedEnum> AsMapTaggedEnum<E> for TomlValue<toml_edit::Item> {
                             for (key, value) in table.iter() {
                                 let item_span = value.span().unwrap_or(span.clone());
                                 // Each value should be an inline table like { KindA = { ... } }
-                                match value.as_table_like() {
+                                match value.as_table_like_plus() {
                                     Some(inline_table) => {
                                         // Find the variant key (should be exactly one)
                                         let mut found_variant = None;
@@ -2582,7 +2439,7 @@ macro_rules! impl_as_map_vec_primitive {
                 match &self.state {
                     TomlValueState::Ok { span } => {
                         if let Some(ref item) = self.value {
-                            match item.as_table_like() {
+                            match item.as_table_like_plus() {
                                 Some(table) => {
                                     let mut map = HashMap::new();
                                     let mut has_errors = false;
@@ -2684,7 +2541,7 @@ impl<E: StringNamedEnum> AsMapVecEnum<E> for TomlValue<toml_edit::Item> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
-                    match item.as_table_like() {
+                    match item.as_table_like_plus() {
                         Some(table) => {
                             let mut map = HashMap::new();
                             let mut has_errors = false;
@@ -2777,7 +2634,7 @@ where
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
-                    match item.as_table_like() {
+                    match item.as_table_like_plus() {
                         Some(table) => {
                             let mut map = HashMap::new();
                             let mut has_errors = false;
@@ -2912,7 +2769,7 @@ impl<E: StringNamedEnum> AsMapVecTaggedEnum<E> for TomlValue<toml_edit::Item> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
-                    match item.as_table_like() {
+                    match item.as_table_like_plus() {
                         Some(table) => {
                             let mut map = HashMap::new();
                             let mut has_errors = false;
