@@ -452,7 +452,18 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
         if is_enum_tagged_field(f) {
             let ty = &f.ty;
-            if extract_type_name(ty).is_none() {
+            // enum_tagged can be applied to EnumType, Option<EnumType>, or Vec<EnumType>
+            if is_option_type(ty) {
+                if extract_option_inner_type(ty).is_none() {
+                    panic!(
+                        "enum_tagged attribute on Option field requires a simple inner type name"
+                    );
+                }
+            } else if is_vec_type(ty) {
+                if extract_vec_inner_type(ty).is_none() {
+                    panic!("enum_tagged attribute on Vec field requires a simple inner type name");
+                }
+            } else if extract_type_name(ty).is_none() {
                 panic!("enum_tagged attribute requires a simple type name");
             }
             if extract_tag_key(f).is_none() {
@@ -492,11 +503,25 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
             } else if is_enum_tagged_field(f) {
-                // For enum_tagged fields, use Partial{EnumType}
-                let type_name = extract_type_name(ty).unwrap();
-                let partial_type = format_ident!("Partial{}", type_name);
-                quote! {
-                    #name: TomlValue<#partial_type>
+                // For enum_tagged fields, handle Option<EnumType>, Vec<EnumType>, or just EnumType
+                if is_option_type(ty) {
+                    let inner_type_name = extract_option_inner_type(ty).unwrap();
+                    let partial_type = format_ident!("Partial{}", inner_type_name);
+                    quote! {
+                        #name: TomlValue<Option<#partial_type>>
+                    }
+                } else if is_vec_type(ty) {
+                    let inner_type_name = extract_vec_inner_type(ty).unwrap();
+                    let partial_type = format_ident!("Partial{}", inner_type_name);
+                    quote! {
+                        #name: TomlValue<Vec<#partial_type>>
+                    }
+                } else {
+                    let type_name = extract_type_name(ty).unwrap();
+                    let partial_type = format_ident!("Partial{}", type_name);
+                    quote! {
+                        #name: TomlValue<#partial_type>
+                    }
                 }
             } else {
                 quote! {
@@ -537,11 +562,33 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             } else if is_enum_tagged_field(f) {
                 // For enum_tagged fields, recursively collect errors from the partial enum
-                quote! {
-                    if let Some(ref partial) = self.#name.value {
-                        partial.collect_errors(errors);
-                    } else {
-                        self.#name.register_error(errors);
+                if is_option_type(&f.ty) {
+                    // For Option<EnumTagged>, value is Option<Option<PartialEnumType>>
+                    quote! {
+                        if let Some(Some(ref partial)) = self.#name.value {
+                            partial.collect_errors(errors);
+                        } else if self.#name.value.is_none() {
+                            self.#name.register_error(errors);
+                        }
+                    }
+                } else if is_vec_type(&f.ty) {
+                    // For Vec<EnumTagged>, value is Option<Vec<PartialEnumType>>
+                    quote! {
+                        if let Some(ref partials) = self.#name.value {
+                            for partial in partials.iter() {
+                                partial.collect_errors(errors);
+                            }
+                        } else {
+                            self.#name.register_error(errors);
+                        }
+                    }
+                } else {
+                    quote! {
+                        if let Some(ref partial) = self.#name.value {
+                            partial.collect_errors(errors);
+                        } else {
+                            self.#name.register_error(errors);
+                        }
                     }
                 }
             } else {
@@ -579,8 +626,24 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             } else if is_enum_tagged_field(f) {
                 // For enum_tagged fields, check if the partial enum can become concrete
-                quote! {
-                    self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
+                if is_option_type(&f.ty) {
+                    // For Option<EnumTagged>, it's concrete if Some and inner can_concrete, or if None
+                    quote! {
+                        self.#name.value.as_ref().map(|opt| {
+                            opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
+                        }).unwrap_or(false)
+                    }
+                } else if is_vec_type(&f.ty) {
+                    // For Vec<EnumTagged>, all items must be concrete
+                    quote! {
+                        self.#name.value.as_ref().map(|vec| {
+                            vec.iter().all(|p| p.can_concrete())
+                        }).unwrap_or(false)
+                    }
+                } else {
+                    quote! {
+                        self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
+                    }
                 }
             } else {
                 quote! {
@@ -617,8 +680,23 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             } else if is_enum_tagged_field(f) {
                 // For enum_tagged fields, convert PartialEnum to ConcreteEnum
-                quote! {
-                    #name: self.#name.value.and_then(|p| p.to_concrete()).unwrap()
+                if is_option_type(&f.ty) {
+                    // For Option<EnumTagged>, convert Option<PartialEnum> to Option<ConcreteEnum>
+                    // self.#name.value is Option<Option<PartialEnumType>>
+                    quote! {
+                        #name: self.#name.value.flatten().and_then(|p| p.to_concrete())
+                    }
+                } else if is_vec_type(&f.ty) {
+                    // For Vec<EnumTagged>, convert each partial in Vec<PartialEnum> to Vec<ConcreteEnum>
+                    quote! {
+                        #name: self.#name.value.map(|vec| {
+                            vec.into_iter().filter_map(|p| p.to_concrete()).collect()
+                        }).unwrap_or_default()
+                    }
+                } else {
+                    quote! {
+                        #name: self.#name.value.and_then(|p| p.to_concrete()).unwrap()
+                    }
                 }
             } else {
                 quote! {
@@ -643,10 +721,24 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             } else if is_enum_tagged_field(f) {
                 // For enum_tagged fields, use as_tagged_enum with the tag key, aliases, and deserialize function
                 let tag_key = extract_tag_key(f).unwrap();
-                let type_name = extract_type_name(&f.ty).unwrap();
-                let partial_type = format_ident!("Partial{}", type_name);
-                quote! {
-                    #name: helper.get_with_aliases(#name_str, vec![]).as_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                if is_option_type(&f.ty) {
+                    let inner_type_name = extract_option_inner_type(&f.ty).unwrap();
+                    let partial_type = format_ident!("Partial{}", inner_type_name);
+                    quote! {
+                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_optional_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                    }
+                } else if is_vec_type(&f.ty) {
+                    let inner_type_name = extract_vec_inner_type(&f.ty).unwrap();
+                    let partial_type = format_ident!("Partial{}", inner_type_name);
+                    quote! {
+                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_vec_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                    }
+                } else {
+                    let type_name = extract_type_name(&f.ty).unwrap();
+                    let partial_type = format_ident!("Partial{}", type_name);
+                    quote! {
+                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                    }
                 }
             } else if is_as_enum_field(f) {
                 // For enum fields, use aliases if present

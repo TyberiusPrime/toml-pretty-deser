@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsTaggedEnum, DeserError, FieldMatchMode, FromTomlTable, StringNamedEnum,
-    ToConcrete, TomlHelper, TomlValue, TomlValueState, VerifyFromToml, deserialize_with_mode,
-    make_partial, make_partial_enum,
+    AnnotatedError, AsOptionalTaggedEnum, AsTaggedEnum, AsVecTaggedEnum, DeserError,
+    FieldMatchMode, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper, TomlValue,
+    TomlValueState, VerifyFromToml, deserialize_with_mode, make_partial, make_partial_enum,
 };
 
 #[make_partial]
@@ -457,7 +457,7 @@ fn test_many_either_one_happy() {
         n = 5
         o = 2
     [[choices]]
-        kind = 'kindB'
+        kind = 'KindB'
         s = 23
         t = 10
     ";
