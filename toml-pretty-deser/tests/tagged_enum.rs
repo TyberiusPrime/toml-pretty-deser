@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsEnum, AsNested, AsTaggedEnum, DeserError, FieldMatchMode, FromTomlTable,
-    StringNamedEnum, ToConcrete, TomlHelper, TomlValue, TomlValueState, VerifyFromToml,
-    deserialize, deserialize_with_mode, make_partial, make_partial_enum,
+    AnnotatedError, AsTaggedEnum, DeserError, FieldMatchMode, FromTomlTable, StringNamedEnum,
+    ToConcrete, TomlHelper, TomlValue, VerifyFromToml, deserialize_with_mode, make_partial,
+    make_partial_enum,
 };
 
 #[make_partial]
@@ -81,5 +81,29 @@ fn test_either_one_happy_b() {
                 assert_eq!(inner.t, 0);
             }
         }
+    }
+}
+
+#[test]
+fn test_either_one_unknown_kind() {
+    let toml = "
+    choice = {
+        kind = 'KindX',
+        s = 5,
+        t = 0
+    }
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    if let Err(DeserError::DeserFailure(errors, _output)) = result {
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].inner.spans[0].msg, "Unknown enum variant");
+        assert_eq!(
+            errors[0].inner.help,
+            Some("Did you mean: 'KindA' or 'KindB'?".to_string())
+        );
+    } else {
+        panic!();
     }
 }

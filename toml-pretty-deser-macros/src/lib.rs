@@ -540,6 +540,8 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 quote! {
                     if let Some(ref partial) = self.#name.value {
                         partial.collect_errors(errors);
+                    } else {
+                        self.#name.register_error(errors);
                     }
                 }
             } else {
@@ -695,6 +697,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl #impl_generics ToConcrete<#struct_name #ty_generics> for #partial_name #ty_generics #where_clause {
             fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
+            dbg!(&self);
                 #(#collect_errors_fields;)*
             }
 

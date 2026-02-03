@@ -148,13 +148,7 @@ pub trait AsEnum<E>: Sized {
 fn convert_string_to_enum<E: StringNamedEnum>(s: &str, _span: &Range<usize>) -> Result<E, String> {
     match E::from_str(s) {
         Some(enum_val) => Ok(enum_val),
-        None => {
-            let valid_names = E::all_variant_names().join(", ");
-            Err(format!(
-                "Invalid enum variant '{}'. Valid variants are: {}",
-                s, valid_names
-            ))
-        }
+        None => Err(suggest_alternatives(s, E::all_variant_names())),
     }
 }
 
@@ -173,7 +167,8 @@ impl<E: StringNamedEnum> AsEnum<E> for TomlValue<String> {
                         required: self.required,
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
-                            message,
+                            message: "Invalid enum variant.".to_string(),
+                            help: Some(message),
                         },
                     },
                 },
@@ -183,6 +178,7 @@ impl<E: StringNamedEnum> AsEnum<E> for TomlValue<String> {
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Cannot convert empty value to enum".to_string(),
+                        help: Some(suggest_alternatives("", E::all_variant_names())),
                     },
                 },
             },
@@ -210,7 +206,8 @@ impl<E: StringNamedEnum> AsEnum<Option<E>> for TomlValue<Option<String>> {
                         required: self.required,
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
-                            message,
+                            message: "Invalid enum variant.".to_string(),
+                            help: Some(message),
                         },
                     },
                 },
@@ -225,6 +222,7 @@ impl<E: StringNamedEnum> AsEnum<Option<E>> for TomlValue<Option<String>> {
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Cannot convert empty value to enum".to_string(),
+                        help: Some(suggest_alternatives("", E::all_variant_names())),
                     },
                 },
             },
@@ -256,7 +254,8 @@ impl<E: StringNamedEnum> AsEnum<Vec<E>> for TomlValue<Vec<String>> {
                                     required: self.required,
                                     state: TomlValueState::ValidationFailed {
                                         span: span.clone(),
-                                        message,
+                                        message: "Invalid enum variant.".to_string(),
+                                        help: Some(message),
                                     },
                                 };
                             }
@@ -274,6 +273,7 @@ impl<E: StringNamedEnum> AsEnum<Vec<E>> for TomlValue<Vec<String>> {
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Cannot convert empty value to enum".to_string(),
+                        help: Some(suggest_alternatives("", E::all_variant_names())),
                     },
                 },
             },
@@ -301,7 +301,8 @@ impl<E: StringNamedEnum> AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>
                                     required: self.required,
                                     state: TomlValueState::ValidationFailed {
                                         span: span.clone(),
-                                        message,
+                                        help: Some(message),
+                                        message: "Invalid enum variant.".to_string(),
                                     },
                                 };
                             }
@@ -324,6 +325,7 @@ impl<E: StringNamedEnum> AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Cannot convert empty value to enum".to_string(),
+                        help: Some(suggest_alternatives("", E::all_variant_names())),
                     },
                 },
             },
@@ -755,7 +757,7 @@ impl<'a> TomlHelper<'a> {
         let field_info = FieldInfo::new(name).with_aliases(aliases);
         self.expected.push(field_info);
     }
-/// Register a field with optional aliases
+    /// Register a field with optional aliases
     pub fn ignore_field(&mut self, name: impl Into<String>) {
         let name: String = name.into();
         let field_info = FieldInfo::new(name.clone());
@@ -929,8 +931,6 @@ impl<'a> TomlHelper<'a> {
         // Build set of observed normalized names
         let observed_set: HashSet<String> = self.observed.iter().cloned().collect();
 
-        dbg!(&self.observed);
-        dbg!(&expected_normalized);
         for key in keys {
             let normalized_key = self.match_mode.normalize(&key);
 
@@ -978,11 +978,8 @@ macro_rules! impl_from_toml_item_integer {
                                 value: None,
                                 state: TomlValueState::ValidationFailed {
                                     span: formatted.span().unwrap_or(parent_span.clone()),
-                                    message: format!(
-                                        "integer out of range. Accepted: {}..{}",
-                                        <$ty>::MIN,
-                                        <$ty>::MAX
-                                    ),
+                                    message: "integer out of range.".to_string(),
+                                    help: Some(format!("Accepted: {}..{}", <$ty>::MIN, <$ty>::MAX)),
                                 },
                             }
                         } else {
@@ -1403,6 +1400,7 @@ macro_rules! impl_from_toml_item_vec {
                                 state: TomlValueState::ValidationFailed {
                                     span: array.span().unwrap_or(parent_span.clone()),
                                     message: "Array contains invalid elements".to_string(),
+                                    help: None,
                                 },
                             }
                         } else {
@@ -1557,11 +1555,15 @@ impl<T> TomlValue<T> {
                     "The value has the wrong type.",
                 ));
             }
-            TomlValueState::ValidationFailed { span, message } => {
+            TomlValueState::ValidationFailed {
+                span,
+                message,
+                help,
+            } => {
                 errors.borrow_mut().push(AnnotatedError::placed(
                     span.clone(),
-                    &format!("Validation failed: {}", message),
-                    "The value failed validation checks.",
+                    message,
+                    help.as_ref().map(|x| x.as_str()).unwrap_or(""),
                 ));
             }
             TomlValueState::Ok { .. } => {}
@@ -1581,6 +1583,7 @@ impl<T> TomlValue<T> {
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: msg,
+                        help: None, //todo
                     },
                 },
             },
@@ -1606,7 +1609,7 @@ pub fn deserialize_nested<P>(
     errors: &Rc<RefCell<Vec<AnnotatedError>>>,
     mode: FieldMatchMode,
     required: bool,
-    fields_to_ignore: &[&str]
+    fields_to_ignore: &[&str],
 ) -> TomlValue<P>
 where
     P: FromTomlTable<()> + VerifyFromToml<()>,
@@ -1634,6 +1637,7 @@ where
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Nested struct has errors".to_string(),
+                        help: None,
                     },
                 }
             }
@@ -1660,6 +1664,7 @@ where
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Nested struct has errors".to_string(),
+                        help: None,
                     },
                 }
             }
@@ -1758,24 +1763,19 @@ where
                                         required: self.required,
                                         state: TomlValueState::ValidationFailed {
                                             span: span.clone(),
-                                            message: format!(
-                                                "Failed to deserialize variant '{}'",
-                                                variant_name
-                                            ),
+                                            message: "Failed to deserialize variant".to_string(),
+                                            help: None,
                                         },
                                     },
                                 }
                             } else {
-                                let valid_names = variant_names.join(", ");
                                 TomlValue {
                                     value: None,
                                     required: self.required,
                                     state: TomlValueState::ValidationFailed {
                                         span: span.clone(),
-                                        message: format!(
-                                            "Unknown enum variant '{}'. Valid variants are: {}",
-                                            tag_str, valid_names
-                                        ),
+                                        message: "Unknown enum variant".to_string(),
+                                        help: Some(suggest_alternatives(&tag_str, variant_names)),
                                     },
                                 }
                             }
@@ -1786,6 +1786,10 @@ where
                             state: TomlValueState::ValidationFailed {
                                 span: span.clone(),
                                 message: format!("Missing required tag field: {}", tag_key),
+                                help: Some(format!(
+                                    "{}",
+                                    suggest_alternatives("", E::all_variant_names())
+                                )),
                             },
                         },
                     }
@@ -1796,6 +1800,10 @@ where
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
                             message: "Cannot convert empty value to tagged enum".to_string(),
+                            help: Some(format!(
+                                "{}",
+                                suggest_alternatives("", E::all_variant_names())
+                            )),
                         },
                     }
                 }
@@ -1837,6 +1845,7 @@ where
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
                             message: "Cannot convert empty value to nested struct".to_string(),
+                            help: None,
                         },
                     }
                 }
@@ -1887,6 +1896,7 @@ where
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Cannot convert empty value to nested struct".to_string(),
+                        help: None,
                     },
                 },
             },
@@ -1917,8 +1927,14 @@ where
                         match item {
                             toml_edit::Item::Table(_)
                             | toml_edit::Item::Value(toml_edit::Value::InlineTable(_)) => {
-                                let nested =
-                                    deserialize_nested(item, span, errors, mode, self.required, &[]);
+                                let nested = deserialize_nested(
+                                    item,
+                                    span,
+                                    errors,
+                                    mode,
+                                    self.required,
+                                    &[],
+                                );
                                 if let Some(partial) = nested.value {
                                     results.push(partial);
                                 } else {
@@ -1949,6 +1965,7 @@ where
                             state: TomlValueState::ValidationFailed {
                                 span: span.clone(),
                                 message: "Array of nested structs has errors".to_string(),
+                                help: None,
                             },
                         }
                     } else {
@@ -1966,6 +1983,7 @@ where
                         span: span.clone(),
                         message: "Cannot convert empty value to array of nested structs"
                             .to_string(),
+                        help: None,
                     },
                 },
             },
@@ -1997,6 +2015,7 @@ pub enum TomlValueState {
     ValidationFailed {
         span: Range<usize>,
         message: String,
+        help: Option<String>,
     },
     Ok {
         span: Range<usize>,
