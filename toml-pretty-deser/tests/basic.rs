@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsEnum, AsNested, DeserError, FieldMatchMode, FromTomlTable, StringNamedEnum,
-    ToConcrete, TomlHelper, TomlValue, TomlValueState, VerifyFromToml, deserialize,
-    deserialize_with_mode, make_partial,
+    deserialize, deserialize_with_mode, make_partial, make_partial_enum, AnnotatedError, AsEnum,
+    AsNested, AsTaggedEnum, DeserError, FieldMatchMode, FromTomlTable, StringNamedEnum, ToConcrete,
+    TomlHelper, TomlValue, TomlValueState, VerifyFromToml,
 };
 
 #[make_partial(false)]
@@ -282,11 +282,9 @@ fn test_vec_missing() {
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("numbers"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("numbers")));
     } else {
         panic!("Expected failure due to missing numbers field")
     }
@@ -386,11 +384,9 @@ fn test_enum_invalid_variant() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
     } else {
         panic!("Expected failure due to invalid enum variant")
     }
@@ -406,11 +402,9 @@ fn test_enum_missing_required() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("an_enum"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("an_enum")));
     } else {
         panic!("Expected failure due to missing required enum field")
     }
@@ -496,16 +490,14 @@ fn test_nested_happy_half() {
             &output.nested.value.as_ref().unwrap().name.as_ref().unwrap(),
             &&"a".to_string()
         );
-        assert!(
-            &output
-                .nested
-                .value
-                .as_ref()
-                .unwrap()
-                .value
-                .as_ref()
-                .is_none()
-        );
+        assert!(&output
+            .nested
+            .value
+            .as_ref()
+            .unwrap()
+            .value
+            .as_ref()
+            .is_none());
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].inner.spans[0].msg, "Missing required key: value");
         assert!(output.opt_nested.as_ref().unwrap().is_none());
@@ -742,22 +734,20 @@ fn test_two_level_nested_inline_table_failure() {
             output.level1.value.as_ref().unwrap().opt_level2.state,
             TomlValueState::ValidationFailed { .. }
         ));
-        assert!(
-            output
-                .level1
-                .value
-                .as_ref()
-                .unwrap()
-                .opt_level2
-                .value
-                .as_ref()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .data
-                .value
-                .is_none()
-        );
+        assert!(output
+            .level1
+            .value
+            .as_ref()
+            .unwrap()
+            .opt_level2
+            .value
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .data
+            .value
+            .is_none());
     } else {
         panic!("expected err")
     }
@@ -775,16 +765,14 @@ fn test_two_level_nested_missing_inner() {
     dbg!(&result);
     // Missing nested table returns StillIncomplete since the nested struct itself isn't present
     if let Err(DeserError::StillIncomplete(_, partial)) = result {
-        assert!(
-            partial
-                .level1
-                .value
-                .as_ref()
-                .unwrap()
-                .level2
-                .as_ref()
-                .is_none()
-        );
+        assert!(partial
+            .level1
+            .value
+            .as_ref()
+            .unwrap()
+            .level2
+            .as_ref()
+            .is_none());
     } else {
         panic!("Expected StillIncomplete due to missing level2 field");
     }
@@ -803,11 +791,9 @@ fn test_two_level_nested_missing_inner_field() {
     let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Missing required key: data")));
     } else {
         panic!("Expected failure due to missing data field in level2");
     }
@@ -828,11 +814,9 @@ fn test_two_errors_pretty() {
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert_eq!(errors.len(), 2);
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Missing required key: data"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Missing required key: data")));
         assert_eq!(
             errors[0].pretty("test.toml"),
             "  ╭─test.toml\n  ┆\n5 │         [level1.level2]\n6 │             other = 2\n  ┆             ──┬──    \n  ┆               │      \n  ┆               ╰─────── Unknown key: other\n──╯\nHint: Did you mean: 'data'?\n"
@@ -1047,11 +1031,9 @@ fn test_any_case_mode_unknown_key() {
         deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("unknown_field"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("unknown_field")));
     }
 }
 
@@ -1253,6 +1235,7 @@ struct InnerB {
 }
 
 #[make_partial_enum] // creates PartialEitherOne { KindA(PartialInnerA, ...)}
+#[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
@@ -1269,55 +1252,49 @@ struct OuterEither {
 fn test_either_one_happy_a() {
     let toml = "
     [choice]
-        kind = 'kindA'
+        kind = 'KindA'
         n = -5
         o = 1
     ";
-let result: Result<_, _> = deserialize_with_mode::<
-        PartialOuterEither,
-        OuterEither,
-    >(toml, FieldMatchMode::Exact);
-  dbg!(&result);
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
         match output.choice {
-            KindA(inner) => {
+            EitherOne::KindA(inner) => {
                 assert_eq!(inner.n, -5);
                 assert_eq!(inner.o, 1);
             }
-            KindB(_) => {
+            EitherOne::KindB(_) => {
                 panic!("expected KindA variant");
+            }
         }
     }
 }
-
 
 #[test]
 fn test_either_one_happy_b() {
     let toml = "
     choice = {
-        kind = 'kindB',
+        kind = 'KindB',
         s = 5,
         t = 0
     }
     ";
-let result: Result<_, _> = deserialize_with_mode::<
-        PartialOuterEither,
-        OuterEither,
-    >(toml, FieldMatchMode::Exact);
-  dbg!(&result);
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
         match output.choice {
-            KindA(inner) => {
-                assert_eq!(inner.n, -5);
-                assert_eq!(inner.o, 1);
+            EitherOne::KindA(_) => {
+                panic!("expected KindB variant");
             }
-            KindB(_) => {
-                panic!("expected KindA variant");
+            EitherOne::KindB(inner) => {
+                assert_eq!(inner.s, 5);
+                assert_eq!(inner.t, 0);
+            }
         }
     }
 }
-
-
-

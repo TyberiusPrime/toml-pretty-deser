@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-pub use toml_pretty_deser_macros::{make_partial, StringNamedEnum};
+pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial, make_partial_enum};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
@@ -717,6 +717,28 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
+    /// Create a TomlHelper from a toml_edit::Item (either Table or InlineTable)
+    pub fn from_item(
+        item: &'a toml_edit::Item,
+        errors: Rc<RefCell<Vec<AnnotatedError>>>,
+        match_mode: FieldMatchMode,
+    ) -> Self {
+        match item {
+            toml_edit::Item::Table(table) => Self::new(table, errors, match_mode),
+            toml_edit::Item::Value(toml_edit::Value::InlineTable(inline_table)) => {
+                Self::new_inline(inline_table, errors, match_mode)
+            }
+            _ => Self {
+                table: None,
+                inline_table: None,
+                expected: vec![],
+                observed: vec![],
+                errors,
+                match_mode,
+            },
+        }
+    }
+
     pub fn into_inner(self, source: &Rc<RefCell<String>>) -> Vec<HydratedAnnotatedError> {
         self.errors
             .borrow_mut()
@@ -732,6 +754,13 @@ impl<'a> TomlHelper<'a> {
     pub fn expect_field(&mut self, name: impl Into<String>, aliases: &Vec<&'static str>) {
         let field_info = FieldInfo::new(name).with_aliases(aliases);
         self.expected.push(field_info);
+    }
+/// Register a field with optional aliases
+    pub fn ignore_field(&mut self, name: impl Into<String>) {
+        let name: String = name.into();
+        let field_info = FieldInfo::new(name.clone());
+        self.expected.push(field_info);
+        self.observed.push(name);
     }
 
     /// Find a key in the table that matches the given field name (considering aliases and match mode)
@@ -900,6 +929,8 @@ impl<'a> TomlHelper<'a> {
         // Build set of observed normalized names
         let observed_set: HashSet<String> = self.observed.iter().cloned().collect();
 
+        dbg!(&self.observed);
+        dbg!(&expected_normalized);
         for key in keys {
             let normalized_key = self.match_mode.normalize(&key);
 
@@ -1569,19 +1600,24 @@ impl<T> TomlValue<T> {
     }
 }
 
-fn deserialize_nested<P>(
+pub fn deserialize_nested<P>(
     item: &toml_edit::Item,
     span: &Range<usize>,
     errors: &Rc<RefCell<Vec<AnnotatedError>>>,
     mode: FieldMatchMode,
     required: bool,
+    fields_to_ignore: &[&str]
 ) -> TomlValue<P>
 where
     P: FromTomlTable<()> + VerifyFromToml<()>,
 {
+    dbg!(fields_to_ignore);
     match item {
         toml_edit::Item::Table(table) => {
             let mut helper = TomlHelper::new(table, errors.clone(), mode);
+            for f in fields_to_ignore {
+                helper.ignore_field(*f);
+            }
             let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
             helper.deny_unknown();
 
@@ -1604,6 +1640,10 @@ where
         }
         toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => {
             let mut helper = TomlHelper::new_inline(table, errors.clone(), mode);
+            for f in fields_to_ignore {
+                helper.ignore_field(*f);
+            }
+
             let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
             helper.deny_unknown();
 
@@ -1636,6 +1676,139 @@ where
     }
 }
 
+// Struct to hold tag key information for tagged enums
+#[derive(Debug, Clone)]
+pub struct TaggedEnumTag {
+    pub tag_key: &'static str,
+}
+
+pub trait AsTaggedEnum<E>: Sized {
+    fn as_tagged_enum(
+        self,
+        tag_key: &'static str,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+        deserialize_variant: fn(
+            &str,
+            &toml_edit::Item,
+            &Rc<RefCell<Vec<AnnotatedError>>>,
+            FieldMatchMode,
+            &str,
+        ) -> Option<E>,
+    ) -> TomlValue<E>;
+}
+
+impl<E> AsTaggedEnum<E> for TomlValue<toml_edit::Item>
+where
+    E: StringNamedEnum,
+{
+    fn as_tagged_enum(
+        self,
+        tag_key: &'static str,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+        deserialize_variant: fn(
+            &str,
+            &toml_edit::Item,
+            &Rc<RefCell<Vec<AnnotatedError>>>,
+            FieldMatchMode,
+            &str,
+        ) -> Option<E>,
+    ) -> TomlValue<E> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref item) = self.value {
+                    // Look for the tag field to determine variant
+                    let tag_value = match item {
+                        toml_edit::Item::Table(table) => table
+                            .get(tag_key)
+                            .and_then(|i| i.as_str())
+                            .map(|s| s.to_string()),
+                        toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) => table
+                            .get(tag_key)
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        _ => None,
+                    };
+
+                    match tag_value {
+                        Some(tag_str) => {
+                            // Try to match the tag against variant names
+                            let variant_names = E::all_variant_names();
+                            let mut matched_variant: Option<&str> = None;
+
+                            for variant_name in variant_names {
+                                if mode.matches(variant_name, &tag_str) {
+                                    matched_variant = Some(variant_name);
+                                    break;
+                                }
+                            }
+
+                            if let Some(variant_name) = matched_variant {
+                                // Deserialize the specific variant using the provided function
+                                match deserialize_variant(variant_name, item, errors, mode, tag_key)
+                                {
+                                    Some(partial) => TomlValue {
+                                        value: Some(partial),
+                                        required: self.required,
+                                        state: TomlValueState::Ok { span: span.clone() },
+                                    },
+                                    None => TomlValue {
+                                        value: None,
+                                        required: self.required,
+                                        state: TomlValueState::ValidationFailed {
+                                            span: span.clone(),
+                                            message: format!(
+                                                "Failed to deserialize variant '{}'",
+                                                variant_name
+                                            ),
+                                        },
+                                    },
+                                }
+                            } else {
+                                let valid_names = variant_names.join(", ");
+                                TomlValue {
+                                    value: None,
+                                    required: self.required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: format!(
+                                            "Unknown enum variant '{}'. Valid variants are: {}",
+                                            tag_str, valid_names
+                                        ),
+                                    },
+                                }
+                            }
+                        }
+                        None => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: TomlValueState::ValidationFailed {
+                                span: span.clone(),
+                                message: format!("Missing required tag field: {}", tag_key),
+                            },
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to tagged enum".to_string(),
+                        },
+                    }
+                }
+            }
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
 pub trait AsNested<P>: Sized {
     fn as_nested(
         self,
@@ -1656,7 +1829,7 @@ where
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
-                    deserialize_nested(item, span, errors, mode, self.required)
+                    deserialize_nested(item, span, errors, mode, self.required, &[])
                 } else {
                     TomlValue {
                         value: None,
@@ -1689,7 +1862,7 @@ where
         match &self.state {
             TomlValueState::Ok { span } => match self.value {
                 Some(Some(item)) => {
-                    let nested = deserialize_nested(&item, span, errors, mode, self.required);
+                    let nested = deserialize_nested(&item, span, errors, mode, self.required, &[]);
                     match nested.value {
                         Some(partial) => TomlValue {
                             value: Some(Some(partial)),
@@ -1745,7 +1918,7 @@ where
                             toml_edit::Item::Table(_)
                             | toml_edit::Item::Value(toml_edit::Value::InlineTable(_)) => {
                                 let nested =
-                                    deserialize_nested(item, span, errors, mode, self.required);
+                                    deserialize_nested(item, span, errors, mode, self.required, &[]);
                                 if let Some(partial) = nested.value {
                                     results.push(partial);
                                 } else {
