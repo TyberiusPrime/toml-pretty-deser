@@ -867,3 +867,60 @@ fn test_map_order_retained() {
     }
 }
 
+#[derive(Debug, Clone)]
+struct DNA(String);
+
+#[make_partial]
+#[derive(Debug)]
+struct BarcodesValidated {
+    barcodes: IndexMap<String, DNA>,
+}
+impl PartialEq<DNA> for DNA {
+    fn eq(&self, other: &DNA) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl FromTomlItem for DNA {
+    fn from_toml_item(
+        item: &toml_edit::Item,
+        parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<DNA> {
+        match item.as_str() {
+            Some(s) => {
+                if s.chars()
+                    .all(|c| matches!(c, 'a' | 'c' | 'g' | 't' | 'A' | 'C' | 'G' | 'T'))
+                {
+                    TomlValue::new_ok(DNA(s.to_string()), parent_span)
+                } else {
+                    TomlValue::new_validation_failed(
+                        item.span().unwrap_or(parent_span),
+                        "Invalid base".to_string(),
+                        Some("Use only AGTC".to_string()),
+                    )
+                }
+            }
+            None => TomlValue::new_wrong_type(item, parent_span, "String(DNA)"),
+        }
+    }
+}
+
+#[test]
+fn test_map_validate_elements() {
+    let toml = "
+        [barcodes] 
+            alpha = 'agtc'
+            beta = 'ccGc'
+    ";
+    let result: Result<_, _> = deserialize::<PartialBarcodesValidated, BarcodesValidated>(toml);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        let keys: Vec<&String> = output.barcodes.keys().collect();
+        let should: Vec<String> = ["alpha", "beta"].iter().map(ToString::to_string).collect();
+        let actual: Vec<String> = keys.iter().map(|x| x.to_string()).collect();
+        assert_eq!(actual, should);
+        let actual: Vec<DNA> = output.barcodes.values().cloned().collect();
+        let should = vec![DNA("agtc".to_string()), DNA("beta".to_string())];
+        assert_eq!(actual, should);
+    }
+}
