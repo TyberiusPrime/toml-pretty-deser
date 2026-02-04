@@ -1,26 +1,22 @@
 use std::{cell::RefCell, rc::Rc};
-use toml_pretty_deser::{
-    deserialize_with_mode, make_partial, tdp_make_tagged_enum, AnnotatedError, DeserError,
-    FieldMatchMode, FromTomlTable, ToConcrete, TomlHelper, TomlValue, TomlValueState,
-    VerifyFromToml,
-};
+use toml_pretty_deser::prelude::*;
 
 #[make_partial]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
 #[make_partial]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct InnerB {
     s: u32,
     t: u32,
 }
 
 #[tdp_make_tagged_enum("kind", aliases = ["type"])]
-#[derive(Debug)]
+#[derive(Debug, Clone)] //todo: why is this clone necessary
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
@@ -29,7 +25,7 @@ enum EitherOne {
 #[make_partial]
 #[derive(Debug)]
 struct OuterEither {
-    #[enum_tagged]
+    #[nested]
     choice: EitherOne,
 }
 
@@ -398,7 +394,6 @@ fn test_either_one_both_kind_and_type_present() {
 #[make_partial]
 #[derive(Debug)]
 struct OuterMaybeEither {
-    #[enum_tagged]
     choice: Option<EitherOne>,
 }
 
@@ -431,7 +426,6 @@ fn test_maybe_either_one_happy_a() {
 #[make_partial]
 #[derive(Debug)]
 struct OuterManyTagged {
-    #[enum_tagged]
     choices: Vec<EitherOne>,
 }
 
@@ -499,7 +493,6 @@ fn test_many_either_empty() {
 #[derive(Debug)]
 struct OuterManyTaggedAllowOne {
     #[tpd_allow_single]
-    #[enum_tagged]
     choices: Vec<EitherOne>,
 }
 

@@ -1,8 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
-use toml_pretty_deser::{
-    deserialize, make_partial, tdp_make_enum, AnnotatedError, DeserError, FromTomlTable,
-    ToConcrete, TomlHelper, TomlValue, VerifyFromToml,
-};
+use toml_pretty_deser::prelude::*;
 
 /// Test enum using the new #[tdp_make_enum] macro.
 /// This should work WITHOUT #[as_enum] on fields!

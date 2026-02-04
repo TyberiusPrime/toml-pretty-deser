@@ -1,9 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
-use toml_pretty_deser::{
-    AnnotatedError, FromTomlItem, FromTomlTable, ToConcrete, TomlHelper, TomlValue, VerifyFromToml,
-    deserialize, make_partial,
-};
-
+use toml_pretty_deser::prelude::*;
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DNA(String);
 
@@ -23,6 +18,7 @@ impl FromTomlItem for DNA {
     fn from_toml_item(
         item: &toml_edit::Item,
         parent_span: std::ops::Range<usize>,
+        _col: &TomlCollector,
     ) -> TomlValue<DNA> {
         match item.as_str() {
             Some(s) => {

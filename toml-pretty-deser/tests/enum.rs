@@ -1,8 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
-use toml_pretty_deser::{
-    deserialize, make_partial, AnnotatedError, DeserError, FromTomlTable,
-    ToConcrete, TomlHelper, TomlValue, VerifyFromToml, tdp_make_enum
-};
+use toml_pretty_deser::prelude::*;
 #[tdp_make_enum]
 #[derive(Debug, Clone)]
 enum Example {

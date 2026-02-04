@@ -1,8 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
-use toml_pretty_deser::{
-    AnnotatedError, AsNested, DeserError, FieldMatchMode, FromTomlTable, ToConcrete, TomlHelper,
-    TomlValue, TomlValueState, VerifyFromToml, deserialize, deserialize_with_mode, make_partial,
-};
+use toml_pretty_deser::prelude::*;
 
 #[make_partial(false)]
 #[derive(Debug)]
@@ -401,10 +398,14 @@ fn test_nested_happy_half() {
                 .as_ref()
                 .is_none()
         );
-        assert_eq!(errors.len(), 1);
+        assert_eq!(errors.len(), 2);
         assert_eq!(
             errors[0].inner.spans[0].msg,
             "Missing required key: 'value'."
+        );
+        assert_eq!(
+            errors[1].inner.spans[0].msg,
+            "Missing required key: 'inline_nested'."
         );
         assert!(output.opt_nested.as_ref().unwrap().is_none());
         assert!(matches!(output.opt_nested.state, TomlValueState::Ok { .. }));
@@ -672,7 +673,7 @@ fn test_two_level_nested_missing_inner() {
     let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
     dbg!(&result);
     // Missing nested table returns StillIncomplete since the nested struct itself isn't present
-    if let Err(DeserError::StillIncomplete(_, partial)) = result {
+    if let Err(DeserError::DeserFailure(errors, partial)) = result {
         assert!(
             partial
                 .level1
@@ -682,6 +683,10 @@ fn test_two_level_nested_missing_inner() {
                 .level2
                 .as_ref()
                 .is_none()
+        );
+        assert_eq!(
+            errors[0].inner.spans[0].msg,
+            "Missing required key: 'level2'."
         );
     } else {
         panic!("Expected StillIncomplete due to missing level2 field");
@@ -1135,3 +1140,34 @@ fn test_inline_tables() {
         assert_eq!(output.inner[1].entries[2], "e");
     }
 }
+
+#[make_partial]
+struct ShowOffTable {
+    #[nested]
+    something: Nested,
+}
+//
+// #[test]
+// fn showoff()
+// {
+//     let toml = "
+//     [something]
+//         name = 'hello'
+//     ";
+//     let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
+//     if let Err(DeserError::DeserFailure(errors, _)) = result {
+//         println!("{}", errors[0].pretty("example-table.toml"));
+//     }
+//
+// let toml = "
+//     something = {
+//         name = 'hello',
+//     }
+//     ";
+//     let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
+//     if let Err(DeserError::DeserFailure(errors, _)) = result {
+//         println!("{}", errors[0].pretty("example-table.toml"));
+//     }
+//     panic!();
+//
+// }
