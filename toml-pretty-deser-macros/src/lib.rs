@@ -1306,25 +1306,13 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     // #[as_enum] combined with #[tpd_allow_single]
                     if is_vec_type(ty) {
                         // Vec<E> with allow_single - use as_enum_allow_single
-                        if aliases.is_empty() {
-                            quote! {
-                                #name: ::toml_pretty_deser::AsEnumAllowSingle::as_enum_allow_single(helper.get::<::toml_edit::Item>(#name_str))
-                            }
-                        } else {
-                            quote! {
-                                #name: ::toml_pretty_deser::AsEnumAllowSingle::as_enum_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]))
-                            }
+                        quote! {
+                            #name: ::toml_pretty_deser::AsEnumAllowSingle::as_enum_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]))
                         }
                     } else if is_option_type(ty) && extract_option_inner_full_type(ty).map(|t| is_vec_type(&t)).unwrap_or(false) {
                         // Option<Vec<E>> with allow_single - use as_opt_enum_allow_single
-                        if aliases.is_empty() {
-                            quote! {
-                                #name: ::toml_pretty_deser::AsOptEnumAllowSingle::as_opt_enum_allow_single(helper.get::<Option<::toml_edit::Item>>(#name_str))
-                            }
-                        } else {
-                            quote! {
-                                #name: ::toml_pretty_deser::AsOptEnumAllowSingle::as_opt_enum_allow_single(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]))
-                            }
+                        quote! {
+                            #name: ::toml_pretty_deser::AsOptEnumAllowSingle::as_opt_enum_allow_single(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]))
                         }
                     } else {
                         panic!("#[tpd_allow_single] can not be applied to single fields");

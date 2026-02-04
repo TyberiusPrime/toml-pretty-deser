@@ -914,12 +914,6 @@ impl<'a> TomlHelper<'a> {
         result
     }
 
-    pub fn get<T>(&mut self, key: &str) -> TomlValue<T>
-    where
-        T: FromTomlItem + std::fmt::Debug,
-    {
-        self.get_with_aliases(key, vec![])
-    }
 
     pub fn get_with_aliases<T>(
         &mut self,
