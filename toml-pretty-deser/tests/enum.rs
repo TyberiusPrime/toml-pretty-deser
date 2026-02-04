@@ -136,11 +136,9 @@ fn test_enum_missing_required() {
 #[make_partial]
 #[derive(Debug)]
 struct EnumSingleAllowed {
-    #[as_enum]
     #[tpd_allow_single]
     vec_enum: Vec<Example>,
 
-    #[as_enum]
     #[tpd_allow_single]
     opt_vec_enum: Option<Vec<Example>>,
 }
@@ -164,6 +162,23 @@ fn test_enum_happy_single() {
         assert!(matches!(opt_vec[0], Example::TwoThree));
     }
 }
+
+#[test]
+fn test_enum_happy_single_left_off() {
+    let toml = "
+        vec_enum = 'One'
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialEnumSingleAllowed, EnumSingleAllowed>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.vec_enum.len(), 1);
+        assert!(matches!(output.vec_enum[0], Example::One));
+        assert!(output.opt_vec_enum.is_none());
+    }
+}
+
 #[test]
 fn test_enum_happy_path_multi() {
     let toml = "

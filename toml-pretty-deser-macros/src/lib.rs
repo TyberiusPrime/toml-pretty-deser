@@ -51,7 +51,7 @@ pub fn derive_string_named_enum(input: TokenStream) -> TokenStream {
 }
 
 /// Attribute macro that makes a simple enum (with unit variants) directly deserializable
-/// from TOML string values without needing `#[as_enum]` on fields.
+/// from TOML string values without needing magic on fields
 ///
 /// This generates:
 /// 1. `StringNamedEnum` implementation (for variant name lookup and error messages)
@@ -67,7 +67,6 @@ pub fn derive_string_named_enum(input: TokenStream) -> TokenStream {
 ///     Blue,
 /// }
 ///
-/// // Now in a struct, no #[as_enum] needed:
 /// #[make_partial]
 /// struct Config {
 ///     color: Color,  // Just works!
@@ -162,13 +161,6 @@ fn is_nested_field(field: &syn::Field) -> bool {
         .attrs
         .iter()
         .any(|attr| attr.path().is_ident("nested"))
-}
-
-fn is_as_enum_field(field: &syn::Field) -> bool {
-    field
-        .attrs
-        .iter()
-        .any(|attr| attr.path().is_ident("as_enum"))
 }
 
 /// Check if a field has the #[tpd_allow_single] attribute.
@@ -305,25 +297,6 @@ fn is_vec_type(ty: &Type) -> bool {
     }
 }
 
-/// Extract the full inner Type from Option<T>
-fn extract_option_inner_full_type(ty: &Type) -> Option<Type> {
-    match ty {
-        Type::Path(TypePath { path, .. }) => {
-            if let Some(segment) = path.segments.last() {
-                if segment.ident == "Option" {
-                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                        if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return Some(inner_ty.clone());
-                        }
-                    }
-                }
-            }
-            None
-        }
-        _ => None,
-    }
-}
-
 fn is_enum_tagged_field(field: &syn::Field) -> bool {
     field
         .attrs
@@ -429,16 +402,12 @@ fn extract_vec_inner_full_type(ty: &Type) -> Option<Type> {
 enum IndexMapValueKind {
     /// Primitive type like u8, i32, String, etc.
     Primitive,
-    /// StringNamedEnum type
-    Enum(()),
     /// Nested struct type (needs #[nested] or similar)
     Nested(syn::Ident),
     /// Tagged enum type (needs #[enum_tagged])
     TaggedEnum(syn::Ident),
     /// Vec of primitive
     VecPrimitive,
-    /// Vec of StringNamedEnum
-    VecEnum(()),
     /// Vec of nested struct
     VecNested(syn::Ident),
     /// Vec of tagged enum
@@ -449,7 +418,6 @@ enum IndexMapValueKind {
 fn analyze_indexmap_value_type(value_ty: &Type, field: &syn::Field) -> IndexMapValueKind {
     let is_nested = is_nested_field(field);
     let is_enum_tagged = is_enum_tagged_field(field);
-    let is_enum = is_as_enum_field(field);
 
     // Check if value type is Vec<T>
     if let Some(vec_inner) = extract_vec_inner_full_type(value_ty) {
@@ -462,11 +430,6 @@ fn analyze_indexmap_value_type(value_ty: &Type, field: &syn::Field) -> IndexMapV
         if is_enum_tagged {
             if let Some(ident) = extract_type_name(&vec_inner) {
                 return IndexMapValueKind::VecTaggedEnum(ident);
-            }
-        }
-        if is_enum {
-            if let Some(_ident) = extract_type_name(&vec_inner) {
-                return IndexMapValueKind::VecEnum(());
             }
         }
         // Otherwise it's a Vec of primitive
@@ -482,11 +445,6 @@ fn analyze_indexmap_value_type(value_ty: &Type, field: &syn::Field) -> IndexMapV
     if is_enum_tagged {
         if let Some(ident) = extract_type_name(value_ty) {
             return IndexMapValueKind::TaggedEnum(ident);
-        }
-    }
-    if is_enum {
-        if let Some(_ident) = extract_type_name(value_ty) {
-            return IndexMapValueKind::Enum(());
         }
     }
 
@@ -726,14 +684,13 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         _ => panic!("make_partial only supports structs"),
     };
 
-    // Create a version of the input struct with #[nested], #[as_enum], #[enum_tagged(...)], #[alias(...)], and #[tpd_allow_single] attributes stripped
+    // Create a version of the input struct with #[nested], #[enum_tagged(...)], #[alias(...)], and #[tpd_allow_single] attributes stripped
     let mut cleaned_input = input.clone();
     if let Data::Struct(ref mut data) = cleaned_input.data {
         if let Fields::Named(ref mut fields) = data.fields {
             for field in fields.named.iter_mut() {
                 field.attrs.retain(|attr| {
                     !attr.path().is_ident("nested")
-                        && !attr.path().is_ident("as_enum")
                         && !attr.path().is_ident("enum_tagged")
                         && !attr.path().is_ident("alias")
                         && !attr.path().is_ident("tpd_allow_single")
@@ -1269,11 +1226,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                                 #name: ::toml_pretty_deser::AsOptMap::as_opt_map(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
                             }
                         }
-                        IndexMapValueKind::Enum(_) => {
-                            quote! {
-                                #name: ::toml_pretty_deser::AsOptMapEnum::as_opt_map_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
-                            }
-                        }
                         IndexMapValueKind::Nested(_) => {
                             quote! {
                                 #name: ::toml_pretty_deser::AsOptMapNested::as_opt_map_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
@@ -1288,11 +1240,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         IndexMapValueKind::VecPrimitive => {
                             quote! {
                                 #name: ::toml_pretty_deser::AsOptMapVec::as_opt_map_vec(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
-                            }
-                        }
-                        IndexMapValueKind::VecEnum(_) => {
-                            quote! {
-                                #name: ::toml_pretty_deser::AsOptMapVecEnum::as_opt_map_vec_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
                             }
                         }
                         IndexMapValueKind::VecNested(_) => {
@@ -1313,12 +1260,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             // as_map for primitives
                             quote! {
                                 #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map(&helper.errors, helper.match_mode)
-                            }
-                        }
-                        IndexMapValueKind::Enum(_) => {
-                            // as_map_enum for string enums
-                            quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_enum(&helper.errors, helper.match_mode)
                             }
                         }
                         IndexMapValueKind::Nested(_inner_name) => {
@@ -1343,12 +1284,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                                 quote! {
                                     #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec(&helper.errors, helper.match_mode)
                                 }
-                            }
-                        }
-                        IndexMapValueKind::VecEnum(_) => {
-                            // as_map_vec_enum for Vec of string enums
-                            quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec_enum(&helper.errors, helper.match_mode)
                             }
                         }
                         IndexMapValueKind::VecNested(_inner_name) => {
@@ -1407,39 +1342,21 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
                     }
                 }
-            } else if is_as_enum_field(f) {
-                // For enum fields, check if allow_single is also present
-                if is_allow_single_field(f) {
-                    // #[as_enum] combined with #[tpd_allow_single]
-                    if is_vec_type(ty) {
-                        // Vec<E> with allow_single - use as_enum_allow_single
-                        quote! {
-                            #name: ::toml_pretty_deser::AsEnumAllowSingle::as_enum_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]))
+            } else if is_allow_single_field(f) {
+                // For fields with #[tpd_allow_single], allow either array or single value
+                if is_option_type(ty) {
+                    // Option<Vec<T>> with allow_single
+                    quote! {
+                        #name: {
+                            let t: TomlValue<Vec<_>> = helper.get_allow_single_with_aliases(#name_str, vec![#(#aliases),*]);
+                            t.into_optional()
                         }
-                    } else if is_option_type(ty) && extract_option_inner_full_type(ty).map(|t| is_vec_type(&t)).unwrap_or(false) {
-                        // Option<Vec<E>> with allow_single - use as_opt_enum_allow_single
-                        quote! {
-                            #name: ::toml_pretty_deser::AsOptEnumAllowSingle::as_opt_enum_allow_single(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]))
-                        }
-                    } else {
-                        panic!("#[tpd_allow_single] can not be applied to single fields");
-                        // Single enum with allow_single doesn't make sense, fall back to normal as_enum
-                        //
-                        // quote! {
-                        //     #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_enum()
-                        // }
                     }
                 } else {
-                    // Regular #[as_enum] without allow_single
+                    // Vec<T> with allow_single
                     quote! {
-                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_enum()
+                        #name: helper.get_allow_single_with_aliases(#name_str, vec![#(#aliases),*])
                     }
-                }
-            } else if is_allow_single_field(f) {
-                // For Vec<T> fields with #[tpd_allow_single], allow either array or single value
-
-                quote! {
-                    #name: helper.get_allow_single_with_aliases(#name_str, vec![#(#aliases),*])
                 }
             } else {
                 // For regular fields, use aliases if present
