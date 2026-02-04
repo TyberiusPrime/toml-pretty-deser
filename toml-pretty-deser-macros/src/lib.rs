@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath, parse_macro_input,
+    parse_macro_input, Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath,
 };
 
 #[proc_macro_derive(StringNamedEnum)]
@@ -62,6 +62,15 @@ fn is_as_enum_field(field: &syn::Field) -> bool {
         .attrs
         .iter()
         .any(|attr| attr.path().is_ident("as_enum"))
+}
+
+/// Check if a field has the #[tpd_allow_single] attribute.
+/// This allows a Vec<T> field to accept either an array [x, y, z] or a single value x.
+fn is_allow_single_field(field: &syn::Field) -> bool {
+    field
+        .attrs
+        .iter()
+        .any(|attr| attr.path().is_ident("tpd_allow_single"))
 }
 
 /// Extract aliases from #[alias("name1", "name2", ...)] attribute
@@ -583,7 +592,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         _ => panic!("make_partial only supports structs"),
     };
 
-    // Create a version of the input struct with #[nested], #[as_enum], #[enum_tagged(...)], and #[alias(...)] attributes stripped
+    // Create a version of the input struct with #[nested], #[as_enum], #[enum_tagged(...)], #[alias(...)], and #[tpd_allow_single] attributes stripped
     let mut cleaned_input = input.clone();
     if let Data::Struct(ref mut data) = cleaned_input.data {
         if let Fields::Named(ref mut fields) = data.fields {
@@ -593,6 +602,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         && !attr.path().is_ident("as_enum")
                         && !attr.path().is_ident("enum_tagged")
                         && !attr.path().is_ident("alias")
+                        && !attr.path().is_ident("tpd_allow_single")
                 });
             }
         }
@@ -1189,9 +1199,15 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             }
                         }
                         IndexMapValueKind::VecPrimitive => {
-                            // as_map_vec for Vec of primitives
-                            quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec(&helper.errors, helper.match_mode)
+                            // as_map_vec for Vec of primitives, or as_map_vec_allow_single if #[tpd_allow_single]
+                            if is_allow_single_field(f) {
+                                quote! {
+                                    #name: ::toml_pretty_deser::AsMapVecAllowSingle::as_map_vec_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
+                                }
+                            } else {
+                                quote! {
+                                    #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec(&helper.errors, helper.match_mode)
+                                }
                             }
                         }
                         IndexMapValueKind::VecEnum(_) => {
@@ -1251,6 +1267,17 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 } else {
                     quote! {
                         #name: helper.get_with_aliases(#name_str, vec![]).as_enum()
+                    }
+                }
+            } else if is_allow_single_field(f) {
+                // For Vec<T> fields with #[tpd_allow_single], allow either array or single value
+                if aliases.is_empty() {
+                    quote! {
+                        #name: helper.get_allow_single(#name_str)
+                    }
+                } else {
+                    quote! {
+                        #name: helper.get_allow_single_with_aliases(#name_str, vec![#(#aliases),*])
                     }
                 }
             } else {

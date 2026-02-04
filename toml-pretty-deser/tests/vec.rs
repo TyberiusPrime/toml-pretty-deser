@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, FromTomlItem, FromTomlTable, ToConcrete, TomlHelper, TomlValue, VerifyFromToml,
-    deserialize, make_partial,
+    deserialize, make_partial, AnnotatedError, FromTomlItem, FromTomlTable, ToConcrete, TomlHelper,
+    TomlValue, VerifyFromToml,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,5 +53,26 @@ fn test_vec_validate_elements() {
     if let Ok(output) = result {
         assert_eq!(output.barcodes.len(), 2);
         assert_eq!(output.barcodes, ["agtc", "ccGc"]);
+    }
+}
+
+#[make_partial]
+#[derive(Debug)]
+struct BarcodesValidatedSingle {
+    #[tpd_allow_single]
+    barcodes: Vec<DNA>,
+}
+
+#[test]
+fn test_vec_allow_single() {
+    let toml = "
+        barcodes = 'agtc'
+    ";
+    let result: Result<_, _> =
+        deserialize::<PartialBarcodesValidatedSingle, BarcodesValidatedSingle>(toml);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.barcodes.len(), 1);
+        assert_eq!(output.barcodes, ["agtc"]);
     }
 }
