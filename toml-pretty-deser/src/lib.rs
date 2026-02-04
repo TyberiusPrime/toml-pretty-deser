@@ -1955,168 +1955,154 @@ pub trait AsMap<T>: Sized {
     ) -> TomlValue<IndexMap<String, T>>;
 }
 
-/// Implementation for primitive types that implement FromTomlItem
-macro_rules! impl_as_map_primitive {
-    ($ty:ty) => {
-        impl AsMap<$ty> for TomlValue<toml_edit::Item> {
-            fn as_map(
-                self,
-                errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-                _mode: FieldMatchMode,
-            ) -> TomlValue<IndexMap<String, $ty>> {
-                match &self.state {
-                    TomlValueState::Ok { span } => {
-                        if let Some(ref item) = self.value {
-                            match item.as_table_like_plus() {
-                                Some(table) => {
-                                    let mut map = IndexMap::new();
-                                    let mut has_errors = false;
+/// Blanket implementation for any T that implements FromTomlItem
+impl<T: FromTomlItem> AsMap<T> for TomlValue<toml_edit::Item> {
+    fn as_map(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        _mode: FieldMatchMode,
+    ) -> TomlValue<IndexMap<String, T>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref item) = self.value {
+                    match item.as_table_like_plus() {
+                        Some(table) => {
+                            let mut map = IndexMap::new();
+                            let mut has_errors = false;
 
-                                    for (key, value) in table.iter() {
-                                        let item_span = value.span().unwrap_or(span.clone());
-                                        let val: TomlValue<$ty> =
-                                            FromTomlItem::from_toml_item(value, item_span.clone());
-                                        match val.state {
-                                            TomlValueState::Ok { .. } => {
-                                                if let Some(v) = val.value {
-                                                    map.insert(key.to_string(), v);
-                                                }
-                                            }
-                                            _ => {
-                                                val.register_error(errors);
-                                                has_errors = true;
-                                            }
+                            for (key, value) in table.iter() {
+                                let item_span = value.span().unwrap_or(span.clone());
+                                let val: TomlValue<T> =
+                                    FromTomlItem::from_toml_item(value, item_span.clone());
+                                match val.state {
+                                    TomlValueState::Ok { .. } => {
+                                        if let Some(v) = val.value {
+                                            map.insert(key.to_string(), v);
                                         }
                                     }
-
-                                    if has_errors {
-                                        TomlValue {
-                                            value: Some(map),
-                                            required: self.required,
-                                            state: TomlValueState::ValidationFailed {
-                                                span: span.clone(),
-                                                message: "Map contains invalid values".to_string(),
-                                                help: None,
-                                            },
-                                        }
-                                    } else {
-                                        TomlValue {
-                                            value: Some(map),
-                                            required: self.required,
-                                            state: TomlValueState::Ok { span: span.clone() },
-                                        }
+                                    _ => {
+                                        val.register_error(errors);
+                                        has_errors = true;
                                     }
                                 }
-                                None => TomlValue {
-                                    value: None,
+                            }
+
+                            if has_errors {
+                                TomlValue {
+                                    value: Some(map),
                                     required: self.required,
-                                    state: TomlValueState::WrongType {
+                                    state: TomlValueState::ValidationFailed {
                                         span: span.clone(),
-                                        expected: "table|inline_table",
-                                        found: item.type_name(),
+                                        message: "Map contains invalid values".to_string(),
+                                        help: None,
                                     },
-                                },
-                            }
-                        } else {
-                            TomlValue {
-                                value: None,
-                                required: self.required,
-                                state: TomlValueState::ValidationFailed {
-                                    span: span.clone(),
-                                    message: "Cannot convert empty value to map".to_string(),
-                                    help: None,
-                                },
-                            }
-                        }
-                    }
-                    _ => TomlValue {
-                        value: None,
-                        required: self.required,
-                        state: self.state.clone(),
-                    },
-                }
-            }
-        }
-
-        impl AsMap<Option<$ty>> for TomlValue<Option<toml_edit::Item>> {
-            fn as_map(
-                self,
-                errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-                mode: FieldMatchMode,
-            ) -> TomlValue<IndexMap<String, Option<$ty>>> {
-                match &self.state {
-                    TomlValueState::Ok { span } => match self.value {
-                        Some(Some(item)) => {
-                            let single: TomlValue<toml_edit::Item> = TomlValue {
-                                value: Some(item),
-                                required: false,
-                                state: TomlValueState::Ok { span: span.clone() },
-                            };
-                            let result: TomlValue<IndexMap<String, $ty>> =
-                                single.as_map(errors, mode);
-                            match result.state {
-                                TomlValueState::Ok { span } => {
-                                    let converted: IndexMap<String, Option<$ty>> = result
-                                        .value
-                                        .unwrap()
-                                        .into_iter()
-                                        .map(|(k, v)| (k, Some(v)))
-                                        .collect();
-                                    TomlValue {
-                                        value: Some(converted),
-                                        required: self.required,
-                                        state: TomlValueState::Ok { span },
-                                    }
                                 }
-                                other => TomlValue {
-                                    value: None,
+                            } else {
+                                TomlValue {
+                                    value: Some(map),
                                     required: self.required,
-                                    state: other,
-                                },
+                                    state: TomlValueState::Ok { span: span.clone() },
+                                }
                             }
                         }
-                        Some(None) => TomlValue {
-                            value: Some(IndexMap::new()),
-                            required: self.required,
-                            state: TomlValueState::Ok { span: span.clone() },
-                        },
                         None => TomlValue {
                             value: None,
                             required: self.required,
-                            state: TomlValueState::ValidationFailed {
+                            state: TomlValueState::WrongType {
                                 span: span.clone(),
-                                message: "Cannot convert empty value to optional map".to_string(),
-                                help: None,
+                                expected: "table|inline_table",
+                                found: item.type_name(),
                             },
                         },
-                    },
-                    TomlValueState::Missing { parent_span, .. } => TomlValue {
-                        value: Some(IndexMap::new()),
-                        required: self.required,
-                        state: TomlValueState::Ok {
-                            span: parent_span.clone(),
-                        },
-                    },
-                    _ => TomlValue {
+                    }
+                } else {
+                    TomlValue {
                         value: None,
                         required: self.required,
-                        state: self.state.clone(),
-                    },
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to map".to_string(),
+                            help: None,
+                        },
+                    }
                 }
             }
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
         }
-    };
+    }
 }
 
-impl_as_map_primitive!(u8);
-impl_as_map_primitive!(i16);
-impl_as_map_primitive!(i32);
-impl_as_map_primitive!(i64);
-impl_as_map_primitive!(u32);
-impl_as_map_primitive!(u64);
-impl_as_map_primitive!(f64);
-impl_as_map_primitive!(bool);
-impl_as_map_primitive!(String);
+/// Blanket implementation for Option<T> where T: FromTomlItem
+impl<T: FromTomlItem> AsMap<Option<T>> for TomlValue<Option<toml_edit::Item>> {
+    fn as_map(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<IndexMap<String, Option<T>>> {
+        match &self.state {
+            TomlValueState::Ok { span } => match self.value {
+                Some(Some(item)) => {
+                    let single: TomlValue<toml_edit::Item> = TomlValue {
+                        value: Some(item),
+                        required: false,
+                        state: TomlValueState::Ok { span: span.clone() },
+                    };
+                    let result: TomlValue<IndexMap<String, T>> = single.as_map(errors, mode);
+                    match result.state {
+                        TomlValueState::Ok { span } => {
+                            let converted: IndexMap<String, Option<T>> = result
+                                .value
+                                .unwrap()
+                                .into_iter()
+                                .map(|(k, v)| (k, Some(v)))
+                                .collect();
+                            TomlValue {
+                                value: Some(converted),
+                                required: self.required,
+                                state: TomlValueState::Ok { span },
+                            }
+                        }
+                        other => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: other,
+                        },
+                    }
+                }
+                Some(None) => TomlValue {
+                    value: Some(IndexMap::new()),
+                    required: self.required,
+                    state: TomlValueState::Ok { span: span.clone() },
+                },
+                None => TomlValue {
+                    value: None,
+                    required: self.required,
+                    state: TomlValueState::ValidationFailed {
+                        span: span.clone(),
+                        message: "Cannot convert empty value to optional map".to_string(),
+                        help: None,
+                    },
+                },
+            },
+            TomlValueState::Missing { parent_span, .. } => TomlValue {
+                value: Some(IndexMap::new()),
+                required: self.required,
+                state: TomlValueState::Ok {
+                    span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
 
 /// Trait for converting a TOML table into a IndexMap<String, E> where E is a StringNamedEnum
 pub trait AsMapEnum<E>: Sized {
@@ -3044,76 +3030,61 @@ pub trait AsOptMapVecTaggedEnum<E>: Sized {
     ) -> TomlValue<Option<IndexMap<String, Vec<E>>>>;
 }
 
-/// Implementation for AsOptMap on Option<Item> returning Option<IndexMap<String, T>>
-macro_rules! impl_as_opt_map_primitive {
-    ($ty:ty) => {
-        impl AsOptMap<$ty> for TomlValue<Option<toml_edit::Item>> {
-            fn as_opt_map(
-                self,
-                errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-                mode: FieldMatchMode,
-            ) -> TomlValue<Option<IndexMap<String, $ty>>> {
-                match &self.state {
-                    TomlValueState::Ok { span } => match self.value {
-                        Some(Some(item)) => {
-                            let single: TomlValue<toml_edit::Item> = TomlValue {
-                                value: Some(item),
-                                required: false,
-                                state: TomlValueState::Ok { span: span.clone() },
-                            };
-                            let result: TomlValue<IndexMap<String, $ty>> =
-                                single.as_map(errors, mode);
-                            match result.state {
-                                TomlValueState::Ok { span } => TomlValue {
-                                    value: Some(result.value),
-                                    required: self.required,
-                                    state: TomlValueState::Ok { span },
-                                },
-                                other => TomlValue {
-                                    value: None,
-                                    required: self.required,
-                                    state: other,
-                                },
-                            }
-                        }
-                        Some(None) => TomlValue {
-                            value: Some(None),
+/// Blanket implementation for AsOptMap on Option<Item> returning Option<IndexMap<String, T>>
+impl<T: FromTomlItem> AsOptMap<T> for TomlValue<Option<toml_edit::Item>> {
+    fn as_opt_map(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Option<IndexMap<String, T>>> {
+        match &self.state {
+            TomlValueState::Ok { span } => match self.value {
+                Some(Some(item)) => {
+                    let single: TomlValue<toml_edit::Item> = TomlValue {
+                        value: Some(item),
+                        required: false,
+                        state: TomlValueState::Ok { span: span.clone() },
+                    };
+                    let result: TomlValue<IndexMap<String, T>> = single.as_map(errors, mode);
+                    match result.state {
+                        TomlValueState::Ok { span } => TomlValue {
+                            value: Some(result.value),
                             required: self.required,
-                            state: TomlValueState::Ok { span: span.clone() },
+                            state: TomlValueState::Ok { span },
                         },
-                        None => TomlValue {
-                            value: Some(None),
+                        other => TomlValue {
+                            value: None,
                             required: self.required,
-                            state: TomlValueState::Ok { span: span.clone() },
+                            state: other,
                         },
-                    },
-                    TomlValueState::Missing { parent_span, .. } => TomlValue {
-                        value: Some(None),
-                        required: self.required,
-                        state: TomlValueState::Ok {
-                            span: parent_span.clone(),
-                        },
-                    },
-                    _ => TomlValue {
-                        value: None,
-                        required: self.required,
-                        state: self.state.clone(),
-                    },
+                    }
                 }
-            }
+                Some(None) => TomlValue {
+                    value: Some(None),
+                    required: self.required,
+                    state: TomlValueState::Ok { span: span.clone() },
+                },
+                None => TomlValue {
+                    value: Some(None),
+                    required: self.required,
+                    state: TomlValueState::Ok { span: span.clone() },
+                },
+            },
+            TomlValueState::Missing { parent_span, .. } => TomlValue {
+                value: Some(None),
+                required: self.required,
+                state: TomlValueState::Ok {
+                    span: parent_span.clone(),
+                },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
         }
-    };
+    }
 }
-
-impl_as_opt_map_primitive!(u8);
-impl_as_opt_map_primitive!(i16);
-impl_as_opt_map_primitive!(i32);
-impl_as_opt_map_primitive!(i64);
-impl_as_opt_map_primitive!(u32);
-impl_as_opt_map_primitive!(u64);
-impl_as_opt_map_primitive!(f64);
-impl_as_opt_map_primitive!(bool);
-impl_as_opt_map_primitive!(String);
 
 /// Implementation for AsOptMapEnum on Option<Item> returning Option<IndexMap<String, E>>
 impl<E: StringNamedEnum> AsOptMapEnum<E> for TomlValue<Option<toml_edit::Item>> {
