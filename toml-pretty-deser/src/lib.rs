@@ -724,8 +724,7 @@ impl<'a> TomlHelper<'a> {
 
     pub fn get<T>(&mut self, key: &str) -> TomlValue<T>
     where
-        TomlValue<T>: FromTomlItem,
-        T: std::fmt::Debug,
+        T: FromTomlItem + std::fmt::Debug,
     {
         self.get_with_aliases(key, vec![])
     }
@@ -736,8 +735,7 @@ impl<'a> TomlHelper<'a> {
         aliases: Vec<&'static str>,
     ) -> TomlValue<T>
     where
-        TomlValue<T>: FromTomlItem,
-        T: std::fmt::Debug,
+        T: FromTomlItem + std::fmt::Debug,
     {
         let parent_span = if let Some(table) = self.table {
             table.span().unwrap_or(0..0)
@@ -852,15 +850,20 @@ impl<'a> TomlHelper<'a> {
 }
 
 pub trait FromTomlItem {
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self;
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> TomlValue<Self>
+    where
+        Self: Sized;
 }
 
 macro_rules! impl_from_toml_item_integer {
     ($ty:ty, $name:expr) => {
-        impl FromTomlItem for TomlValue<$ty> {
-            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        impl FromTomlItem for $ty {
+            fn from_toml_item(
+                item: &toml_edit::Item,
+                parent_span: Range<usize>,
+            ) -> TomlValue<Self> {
                 match item {
-                    toml_edit::Item::None => TomlValue::empty_missing(parent_span),
+                    toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
                     toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
                         let value_i64 = *formatted.value();
                         if value_i64 < <$ty>::MIN as i64 || value_i64 > <$ty>::MAX as i64 {
@@ -926,10 +929,13 @@ impl_from_toml_item_integer!(u64, "u64");
 
 macro_rules! impl_from_toml_item_value {
     ($ty:ty, $name:expr, $variant:ident) => {
-        impl FromTomlItem for TomlValue<$ty> {
-            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        impl FromTomlItem for $ty {
+            fn from_toml_item(
+                item: &toml_edit::Item,
+                parent_span: Range<usize>,
+            ) -> TomlValue<Self> {
                 match item {
-                    toml_edit::Item::None => TomlValue::empty_missing(parent_span),
+                    toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
                     toml_edit::Item::Value(toml_edit::Value::$variant(formatted)) => {
                         let value = formatted.value();
                         TomlValue {
@@ -978,10 +984,10 @@ impl_from_toml_item_value!(String, "String", String);
 impl_from_toml_item_value!(f64, "Float", Float);
 
 // Implementation for raw toml_edit::Item - used for nested struct deserialization
-impl FromTomlItem for TomlValue<toml_edit::Item> {
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+impl FromTomlItem for toml_edit::Item {
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> TomlValue<Self> {
         match item {
-            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
+            toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
 
             _ => TomlValue {
                 required: true,
@@ -996,8 +1002,11 @@ impl FromTomlItem for TomlValue<toml_edit::Item> {
 
 macro_rules! impl_from_toml_item_option {
     ($ty:ty) => {
-        impl FromTomlItem for TomlValue<Option<$ty>> {
-            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        impl FromTomlItem for Option<$ty> {
+            fn from_toml_item(
+                item: &toml_edit::Item,
+                parent_span: Range<usize>,
+            ) -> TomlValue<Self> {
                 let mut res: TomlValue<$ty> = FromTomlItem::from_toml_item(item, parent_span);
                 res.required = false;
                 match res.state {
@@ -1034,10 +1043,13 @@ impl_from_toml_item_option!(toml_edit::Item);
 
 macro_rules! impl_from_toml_item_vec {
     ($ty:ty) => {
-        impl FromTomlItem for TomlValue<Vec<$ty>> {
-            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        impl FromTomlItem for Vec<$ty> {
+            fn from_toml_item(
+                item: &toml_edit::Item,
+                parent_span: Range<usize>,
+            ) -> TomlValue<Self> {
                 match item {
-                    toml_edit::Item::None => TomlValue::empty_missing(parent_span),
+                    toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
                     toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
                         let mut values = Vec::with_capacity(array.len());
                         let mut has_error = false;
@@ -1111,8 +1123,11 @@ macro_rules! impl_from_toml_item_vec {
             }
         }
 
-        impl FromTomlItem for TomlValue<Option<Vec<$ty>>> {
-            fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+        impl FromTomlItem for Option<Vec<$ty>> {
+            fn from_toml_item(
+                item: &toml_edit::Item,
+                parent_span: Range<usize>,
+            ) -> TomlValue<Self> {
                 let mut res: TomlValue<Vec<$ty>> = FromTomlItem::from_toml_item(item, parent_span);
                 res.required = false;
                 match res.state {
@@ -1147,10 +1162,10 @@ impl_from_toml_item_vec!(f64);
 impl_from_toml_item_vec!(bool);
 impl_from_toml_item_vec!(String);
 
-impl FromTomlItem for TomlValue<Vec<toml_edit::Item>> {
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
+impl FromTomlItem for Vec<toml_edit::Item> {
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> TomlValue<Self> {
         match item {
-            toml_edit::Item::None => TomlValue::empty_missing(parent_span),
+            toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
             toml_edit::Item::ArrayOfTables(array) => {
                 let items: Vec<toml_edit::Item> = array
                     .iter()
@@ -1209,13 +1224,48 @@ impl<T> Default for TomlValue<T> {
 }
 
 impl<T> TomlValue<T> {
-    pub fn empty_missing(parent_span: Range<usize>) -> Self {
+    pub fn new_ok(value: T, span: Range<usize>) -> Self {
+        TomlValue {
+            value: Some(value),
+            required: true,
+            state: TomlValueState::Ok { span },
+        }
+    }
+
+    pub fn new_empty_missing(parent_span: Range<usize>) -> Self {
         TomlValue {
             value: None,
             required: true,
             state: TomlValueState::Missing {
                 key: "".to_string(),
                 parent_span,
+            },
+        }
+    }
+    pub fn new_validation_failed(span: Range<usize>, message: String, help: Option<String>) -> Self{
+        TomlValue {
+            value: None,
+            required: true,
+            state: TomlValueState::ValidationFailed {
+                span,
+                message,
+                help,
+            },
+        }
+    }
+
+    pub fn new_wrong_type(
+        item: &toml_edit::Item,
+        parent_span: Range<usize>,
+        expected: &'static str,
+    ) -> Self {
+        TomlValue {
+            value: None,
+            required: true,
+            state: TomlValueState::WrongType {
+                span: item.span().unwrap_or(parent_span),
+                expected,
+                found: item.type_name(),
             },
         }
     }

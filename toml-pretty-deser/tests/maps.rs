@@ -1,9 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
 use indexmap::IndexMap;
+use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
     AnnotatedError, AsMap, AsMapEnum, AsMapNested, AsMapTaggedEnum, AsMapVec, AsMapVecEnum,
-    AsMapVecNested, AsMapVecTaggedEnum, DeserError, FromTomlTable, StringNamedEnum, ToConcrete,
-    TomlHelper, TomlValue, VerifyFromToml, deserialize, make_partial, make_partial_enum,
+    AsMapVecNested, AsMapVecTaggedEnum, DeserError, FromTomlItem, FromTomlTable, StringNamedEnum,
+    ToConcrete, TomlHelper, TomlValue, VerifyFromToml, deserialize, make_partial,
+    make_partial_enum,
 };
 
 #[make_partial]
@@ -21,7 +22,7 @@ struct InnerB {
 }
 
 #[make_partial_enum] // creates PartialEitherOne { KindA(PartialInnerA, ...)}
-#[derive(Debug)] 
+#[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
@@ -832,16 +833,14 @@ fn test_mapped_optional_struct_missing_field() {
     }
 }
 
-
 #[make_partial]
 #[derive(Debug)]
 struct Barcodes {
-    barcodes: IndexMap<String, String>
+    barcodes: IndexMap<String, String>,
 }
 
 #[test]
-fn test_map_order_retained() 
-{
+fn test_map_order_retained() {
     let toml = "
         [barcodes] 
             alpha = 'agtc'
@@ -857,12 +856,14 @@ fn test_map_order_retained()
     assert!(result.is_ok());
     if let Ok(output) = result {
         let keys: Vec<&String> = output.barcodes.keys().collect();
-        let should: Vec<String> = ["alpha","beta", "gamma", "delta", "epsilon", "romeo", "tango", "juliet"].iter().map(ToString::to_string).collect();
+        let should: Vec<String> = [
+            "alpha", "beta", "gamma", "delta", "epsilon", "romeo", "tango", "juliet",
+        ]
+        .iter()
+        .map(ToString::to_string)
+        .collect();
         let actual: Vec<String> = keys.iter().map(|x| x.to_string()).collect();
         assert_eq!(actual, should);
     }
 }
-
-
-
 
