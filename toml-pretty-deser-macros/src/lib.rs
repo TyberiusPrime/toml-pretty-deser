@@ -50,6 +50,113 @@ pub fn derive_string_named_enum(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+/// Attribute macro that makes a simple enum (with unit variants) directly deserializable
+/// from TOML string values without needing `#[as_enum]` on fields.
+///
+/// This generates:
+/// 1. `StringNamedEnum` implementation (for variant name lookup and error messages)
+/// 2. `FromTomlItem` implementation (for direct deserialization from TOML strings)
+///
+/// # Example
+/// ```ignore
+/// #[tdp_make_enum]
+/// #[derive(Debug, Clone)]
+/// enum Color {
+///     Red,
+///     Green,
+///     Blue,
+/// }
+///
+/// // Now in a struct, no #[as_enum] needed:
+/// #[make_partial]
+/// struct Config {
+///     color: Color,  // Just works!
+///     colors: Vec<Color>,  // Also works!
+///     maybe_color: Option<Color>,  // Yep!
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn tdp_make_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    let enum_name = &input.ident;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let variants = match &input.data {
+        Data::Enum(data) => &data.variants,
+        _ => panic!("tdp_make_enum can only be applied to enums"),
+    };
+
+    // Validate that all variants are unit variants (no fields)
+    for v in variants.iter() {
+        match &v.fields {
+            Fields::Unit => {}
+            _ => panic!(
+                "tdp_make_enum only supports unit variants (no fields). Variant '{}' has fields.",
+                v.ident
+            ),
+        }
+    }
+
+    let variant_names: Vec<_> = variants.iter().map(|v| v.ident.to_string()).collect();
+
+    let from_str_arms = variants.iter().map(|v| {
+        let name = &v.ident;
+        let name_str = name.to_string();
+        quote! {
+            #name_str => ::std::option::Option::Some(#enum_name::#name)
+        }
+    });
+
+    let expanded = quote! {
+        #input
+
+        impl #impl_generics ::toml_pretty_deser::StringNamedEnum for #enum_name #ty_generics #where_clause {
+            fn all_variant_names() -> &'static [&'static str] {
+                &[#(#variant_names),*]
+            }
+
+            fn from_str(s: &str) -> ::std::option::Option<Self> {
+                match s {
+                    #(#from_str_arms,)*
+                    _ => ::std::option::Option::None,
+                }
+            }
+        }
+
+        impl #impl_generics ::toml_pretty_deser::FromTomlItem for #enum_name #ty_generics #where_clause {
+            fn from_toml_item(
+                item: &::toml_edit::Item,
+                parent_span: ::std::ops::Range<usize>,
+            ) -> ::toml_pretty_deser::TomlValue<Self> {
+                match item {
+                    ::toml_edit::Item::None => ::toml_pretty_deser::TomlValue::new_empty_missing(parent_span),
+                    ::toml_edit::Item::Value(::toml_edit::Value::String(formatted)) => {
+                        let s = formatted.value();
+                        let span = formatted.span().unwrap_or(parent_span.clone());
+                        match <#enum_name as ::toml_pretty_deser::StringNamedEnum>::from_str(s) {
+                            ::std::option::Option::Some(enum_val) => {
+                                ::toml_pretty_deser::TomlValue::new_ok(enum_val, span)
+                            }
+                            ::std::option::Option::None => {
+                                let help = ::toml_pretty_deser::suggest_enum_alternatives::<#enum_name>(s);
+                                ::toml_pretty_deser::TomlValue::new_validation_failed(
+                                    span,
+                                    "Invalid enum variant.".to_string(),
+                                    ::std::option::Option::Some(help),
+                                )
+                            }
+                        }
+                    }
+                    other => ::toml_pretty_deser::TomlValue::new_wrong_type(other, parent_span, "string"),
+                }
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
 fn is_nested_field(field: &syn::Field) -> bool {
     field
         .attrs

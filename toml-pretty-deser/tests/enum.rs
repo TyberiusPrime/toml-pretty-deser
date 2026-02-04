@@ -1,9 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    deserialize, make_partial, AnnotatedError, AsEnum, DeserError, FromTomlTable, StringNamedEnum,
-    ToConcrete, TomlHelper, TomlValue, VerifyFromToml,
+    deserialize, make_partial, AnnotatedError, DeserError, FromTomlTable,
+    ToConcrete, TomlHelper, TomlValue, VerifyFromToml, tdp_make_enum
 };
-#[derive(StringNamedEnum, Debug, Clone)]
+#[tdp_make_enum]
+#[derive(Debug, Clone)]
 enum Example {
     One,
     TwoThree,
@@ -14,15 +15,11 @@ enum Example {
 #[derive(Debug)]
 struct EnumOutput {
     #[alias(other_an_enum)]
-    #[as_enum]
     an_enum: Example,
-    #[as_enum]
     #[alias(other_opt_enum)]
     opt_enum: Option<Example>,
-    #[as_enum]
     #[alias(other_vec_enum)]
     vec_enum: Vec<Example>,
-    #[as_enum]
     #[alias(other_opt_vec_enum)]
     opt_vec_enum: Option<Vec<Example>>,
 }

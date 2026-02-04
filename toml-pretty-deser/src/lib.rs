@@ -4,7 +4,9 @@ use toml_edit::{Document, TomlError};
 
 mod tablelike;
 use tablelike::{AsTableLike, TableLikePlus};
-pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial, make_partial_enum};
+pub use toml_pretty_deser_macros::{
+    make_partial, make_partial_enum, tdp_make_enum, StringNamedEnum,
+};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
@@ -566,6 +568,13 @@ fn format_quoted_list(items: &[&str]) -> String {
     }
 }
 
+/// Public helper for enum deserialization error messages.
+/// Used by the `#[tdp_make_enum]` macro to generate helpful error messages
+/// when an invalid enum variant is encountered.
+pub fn suggest_enum_alternatives<E: StringNamedEnum>(current: &str) -> String {
+    suggest_alternatives(current, E::all_variant_names())
+}
+
 #[derive(Debug)]
 pub enum DeserError<P> {
     ParsingFailure(TomlError),
@@ -913,7 +922,6 @@ impl<'a> TomlHelper<'a> {
 
         result
     }
-
 
     pub fn get_with_aliases<T>(
         &mut self,
