@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsTaggedEnum, AsVecTaggedEnum, DeserError,
-    FieldMatchMode, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper, TomlValue,
-    TomlValueState, VerifyFromToml, deserialize_with_mode, make_partial, make_partial_enum,
+    deserialize_with_mode, make_partial, tdp_make_tagged_enum, AnnotatedError, DeserError,
+    FieldMatchMode, FromTomlTable, ToConcrete, TomlHelper, TomlValue, TomlValueState,
+    VerifyFromToml,
 };
 
 #[make_partial]
@@ -19,7 +19,7 @@ struct InnerB {
     t: u32,
 }
 
-#[make_partial_enum] // creates PartialEitherOne { KindA(PartialInnerA, ...)}
+#[tdp_make_tagged_enum("kind", aliases = ["type"])]
 #[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
@@ -29,8 +29,7 @@ enum EitherOne {
 #[make_partial]
 #[derive(Debug)]
 struct OuterEither {
-    #[enum_tagged("kind")]
-    #[alias("type")]
+    #[enum_tagged]
     choice: EitherOne,
 }
 
@@ -197,11 +196,9 @@ fn test_either_one_wrong_tag_type() {
         deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Wrong type: integer, expected string")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Wrong type: integer, expected string"));
         assert_eq!(
             errors[0].inner.help,
             Some("Available are: 'KindA' or 'KindB'".to_string())
@@ -239,11 +236,9 @@ fn test_either_one_missing_variant_field() {
         deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
     } else {
         panic!("expected missing required key for variant field");
     }
@@ -263,11 +258,9 @@ fn test_either_one_unknown_key_in_variant() {
         deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Unknown key.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Unknown key."));
     } else {
         panic!("expected unknown key error inside variant");
     }
@@ -295,16 +288,12 @@ fn test_either_one_fields_mismatch_variant() {
                 .count()
                 == 2
         );
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
-        );
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'."));
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
     } else {
         panic!("expected errors due to field/variant mismatch");
     }
@@ -346,11 +335,9 @@ fn test_either_one_missing_choice_field() {
         deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'."));
     } else {
         panic!("expected missing required key.");
     }
@@ -369,11 +356,9 @@ fn test_either_one_wrong_field_type_in_variant() {
         deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
     } else {
         panic!("expected wrong type error in variant field");
     }
@@ -413,7 +398,7 @@ fn test_either_one_both_kind_and_type_present() {
 #[make_partial]
 #[derive(Debug)]
 struct OuterMaybeEither {
-    #[enum_tagged("kind")]
+    #[enum_tagged]
     choice: Option<EitherOne>,
 }
 
@@ -446,7 +431,7 @@ fn test_maybe_either_one_happy_a() {
 #[make_partial]
 #[derive(Debug)]
 struct OuterManyTagged {
-    #[enum_tagged("kind")]
+    #[enum_tagged]
     choices: Vec<EitherOne>,
 }
 
@@ -514,7 +499,7 @@ fn test_many_either_empty() {
 #[derive(Debug)]
 struct OuterManyTaggedAllowOne {
     #[tpd_allow_single]
-    #[enum_tagged("kind")]
+    #[enum_tagged]
     choices: Vec<EitherOne>,
 }
 

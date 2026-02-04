@@ -452,33 +452,82 @@ fn analyze_indexmap_value_type(value_ty: &Type, field: &syn::Field) -> IndexMapV
     IndexMapValueKind::Primitive
 }
 
-fn extract_tag_key(field: &syn::Field) -> Option<String> {
-    for attr in &field.attrs {
-        if attr.path().is_ident("enum_tagged") {
-            let result: Result<String, _> =
-                attr.parse_args_with(|input: syn::parse::ParseStream| {
-                    let lit: syn::LitStr = input.parse()?;
-                    Ok(lit.value())
-                });
-            if let Ok(key) = result {
-                return Some(key);
-            }
-        }
-    }
-    None
+/// Arguments for the tdp_make_tagged_enum attribute
+struct TaggedEnumArgs {
+    tag_key: String,
+    aliases: Vec<String>,
 }
 
+impl syn::parse::Parse for TaggedEnumArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        // Parse: "tag_key" or "tag_key", aliases = ["alias1", "alias2"]
+        let tag_key: syn::LitStr = input.parse()?;
+
+        let mut aliases = Vec::new();
+
+        // Check for optional aliases
+        if input.peek(syn::Token![,]) {
+            input.parse::<syn::Token![,]>()?;
+
+            // Parse: aliases = [...]
+            let ident: syn::Ident = input.parse()?;
+            if ident != "aliases" {
+                return Err(syn::Error::new(ident.span(), "expected 'aliases'"));
+            }
+            input.parse::<syn::Token![=]>()?;
+
+            let content;
+            syn::bracketed!(content in input);
+
+            while !content.is_empty() {
+                let alias: syn::LitStr = content.parse()?;
+                aliases.push(alias.value());
+                if content.peek(syn::Token![,]) {
+                    content.parse::<syn::Token![,]>()?;
+                }
+            }
+        }
+
+        Ok(TaggedEnumArgs {
+            tag_key: tag_key.value(),
+            aliases,
+        })
+    }
+}
+
+/// Attribute macro for creating tagged enums that carry their tag metadata.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// #[tdp_make_tagged_enum("kind", aliases = ["type"])]
+/// #[derive(Debug)]
+/// enum EitherOne {
+///     KindA(InnerA),
+///     KindB(InnerB),
+/// }
+/// ```
+///
+/// This generates:
+/// - A `PartialEitherOne` enum with partial variants
+/// - Implementation of `TaggedEnumMeta` with TAG_KEY and TAG_ALIASES
+/// - Implementation of `ToConcrete<EitherOne>` for `PartialEitherOne`
+/// - Implementation of `FromTomlTable<()>` for error collection
 #[proc_macro_attribute]
-pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as TaggedEnumArgs);
     let input = parse_macro_input!(item as DeriveInput);
     let enum_name = &input.ident;
     let partial_name = format_ident!("Partial{}", enum_name);
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+    let tag_key = &args.tag_key;
+    let tag_aliases = &args.aliases;
+
     let variants = match &input.data {
         Data::Enum(data) => &data.variants,
-        _ => panic!("make_partial_enum only supports enums"),
+        _ => panic!("tdp_make_tagged_enum only supports enums"),
     };
 
     // Generate partial enum variants
@@ -495,7 +544,7 @@ pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         #variant_name(#partial_inner_type)
                     }
                 }
-                _ => panic!("make_partial_enum only supports single unnamed field variants"),
+                _ => panic!("tdp_make_tagged_enum only supports single unnamed field variants"),
             }
         })
         .collect();
@@ -588,9 +637,15 @@ pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
             #(#partial_variants,)*
         }
 
-        impl #impl_generics #partial_name #ty_generics #where_clause {
-            /// Deserialize a specific variant by name from a TOML item
-            pub fn deserialize_variant(
+        impl #impl_generics ::toml_pretty_deser::TaggedEnumMeta for #partial_name #ty_generics #where_clause {
+            const TAG_KEY: &'static str = #tag_key;
+            const TAG_ALIASES: &'static [&'static str] = &[#(#tag_aliases),*];
+
+            fn all_variant_names() -> &'static [&'static str] {
+                &[#(#variant_names),*]
+            }
+
+            fn deserialize_variant(
                 variant_name: &str,
                 item: &::toml_edit::Item,
                 errors: &std::rc::Rc<std::cell::RefCell<Vec<::toml_pretty_deser::AnnotatedError>>>,
@@ -604,20 +659,7 @@ pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
 
-        impl #impl_generics StringNamedEnum for #partial_name #ty_generics #where_clause {
-            fn all_variant_names() -> &'static [&'static str] {
-                &[#(#variant_names),*]
-            }
-
-            fn from_str(s: &str) -> Option<Self> {
-                // This is used by AsTaggedEnum for variant matching
-                // The actual deserialization happens through deserialize_variant
-                None
-            }
-        }
-
         impl #impl_generics ToConcrete<#enum_name #ty_generics> for #partial_name #ty_generics #where_clause {
-
             fn to_concrete(self) -> Option<#enum_name #ty_generics> {
                 match self {
                     #(#to_concrete_variants,)*
@@ -639,9 +681,7 @@ pub fn make_partial_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             fn from_toml_table(_helper: &mut ::toml_pretty_deser::TomlHelper<'_>, _partial: &()) -> Self {
-                // Note: This should not be called directly for tagged enums.
-                // Tagged enums should use AsTaggedEnum::as_tagged_enum instead.
-                panic!("FromTomlTable<()> should not be called directly on tagged enums. Use AsTaggedEnum::as_tagged_enum instead.");
+                panic!("FromTomlTable<()> should not be called directly on tagged enums. Use TaggedEnumMeta::deserialize_variant instead.");
             }
         }
 
@@ -720,6 +760,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
         if is_enum_tagged_field(f) && !is_indexmap {
             // enum_tagged can be applied to EnumType, Option<EnumType>, or Vec<EnumType>
+            // The tag key is now provided by the enum's TaggedEnumMeta impl, not here
             if is_option_type(ty) {
                 if extract_option_inner_type(ty).is_none() {
                     panic!(
@@ -732,9 +773,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             } else if extract_type_name(ty).is_none() {
                 panic!("enum_tagged attribute requires a simple type name");
-            }
-            if extract_tag_key(f).is_none() {
-                panic!("enum_tagged attribute requires a tag key: #[enum_tagged(\"key\")]");
             }
         }
     }
@@ -1234,7 +1272,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         IndexMapValueKind::TaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMapTaggedEnum::as_opt_map_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                                #name: ::toml_pretty_deser::FromOptMapTaggedEnum::<#partial_type>::from_opt_map_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
                             }
                         }
                         IndexMapValueKind::VecPrimitive => {
@@ -1250,7 +1288,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         IndexMapValueKind::VecTaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMapVecTaggedEnum::as_opt_map_vec_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                                #name: ::toml_pretty_deser::FromOptMapVecTaggedEnum::<#partial_type>::from_opt_map_vec_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
                             }
                         }
                     }
@@ -1271,7 +1309,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         IndexMapValueKind::TaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_tagged_enum(&helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                                #name: ::toml_pretty_deser::FromMapTaggedEnum::<#partial_type>::from_map_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
                             }
                         }
                         IndexMapValueKind::VecPrimitive => {
@@ -1296,7 +1334,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         IndexMapValueKind::VecTaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]).as_map_vec_tagged_enum(&helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                                #name: ::toml_pretty_deser::FromMapVecTaggedEnum::<#partial_type>::from_map_vec_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]), &helper.errors, helper.match_mode)
                             }
                         }
                     }
@@ -1307,14 +1345,17 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_nested(&helper.errors, helper.match_mode)
                 }
             } else if is_enum_tagged_field(f) {
-                // For enum_tagged fields, use as_tagged_enum with the tag key, aliases, and deserialize function
-                let tag_key = extract_tag_key(f).unwrap();
+                // For enum_tagged fields, use FromTaggedEnum which gets tag info from TaggedEnumMeta
                 if is_option_type(&f.ty) {
                     let inner_type_name = extract_option_inner_type(&f.ty).unwrap();
                     let partial_type = format_ident!("Partial{}", inner_type_name);
                     quote! {
                         #name: {
-                            let t = helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant);
+                            let t: ::toml_pretty_deser::TomlValue<#partial_type> = ::toml_pretty_deser::FromTaggedEnum::from_tagged_enum(
+                                helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]),
+                                &helper.errors,
+                                helper.match_mode
+                            );
                             t.into_optional()
                         }
                     }
@@ -1324,27 +1365,30 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     if is_allow_single_field(f) {
                         // Vec<E> with #[enum_tagged] and #[tpd_allow_single]
                         quote! {
-                            #name: ::toml_pretty_deser::AsVecTaggedEnumAllowSingle::as_vec_tagged_enum_allow_single(
+                            #name: ::toml_pretty_deser::FromVecTaggedEnumAllowSingle::<#partial_type>::from_vec_tagged_enum_allow_single(
                                 helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]),
-                                #tag_key,
-                                vec![#(#aliases),*],
                                 &helper.errors,
-                                helper.match_mode,
-                                #partial_type::deserialize_variant
+                                helper.match_mode
                             )
                         }
                     } else {
                         quote! {
-                            #name: {
-                                helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_vec_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
-                            }
+                            #name: ::toml_pretty_deser::FromVecTaggedEnum::<#partial_type>::from_vec_tagged_enum(
+                                helper.get_with_aliases::<Vec<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]),
+                                &helper.errors,
+                                helper.match_mode
+                            )
                         }
                     }
                 } else {
                     let type_name = extract_type_name(&f.ty).unwrap();
                     let partial_type = format_ident!("Partial{}", type_name);
                     quote! {
-                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                        #name: ::toml_pretty_deser::FromTaggedEnum::<#partial_type>::from_tagged_enum(
+                            helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]),
+                            &helper.errors,
+                            helper.match_mode
+                        )
                     }
                 }
             } else if is_allow_single_field(f) {

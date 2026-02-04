@@ -5,12 +5,102 @@ use toml_edit::{Document, TomlError};
 mod tablelike;
 use tablelike::{AsTableLike, TableLikePlus};
 pub use toml_pretty_deser_macros::{
-    StringNamedEnum, make_partial, make_partial_enum, tdp_make_enum,
+    make_partial, tdp_make_enum, tdp_make_tagged_enum, StringNamedEnum,
 };
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
     fn from_str(s: &str) -> Option<Self>;
+}
+
+/// Trait for tagged enums that carry their tag key and aliases.
+/// This is automatically implemented by `#[tdp_make_tagged_enum("tag_key")]`.
+pub trait TaggedEnumMeta: Sized {
+    /// The tag key used to identify the variant (e.g., "kind" or "type")
+    const TAG_KEY: &'static str;
+    /// Aliases for the tag key (e.g., if "type" is an alias for "kind")
+    const TAG_ALIASES: &'static [&'static str];
+    /// All variant names for error messages and matching
+    fn all_variant_names() -> &'static [&'static str];
+    /// Deserialize a specific variant by name from a TOML item
+    fn deserialize_variant(
+        variant_name: &str,
+        item: &toml_edit::Item,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+        fields_to_ignore: &[&str],
+    ) -> Option<Self>;
+}
+
+/// Extension trait for deserializing tagged enums from TOML items.
+/// This uses the `TaggedEnumMeta` trait to get tag key and aliases.
+pub trait FromTaggedEnum<E: TaggedEnumMeta>: Sized {
+    /// Deserialize a tagged enum from a TOML item
+    fn from_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<E>;
+}
+
+/// Extension trait for deserializing Vec of tagged enums from TOML items.
+pub trait FromVecTaggedEnum<E: TaggedEnumMeta>: Sized {
+    /// Deserialize a Vec of tagged enums from a TOML array
+    fn from_vec_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Vec<E>>;
+}
+
+/// Extension trait for deserializing Vec of tagged enums with single-value support.
+pub trait FromVecTaggedEnumAllowSingle<E: TaggedEnumMeta>: Sized {
+    /// Deserialize a Vec of tagged enums, allowing a single value
+    fn from_vec_tagged_enum_allow_single(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Vec<E>>;
+}
+
+/// Extension trait for deserializing IndexMap of tagged enums.
+pub trait FromMapTaggedEnum<E: TaggedEnumMeta>: Sized {
+    /// Deserialize an IndexMap of tagged enums (using internal tagging)
+    fn from_map_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<IndexMap<String, E>>;
+}
+
+/// Extension trait for deserializing IndexMap of Vec of tagged enums.
+pub trait FromMapVecTaggedEnum<E: TaggedEnumMeta>: Sized {
+    /// Deserialize an IndexMap of Vec of tagged enums (using internal tagging)
+    fn from_map_vec_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<IndexMap<String, Vec<E>>>;
+}
+
+/// Extension trait for deserializing optional IndexMap of tagged enums.
+pub trait FromOptMapTaggedEnum<E: TaggedEnumMeta>: Sized {
+    /// Deserialize an optional IndexMap of tagged enums (using internal tagging)
+    fn from_opt_map_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Option<IndexMap<String, E>>>;
+}
+
+/// Extension trait for deserializing optional IndexMap of Vec of tagged enums.
+pub trait FromOptMapVecTaggedEnum<E: TaggedEnumMeta>: Sized {
+    /// Deserialize an optional IndexMap of Vec of tagged enums (using internal tagging)
+    fn from_opt_map_vec_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Option<IndexMap<String, Vec<E>>>>;
 }
 
 /// Controls how field names are matched against TOML keys
@@ -1282,54 +1372,26 @@ where
     }
 }
 
-// Struct to hold tag key information for tagged enums
-#[derive(Debug, Clone)]
-pub struct TaggedEnumTag {
-    pub tag_key: &'static str,
-}
+// ============================================================================
+// NEW TaggedEnumMeta-based implementations
+// ============================================================================
 
-pub trait AsTaggedEnum<E>: Sized {
-    fn as_tagged_enum(
+impl<E: TaggedEnumMeta> FromTaggedEnum<E> for TomlValue<toml_edit::Item> {
+    fn from_tagged_enum(
         self,
-        tag_key: &'static str,
-        tag_aliases: Vec<&'static str>,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<E>;
-}
-
-impl<E> AsTaggedEnum<E> for TomlValue<toml_edit::Item>
-where
-    E: StringNamedEnum,
-{
-    fn as_tagged_enum(
-        self,
-        tag_key: &'static str,
-        tag_aliases: Vec<&'static str>,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
     ) -> TomlValue<E> {
+        let tag_key = E::TAG_KEY;
+        let tag_aliases = E::TAG_ALIASES;
+
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     // Use TomlHelper to find the tag key with aliases and case matching
                     let mut helper = TomlHelper::from_item(item, errors.clone(), mode);
                     let tag_result: TomlValue<String> =
-                        helper.get_with_aliases(tag_key, tag_aliases.clone());
+                        helper.get_with_aliases(tag_key, tag_aliases.to_vec());
 
                     // Build the list of fields to ignore (canonical key + all aliases)
                     let mut fields_to_ignore: Vec<&str> = vec![tag_key];
@@ -1350,8 +1412,8 @@ where
                             }
 
                             if let Some(variant_name) = matched_variant {
-                                // Deserialize the specific variant using the provided function
-                                match deserialize_variant(
+                                // Deserialize the specific variant
+                                match E::deserialize_variant(
                                     variant_name,
                                     item,
                                     errors,
@@ -1442,41 +1504,11 @@ where
     }
 }
 
-
-pub trait AsVecTaggedEnum<E>: Sized {
-    fn as_vec_tagged_enum(
+impl<E: TaggedEnumMeta> FromVecTaggedEnum<E> for TomlValue<Vec<toml_edit::Item>> {
+    fn from_vec_tagged_enum(
         self,
-        tag_key: &'static str,
-        tag_aliases: Vec<&'static str>,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<Vec<E>>;
-}
-
-impl<E> AsVecTaggedEnum<E> for TomlValue<Vec<toml_edit::Item>>
-where
-    E: StringNamedEnum,
-{
-    fn as_vec_tagged_enum(
-        self,
-        tag_key: &'static str,
-        tag_aliases: Vec<&'static str>,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
     ) -> TomlValue<Vec<E>> {
         match &self.state {
             TomlValueState::Ok { span } => match self.value {
@@ -1493,13 +1525,7 @@ where
                                     required: true,
                                     state: TomlValueState::Ok { span: span.clone() },
                                 };
-                                let result = single.as_tagged_enum(
-                                    tag_key,
-                                    tag_aliases.clone(),
-                                    errors,
-                                    mode,
-                                    deserialize_variant,
-                                );
+                                let result = single.from_tagged_enum(errors, mode);
                                 match result.value {
                                     Some(e) => results.push(e),
                                     None => has_errors = true,
@@ -1539,7 +1565,7 @@ where
                     required: self.required,
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
-                        message: "Cannot convert empty value to array of tagged enums".to_string(),
+                        message: "Cannot convert empty value to tagged enum array".to_string(),
                         help: None,
                     },
                 },
@@ -1553,42 +1579,11 @@ where
     }
 }
 
-/// Trait for converting a TOML value (either single table or array of tables) to Vec<E> tagged enum.
-/// This allows `#[tpd_allow_single]` combined with `#[enum_tagged]`.
-pub trait AsVecTaggedEnumAllowSingle<E>: Sized {
-    fn as_vec_tagged_enum_allow_single(
+impl<E: TaggedEnumMeta> FromVecTaggedEnumAllowSingle<E> for TomlValue<toml_edit::Item> {
+    fn from_vec_tagged_enum_allow_single(
         self,
-        tag_key: &'static str,
-        tag_aliases: Vec<&'static str>,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<Vec<E>>;
-}
-
-impl<E> AsVecTaggedEnumAllowSingle<E> for TomlValue<toml_edit::Item>
-where
-    E: StringNamedEnum,
-{
-    fn as_vec_tagged_enum_allow_single(
-        self,
-        tag_key: &'static str,
-        tag_aliases: Vec<&'static str>,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
     ) -> TomlValue<Vec<E>> {
         let required = self.required;
         match &self.state {
@@ -1598,13 +1593,7 @@ where
                         // Single table - wrap in vec
                         toml_edit::Item::Table(_)
                         | toml_edit::Item::Value(toml_edit::Value::InlineTable(_)) => {
-                            let single_result = self.as_tagged_enum(
-                                tag_key,
-                                tag_aliases,
-                                errors,
-                                mode,
-                                deserialize_variant,
-                            );
+                            let single_result = self.from_tagged_enum(errors, mode);
                             match single_result.state {
                                 TomlValueState::Ok { span: s } => TomlValue {
                                     value: single_result.value.map(|e| vec![e]),
@@ -1631,13 +1620,7 @@ where
                                     required: true,
                                     state: TomlValueState::Ok { span: item_span },
                                 };
-                                let result = single.as_tagged_enum(
-                                    tag_key,
-                                    tag_aliases.clone(),
-                                    errors,
-                                    mode,
-                                    deserialize_variant,
-                                );
+                                let result = single.from_tagged_enum(errors, mode);
                                 match result.value {
                                     Some(e) => results.push(e),
                                     None => has_errors = true,
@@ -1677,13 +1660,7 @@ where
                                             required: true,
                                             state: TomlValueState::Ok { span: item_span },
                                         };
-                                        let result = single.as_tagged_enum(
-                                            tag_key,
-                                            tag_aliases.clone(),
-                                            errors,
-                                            mode,
-                                            deserialize_variant,
-                                        );
+                                        let result = single.from_tagged_enum(errors, mode);
                                         match result.value {
                                             Some(e) => results.push(e),
                                             None => has_errors = true,
@@ -1746,6 +1723,307 @@ where
             _ => TomlValue {
                 value: None,
                 required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+// Implementation of FromMapTaggedEnum for internally-tagged IndexMaps
+impl<E: TaggedEnumMeta> FromMapTaggedEnum<E> for TomlValue<toml_edit::Item> {
+    fn from_map_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<IndexMap<String, E>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref item) = self.value {
+                    match item.as_table_like_plus() {
+                        Some(table) => {
+                            let mut map = IndexMap::new();
+                            let mut has_errors = false;
+
+                            for (key, value) in table.iter() {
+                                let item_span = value.span().unwrap_or(span.clone());
+                                // Each value should be a table with internal tagging
+                                let single: TomlValue<toml_edit::Item> = TomlValue {
+                                    value: Some(value.clone()),
+                                    required: true,
+                                    state: TomlValueState::Ok {
+                                        span: item_span.clone(),
+                                    },
+                                };
+                                let result: TomlValue<E> = single.from_tagged_enum(errors, mode);
+                                match result.value {
+                                    Some(e) => {
+                                        map.insert(key.to_string(), e);
+                                    }
+                                    None => {
+                                        // Register the error from the failed result
+                                        result.register_error(errors);
+                                        has_errors = true;
+                                    }
+                                }
+                            }
+
+                            if has_errors {
+                                TomlValue {
+                                    value: Some(map),
+                                    required: self.required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: "Map of tagged enums has errors".to_string(),
+                                        help: None,
+                                    },
+                                }
+                            } else {
+                                TomlValue {
+                                    value: Some(map),
+                                    required: self.required,
+                                    state: TomlValueState::Ok { span: span.clone() },
+                                }
+                            }
+                        }
+                        None => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: TomlValueState::WrongType {
+                                span: span.clone(),
+                                expected: "table|inline_table",
+                                found: item.type_name(),
+                            },
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to tagged enum map".to_string(),
+                            help: None,
+                        },
+                    }
+                }
+            }
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+// Implementation of FromMapVecTaggedEnum for internally-tagged IndexMaps of Vecs
+impl<E: TaggedEnumMeta> FromMapVecTaggedEnum<E> for TomlValue<toml_edit::Item> {
+    fn from_map_vec_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<IndexMap<String, Vec<E>>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref item) = self.value {
+                    match item.as_table_like_plus() {
+                        Some(table) => {
+                            let mut map: IndexMap<String, Vec<E>> = IndexMap::new();
+                            let mut has_errors = false;
+
+                            for (key, value) in table.iter() {
+                                let item_span = value.span().unwrap_or(span.clone());
+                                // Each value should be an array of tables with internal tagging
+                                match value {
+                                    toml_edit::Item::ArrayOfTables(arr) => {
+                                        let mut vec_results: Vec<E> = Vec::with_capacity(arr.len());
+                                        for elem_table in arr.iter() {
+                                            let elem_item =
+                                                toml_edit::Item::Table(elem_table.clone());
+                                            let elem_span =
+                                                elem_table.span().unwrap_or(item_span.clone());
+                                            let single: TomlValue<toml_edit::Item> = TomlValue {
+                                                value: Some(elem_item),
+                                                required: true,
+                                                state: TomlValueState::Ok { span: elem_span },
+                                            };
+                                            let result: TomlValue<E> =
+                                                single.from_tagged_enum(errors, mode);
+                                            match result.value {
+                                                Some(e) => vec_results.push(e),
+                                                None => {
+                                                    result.register_error(errors);
+                                                    has_errors = true;
+                                                }
+                                            }
+                                        }
+                                        map.insert(key.to_string(), vec_results);
+                                    }
+                                    toml_edit::Item::Value(toml_edit::Value::Array(arr)) => {
+                                        let mut vec_results: Vec<E> = Vec::with_capacity(arr.len());
+                                        for val in arr.iter() {
+                                            let val_span = val.span().unwrap_or(item_span.clone());
+                                            let elem_item = toml_edit::Item::Value(val.clone());
+                                            let single: TomlValue<toml_edit::Item> = TomlValue {
+                                                value: Some(elem_item),
+                                                required: true,
+                                                state: TomlValueState::Ok { span: val_span },
+                                            };
+                                            let result: TomlValue<E> =
+                                                single.from_tagged_enum(errors, mode);
+                                            match result.value {
+                                                Some(e) => vec_results.push(e),
+                                                None => {
+                                                    result.register_error(errors);
+                                                    has_errors = true;
+                                                }
+                                            }
+                                        }
+                                        map.insert(key.to_string(), vec_results);
+                                    }
+                                    _ => {
+                                        errors.borrow_mut().push(AnnotatedError::placed(
+                                            item_span,
+                                            "Expected array for map value",
+                                            "Each value in the map should be an array of tables",
+                                        ));
+                                        has_errors = true;
+                                    }
+                                }
+                            }
+
+                            if has_errors {
+                                TomlValue {
+                                    value: Some(map),
+                                    required: self.required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: "Map of Vec of tagged enums has errors"
+                                            .to_string(),
+                                        help: None,
+                                    },
+                                }
+                            } else {
+                                TomlValue {
+                                    value: Some(map),
+                                    required: self.required,
+                                    state: TomlValueState::Ok { span: span.clone() },
+                                }
+                            }
+                        }
+                        None => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: TomlValueState::WrongType {
+                                span: span.clone(),
+                                expected: "table|inline_table",
+                                found: item.type_name(),
+                            },
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to tagged enum map".to_string(),
+                            help: None,
+                        },
+                    }
+                }
+            }
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+// Implementation of FromOptMapTaggedEnum for optional internally-tagged IndexMaps
+impl<E: TaggedEnumMeta> FromOptMapTaggedEnum<E> for TomlValue<Option<toml_edit::Item>> {
+    fn from_opt_map_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Option<IndexMap<String, E>>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(Some(ref item)) = self.value {
+                    let inner: TomlValue<toml_edit::Item> = TomlValue {
+                        value: Some(item.clone()),
+                        required: false,
+                        state: TomlValueState::Ok { span: span.clone() },
+                    };
+                    let result = inner.from_map_tagged_enum(errors, mode);
+                    TomlValue {
+                        value: result.value.map(Some),
+                        required: false,
+                        state: result.state,
+                    }
+                } else {
+                    // None is valid for optional
+                    TomlValue {
+                        value: Some(None),
+                        required: false,
+                        state: TomlValueState::Ok { span: span.clone() },
+                    }
+                }
+            }
+            TomlValueState::Missing { .. } => TomlValue {
+                value: Some(None),
+                required: false,
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => TomlValue {
+                value: None,
+                required: false,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+// Implementation of FromOptMapVecTaggedEnum for optional internally-tagged IndexMaps of Vecs
+impl<E: TaggedEnumMeta> FromOptMapVecTaggedEnum<E> for TomlValue<Option<toml_edit::Item>> {
+    fn from_opt_map_vec_tagged_enum(
+        self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+    ) -> TomlValue<Option<IndexMap<String, Vec<E>>>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(Some(ref item)) = self.value {
+                    let inner: TomlValue<toml_edit::Item> = TomlValue {
+                        value: Some(item.clone()),
+                        required: false,
+                        state: TomlValueState::Ok { span: span.clone() },
+                    };
+                    let result = inner.from_map_vec_tagged_enum(errors, mode);
+                    TomlValue {
+                        value: result.value.map(Some),
+                        required: false,
+                        state: result.state,
+                    }
+                } else {
+                    // None is valid for optional
+                    TomlValue {
+                        value: Some(None),
+                        required: false,
+                        state: TomlValueState::Ok { span: span.clone() },
+                    }
+                }
+            }
+            TomlValueState::Missing { .. } => TomlValue {
+                value: Some(None),
+                required: false,
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => TomlValue {
+                value: None,
+                required: false,
                 state: self.state.clone(),
             },
         }
@@ -2187,147 +2465,6 @@ where
     }
 }
 
-/// Trait for converting a TOML table into a IndexMap<String, E> where E is a tagged enum (externally tagged)
-pub trait AsMapTaggedEnum<E>: Sized {
-    fn as_map_tagged_enum(
-        self,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<IndexMap<String, E>>;
-}
-
-impl<E: StringNamedEnum> AsMapTaggedEnum<E> for TomlValue<toml_edit::Item> {
-    fn as_map_tagged_enum(
-        self,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<IndexMap<String, E>> {
-        match &self.state {
-            TomlValueState::Ok { span } => {
-                if let Some(ref item) = self.value {
-                    match item.as_table_like_plus() {
-                        Some(table) => {
-                            let mut map = IndexMap::new();
-                            let mut has_errors = false;
-
-                            for (key, value) in table.iter() {
-                                let item_span = value.span().unwrap_or(span.clone());
-                                // Each value should be an inline table like { KindA = { ... } }
-                                match value.as_table_like_plus() {
-                                    Some(inline_table) => {
-                                        // Find the variant key (should be exactly one)
-                                        let mut found_variant = None;
-                                        for (variant_key, variant_value) in inline_table.iter() {
-                                            let variant_names = E::all_variant_names();
-                                            for variant_name in variant_names {
-                                                if mode.matches(variant_name, variant_key) {
-                                                    let variant_item = variant_value.clone();
-                                                    if let Some(partial) = deserialize_variant(
-                                                        variant_name,
-                                                        &variant_item,
-                                                        errors,
-                                                        mode,
-                                                        &[],
-                                                    ) {
-                                                        found_variant = Some(partial);
-                                                    }
-                                                    break;
-                                                }
-                                            }
-                                        }
-
-                                        match found_variant {
-                                            Some(variant) => {
-                                                map.insert(key.to_string(), variant);
-                                            }
-                                            None => {
-                                                errors.borrow_mut().push(AnnotatedError::placed(
-                                                    item_span.clone(),
-                                                    "Invalid or unknown tagged enum variant",
-                                                    &suggest_alternatives(
-                                                        "",
-                                                        E::all_variant_names(),
-                                                    ),
-                                                ));
-                                                has_errors = true;
-                                            }
-                                        }
-                                    }
-                                    None => {
-                                        errors.borrow_mut().push(AnnotatedError::placed(
-                                            item_span.clone(),
-                                            "Expected table for tagged enum",
-                                            "Value should be a table like { VariantName = { ... } }",
-                                        ));
-                                        has_errors = true;
-                                    }
-                                }
-                            }
-
-                            if has_errors {
-                                TomlValue {
-                                    value: Some(map),
-                                    required: self.required,
-                                    state: TomlValueState::ValidationFailed {
-                                        span: span.clone(),
-                                        message: "Map contains invalid tagged enum values"
-                                            .to_string(),
-                                        help: None,
-                                    },
-                                }
-                            } else {
-                                TomlValue {
-                                    value: Some(map),
-                                    required: self.required,
-                                    state: TomlValueState::Ok { span: span.clone() },
-                                }
-                            }
-                        }
-                        None => TomlValue {
-                            value: None,
-                            required: self.required,
-                            state: TomlValueState::WrongType {
-                                span: span.clone(),
-                                expected: "table|inline_table",
-                                found: item.type_name(),
-                            },
-                        },
-                    }
-                } else {
-                    TomlValue {
-                        value: None,
-                        required: self.required,
-                        state: TomlValueState::ValidationFailed {
-                            span: span.clone(),
-                            message: "Cannot convert empty value to tagged enum map".to_string(),
-                            help: None,
-                        },
-                    }
-                }
-            }
-            _ => TomlValue {
-                value: None,
-                required: self.required,
-                state: self.state.clone(),
-            },
-        }
-    }
-}
-
 /// Trait for converting a TOML table into a IndexMap<String, Vec<T>>
 pub trait AsMapVec<T>: Sized {
     fn as_map_vec(
@@ -2661,172 +2798,6 @@ where
     }
 }
 
-/// Trait for converting a TOML table into a IndexMap<String, Vec<E>> where E is a tagged enum
-pub trait AsMapVecTaggedEnum<E>: Sized {
-    fn as_map_vec_tagged_enum(
-        self,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<IndexMap<String, Vec<E>>>;
-}
-
-impl<E: StringNamedEnum> AsMapVecTaggedEnum<E> for TomlValue<toml_edit::Item> {
-    fn as_map_vec_tagged_enum(
-        self,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<IndexMap<String, Vec<E>>> {
-        match &self.state {
-            TomlValueState::Ok { span } => {
-                if let Some(ref item) = self.value {
-                    match item.as_table_like_plus() {
-                        Some(table) => {
-                            let mut map = IndexMap::new();
-                            let mut has_errors = false;
-
-                            for (key, value) in table.iter() {
-                                let item_span = value.span().unwrap_or(span.clone());
-                                // value should be an array of inline tables
-                                match value {
-                                    toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
-                                        let mut vec = Vec::new();
-                                        for array_item in array.iter() {
-                                            let array_item_span =
-                                                array_item.span().unwrap_or(item_span.clone());
-                                            match array_item {
-                                                toml_edit::Value::InlineTable(inline_table) => {
-                                                    // Find the variant key (should be exactly one)
-                                                    let mut found_variant = None;
-                                                    for (variant_key, variant_value) in
-                                                        inline_table.iter()
-                                                    {
-                                                        let variant_names = E::all_variant_names();
-                                                        for variant_name in variant_names {
-                                                            if mode
-                                                                .matches(variant_name, variant_key)
-                                                            {
-                                                                let variant_item =
-                                                                    toml_edit::Item::Value(
-                                                                        variant_value.clone(),
-                                                                    );
-                                                                if let Some(partial) =
-                                                                    deserialize_variant(
-                                                                        variant_name,
-                                                                        &variant_item,
-                                                                        errors,
-                                                                        mode,
-                                                                        &[],
-                                                                    )
-                                                                {
-                                                                    found_variant = Some(partial);
-                                                                }
-                                                                break;
-                                                            }
-                                                        }
-                                                    }
-
-                                                    match found_variant {
-                                                        Some(variant) => {
-                                                            vec.push(variant);
-                                                        }
-                                                        None => {
-                                                            errors.borrow_mut().push(AnnotatedError::placed(
-                                                                array_item_span.clone(),
-                                                                "Invalid or unknown tagged enum variant",
-                                                                &suggest_alternatives("", E::all_variant_names()),
-                                                            ));
-                                                            has_errors = true;
-                                                        }
-                                                    }
-                                                }
-                                                _ => {
-                                                    errors.borrow_mut().push(AnnotatedError::placed(
-                                                        array_item_span.clone(),
-                                                        "Expected inline table for tagged enum",
-                                                        "Value should be like { VariantName = { ... } }",
-                                                    ));
-                                                    has_errors = true;
-                                                }
-                                            }
-                                        }
-                                        map.insert(key.to_string(), vec);
-                                    }
-                                    _ => {
-                                        errors.borrow_mut().push(AnnotatedError::placed(
-                                            item_span.clone(),
-                                            "Expected array for map of vec tagged enum",
-                                            "Value should be an array of inline tables",
-                                        ));
-                                        has_errors = true;
-                                    }
-                                }
-                            }
-
-                            if has_errors {
-                                TomlValue {
-                                    value: Some(map),
-                                    required: self.required,
-                                    state: TomlValueState::ValidationFailed {
-                                        span: span.clone(),
-                                        message: "Map contains invalid vec tagged enum values"
-                                            .to_string(),
-                                        help: None,
-                                    },
-                                }
-                            } else {
-                                TomlValue {
-                                    value: Some(map),
-                                    required: self.required,
-                                    state: TomlValueState::Ok { span: span.clone() },
-                                }
-                            }
-                        }
-                        None => TomlValue {
-                            value: None,
-                            required: self.required,
-                            state: TomlValueState::WrongType {
-                                span: span.clone(),
-                                expected: "table|inline_table",
-                                found: item.type_name(),
-                            },
-                        },
-                    }
-                } else {
-                    TomlValue {
-                        value: None,
-                        required: self.required,
-                        state: TomlValueState::ValidationFailed {
-                            span: span.clone(),
-                            message: "Cannot convert empty value to vec tagged enum map"
-                                .to_string(),
-                            help: None,
-                        },
-                    }
-                }
-            }
-            _ => TomlValue {
-                value: None,
-                required: self.required,
-                state: self.state.clone(),
-            },
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum TomlValueState {
     NotSet,
@@ -2876,22 +2847,6 @@ pub trait AsOptMapNested<P>: Sized {
     ) -> TomlValue<Option<IndexMap<String, P>>>;
 }
 
-/// Trait for converting an optional TOML table into Option<IndexMap<String, E>> for tagged enums
-pub trait AsOptMapTaggedEnum<E>: Sized {
-    fn as_opt_map_tagged_enum(
-        self,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<Option<IndexMap<String, E>>>;
-}
-
 /// Trait for converting an optional TOML table into Option<IndexMap<String, Vec<T>>>
 pub trait AsOptMapVec<T>: Sized {
     fn as_opt_map_vec(
@@ -2908,22 +2863,6 @@ pub trait AsOptMapVecNested<P>: Sized {
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
     ) -> TomlValue<Option<IndexMap<String, Vec<P>>>>;
-}
-
-/// Trait for converting an optional TOML table into Option<IndexMap<String, Vec<E>>> for tagged enums
-pub trait AsOptMapVecTaggedEnum<E>: Sized {
-    fn as_opt_map_vec_tagged_enum(
-        self,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<Option<IndexMap<String, Vec<E>>>>;
 }
 
 /// Blanket implementation for AsOptMap on Option<Item> returning Option<IndexMap<String, T>>
@@ -3027,72 +2966,6 @@ where
             },
             TomlValueState::Missing { .. } => {
                 unreachable!();
-                // TomlValue {
-                // value: Some(None),
-                // required: self.required,
-                // state: TomlValueState::Ok {
-                //     span: parent_span.clone(),
-                // },
-            }
-            _ => TomlValue {
-                value: None,
-                required: self.required,
-                state: self.state.clone(),
-            },
-        }
-    }
-}
-
-/// Implementation for AsOptMapTaggedEnum on Option<Item> returning Option<IndexMap<String, E>>
-impl<E: StringNamedEnum> AsOptMapTaggedEnum<E> for TomlValue<Option<toml_edit::Item>> {
-    fn as_opt_map_tagged_enum(
-        self,
-        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
-        mode: FieldMatchMode,
-        deserialize_variant: fn(
-            &str,
-            &toml_edit::Item,
-            &Rc<RefCell<Vec<AnnotatedError>>>,
-            FieldMatchMode,
-            &[&str],
-        ) -> Option<E>,
-    ) -> TomlValue<Option<IndexMap<String, E>>> {
-        match &self.state {
-            TomlValueState::Ok { span } => match self.value {
-                Some(Some(item)) => {
-                    let single: TomlValue<toml_edit::Item> = TomlValue {
-                        value: Some(item),
-                        required: false,
-                        state: TomlValueState::Ok { span: span.clone() },
-                    };
-                    let result: TomlValue<IndexMap<String, E>> =
-                        single.as_map_tagged_enum(errors, mode, deserialize_variant);
-                    match result.state {
-                        TomlValueState::Ok { span } => TomlValue {
-                            value: Some(result.value),
-                            required: self.required,
-                            state: TomlValueState::Ok { span },
-                        },
-                        other => TomlValue {
-                            value: None,
-                            required: self.required,
-                            state: other,
-                        },
-                    }
-                }
-                Some(None) => TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                },
-                None => TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                },
-            },
-            TomlValueState::Missing { .. } => {
-                unreachable!()
                 // TomlValue {
                 // value: Some(None),
                 // required: self.required,

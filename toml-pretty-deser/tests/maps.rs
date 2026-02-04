@@ -1,10 +1,9 @@
 use indexmap::IndexMap;
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    deserialize, make_partial, make_partial_enum, tdp_make_enum, AnnotatedError, AsMap,
-    AsMapNested, AsMapTaggedEnum, AsMapVec, AsMapVecNested, AsMapVecTaggedEnum, DeserError,
-    FromTomlItem, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper, TomlValue,
-    VerifyFromToml,
+    deserialize, make_partial, tdp_make_enum, tdp_make_tagged_enum, AnnotatedError, AsMap,
+    AsMapNested, AsMapVec, AsMapVecNested, DeserError, FromTomlItem, FromTomlTable, ToConcrete,
+    TomlHelper, TomlValue, VerifyFromToml,
 };
 
 #[make_partial]
@@ -21,7 +20,7 @@ struct InnerB {
     t: u32,
 }
 
-#[make_partial_enum] // creates PartialEitherOne { KindA(PartialInnerA, ...)}
+#[tdp_make_tagged_enum("kind")] // creates PartialEitherOne with TaggedEnumMeta
 #[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
@@ -46,19 +45,19 @@ struct Inner {
 struct Mapped {
     mapped_u8: IndexMap<String, u8>,
     mapped_enum: IndexMap<String, ByString>,
-    #[enum_tagged("_unused")]
+    #[enum_tagged]
     mapped_either: IndexMap<String, EitherOne>,
     #[nested]
     mapped_struct: IndexMap<String, Inner>,
     mapped_vec_string: IndexMap<String, Vec<String>>,
     mapped_vec_enum: IndexMap<String, Vec<ByString>>,
-    #[enum_tagged("_unused")]
+    #[enum_tagged]
     mapped_vec_either: IndexMap<String, Vec<EitherOne>>,
     #[nested]
     mapped_vec_struct: IndexMap<String, Vec<Inner>>,
     opt_mapped_u8: Option<IndexMap<String, u8>>,
     opt_mapped_enum: Option<IndexMap<String, ByString>>,
-    #[enum_tagged("_unused")]
+    #[enum_tagged]
     opt_mapped_either: Option<IndexMap<String, EitherOne>>,
     #[nested]
     opt_mapped_struct: Option<IndexMap<String, Inner>>,
@@ -74,8 +73,8 @@ fn test_mapped_happy() {
             a = 'AlphaBeta'
             b = 'GammaDelta'
         [mapped_either]
-            a = { KindA = { n = 10, o = 20 } }
-            b = { KindB = { s = 30, t = 40 } }
+            a = { kind = 'KindA', n = 10, o = 20 }
+            b = { kind = 'KindB', s = 30, t = 40 }
         [mapped_struct]
             a = { n = 5 }
         [mapped_vec_string]
@@ -83,7 +82,7 @@ fn test_mapped_happy() {
         [mapped_vec_enum]
                 a = ['AlphaBeta','GammaDelta']
         [mapped_vec_either]
-            a = [ { KindA = { n = 1, o = 2 } }, { KindB = { s = 3, t = 4 } } ]
+            a = [ { kind = 'KindA', n = 1, o = 2 }, { kind = 'KindB', s = 3, t = 4 } ]
         [mapped_vec_struct]
             a = [ { n = 5 }, { n = 6 } ]
         [opt_mapped_u8]
@@ -93,8 +92,8 @@ fn test_mapped_happy() {
             a = 'AlphaBeta'
             b = 'GammaDelta'
         [opt_mapped_either]
-            a = { KindA = { n = 100, o = 200 } }
-            b = { KindB = { s = 300, t = 400 } }
+            a = { kind = 'KindA', n = 100, o = 200 }
+            b = { kind = 'KindB', s = 300, t = 400 }
         [opt_mapped_struct]
             a = { n = 50 }
 
@@ -174,8 +173,8 @@ fn test_mapped_happy_inline() {
             b = 'GammaDelta'
         }
         mapped_either = {
-            a = { KindA = { n = 10, o = 20 } },
-            b = { KindB = { s = 30, t = 40 } },
+            a = { kind = 'KindA', n = 10, o = 20 },
+            b = { kind = 'KindB', s = 30, t = 40 },
         }
         mapped_struct = {
             a = { n = 5 }
@@ -187,7 +186,7 @@ fn test_mapped_happy_inline() {
                a = ['AlphaBeta','GammaDelta'  ]
         }
         mapped_vec_either = {
-           a = [ { KindA = { n = 1, o = 2 } }, { KindB = { s = 3, t = 4 } } ] 
+           a = [ { kind = 'KindA', n = 1, o = 2 }, { kind = 'KindB', s = 3, t = 4 } ] 
         }
         mapped_vec_struct = {
            a = [ { n = 5 }, { n = 6 }  ]
@@ -201,8 +200,8 @@ fn test_mapped_happy_inline() {
            b = 'GammaDelta'
         }
         opt_mapped_either = {
-           a = { KindA = { n = 100, o = 200 } },
-           b = { KindB = { s = 300, t = 400 } }
+           a = { kind = 'KindA', n = 100, o = 200 },
+           b = { kind = 'KindB', s = 300, t = 400 }
         }
         opt_mapped_struct = {
             a = { n = 50 }
@@ -405,7 +404,7 @@ fn test_mapped_tagged_enum_unknown_variant() {
         [mapped_enum]
             a = 'AlphaBeta'
         [mapped_either]
-            a = { KindX = { n = 10, o = 20 } }
+            a = { kind = 'KindX', n = 10, o = 20 }
         [mapped_struct]
             a = { n = 5 }
         [mapped_vec_string]
@@ -413,7 +412,7 @@ fn test_mapped_tagged_enum_unknown_variant() {
         [mapped_vec_enum]
             a = ['AlphaBeta']
         [mapped_vec_either]
-            a = [{ KindA = { n = 1, o = 2 } }]
+            a = [{ kind = 'KindA', n = 1, o = 2 }]
         [mapped_vec_struct]
             a = [{ n = 5 }]
     ";
@@ -422,11 +421,9 @@ fn test_mapped_tagged_enum_unknown_variant() {
         for e in &errors {
             eprintln!("Error: {}", e.inner.spans[0].msg);
         }
-        assert!(errors.iter().any(|e| {
-            e.inner.spans[0]
-                .msg
-                .contains("Invalid or unknown tagged enum variant")
-        }));
+        assert!(errors
+            .iter()
+            .any(|e| { e.inner.spans[0].msg.contains("Unknown enum variant") }));
     } else {
         panic!("Expected failure due to unknown tagged enum variant");
     }
@@ -436,7 +433,7 @@ fn test_mapped_tagged_enum_unknown_variant() {
 fn test_mapped_tagged_enum_missing_variant_field() {
     let toml = "
         [mapped_either]
-            a = { KindA = { n = 10 } }
+            a = { kind = 'KindA', n = 10 }
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
@@ -532,7 +529,7 @@ fn test_mapped_vec_string_wrong_element_type() {
         [mapped_enum]
             a = 'AlphaBeta'
         [mapped_either]
-            a = { KindA = { n = 10, o = 20 } }
+            a = { kind = 'KindA', n = 10, o = 20 }
         [mapped_struct]
             a = { n = 5 }
         [mapped_vec_string]
@@ -540,7 +537,7 @@ fn test_mapped_vec_string_wrong_element_type() {
         [mapped_vec_enum]
             a = ['AlphaBeta']
         [mapped_vec_either]
-            a = [{ KindA = { n = 1, o = 2 } }]
+            a = [{ kind = 'KindA', n = 1, o = 2 }]
         [mapped_vec_struct]
             a = [{ n = 5 }]
     ";
@@ -559,7 +556,7 @@ fn test_mapped_vec_either_wrong_element_type() {
         [mapped_enum]
             a = 'AlphaBeta'
         [mapped_either]
-            a = { KindA = { n = 10, o = 20 } }
+            a = { kind = 'KindA', n = 10, o = 20 }
         [mapped_struct]
             a = { n = 5 }
         [mapped_vec_string]
@@ -586,7 +583,7 @@ fn test_mapped_optional_all_present() {
         [mapped_enum]
             a = 'AlphaBeta'
         [mapped_either]
-            a = { KindA = { n = 10, o = 20 } }
+            a = { kind = 'KindA', n = 10, o = 20 }
         [mapped_struct]
             a = { n = 5 }
         [mapped_vec_string]
@@ -594,7 +591,7 @@ fn test_mapped_optional_all_present() {
         [mapped_vec_enum]
             a = ['AlphaBeta']
         [mapped_vec_either]
-            a = [{ KindA = { n = 1, o = 2 } }]
+            a = [{ kind = 'KindA', n = 1, o = 2 }]
         [mapped_vec_struct]
             a = [{ n = 5 }]
         [opt_mapped_u8]
@@ -602,7 +599,7 @@ fn test_mapped_optional_all_present() {
         [opt_mapped_enum]
             a = 'AlphaBeta'
         [opt_mapped_either]
-            a = { KindA = { n = 100, o = 200 } }
+            a = { kind = 'KindA', n = 100, o = 200 }
         [opt_mapped_struct]
             a = { n = 50 }
     ";
@@ -624,7 +621,7 @@ fn test_mapped_optional_all_missing() {
         [mapped_enum]
             a = 'AlphaBeta'
         [mapped_either]
-            a = { KindA = { n = 10, o = 20 } }
+            a = { kind = 'KindA', n = 10, o = 20 }
         [mapped_struct]
             a = { n = 5 }
         [mapped_vec_string]
@@ -632,7 +629,7 @@ fn test_mapped_optional_all_missing() {
         [mapped_vec_enum]
             a = ['AlphaBeta']
         [mapped_vec_either]
-            a = [{ KindA = { n = 1, o = 2 } }]
+            a = [{ kind = 'KindA', n = 1, o = 2 }]
         [mapped_vec_struct]
             a = [{ n = 5 }]
     ";
@@ -654,7 +651,7 @@ fn test_mapped_optional_wrong_type() {
         [mapped_enum]
             a = 'AlphaBeta'
         [mapped_either]
-            a = { KindA = { n = 10, o = 20 } }
+            a = { kind = 'KindA', n = 10, o = 20 }
         [mapped_struct]
             a = { n = 5 }
         [mapped_vec_string]
@@ -662,7 +659,7 @@ fn test_mapped_optional_wrong_type() {
         [mapped_vec_enum]
             a = ['AlphaBeta']
         [mapped_vec_either]
-            a = [{ KindA = { n = 1, o = 2 } }]
+            a = [{ kind = 'KindA', n = 1, o = 2 }]
         [mapped_vec_struct]
             a = [{ n = 5 }]
         [opt_mapped_u8]
@@ -698,7 +695,7 @@ fn test_mapped_nested_unknown_key() {
 fn test_mapped_tagged_enum_unknown_key_in_variant() {
     let toml = "
         [mapped_either]
-            a = { KindA = { n = 10, o = 20, unknown = 99 } }
+            a = { kind = 'KindA', n = 10, o = 20, unknown = 99 }
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
@@ -718,7 +715,7 @@ fn test_mapped_struct_wrong_field_type() {
         [mapped_enum]
             a = 'AlphaBeta'
         [mapped_either]
-            a = { KindA = { n = 10, o = 20 } }
+            a = { kind = 'KindA', n = 10, o = 20 }
         [mapped_struct]
             a = { n = 'not a number' }
         [mapped_vec_string]
@@ -726,7 +723,7 @@ fn test_mapped_struct_wrong_field_type() {
         [mapped_vec_enum]
             a = ['AlphaBeta']
         [mapped_vec_either]
-            a = [{ KindA = { n = 1, o = 2 } }]
+            a = [{ kind = 'KindA', n = 1, o = 2 }]
         [mapped_vec_struct]
             a = [{ n = 5 }]
     ";
@@ -760,7 +757,7 @@ fn test_mapped_vec_either_empty_vec() {
         [mapped_enum]
             a = 'AlphaBeta'
         [mapped_either]
-            a = { KindA = { n = 10, o = 20 } }
+            a = { kind = 'KindA', n = 10, o = 20 }
         [mapped_struct]
             a = { n = 5 }
         [mapped_vec_string]
