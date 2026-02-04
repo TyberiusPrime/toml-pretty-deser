@@ -1,8 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsEnum, AsNested, DeserError, FieldMatchMode, FromTomlTable, StringNamedEnum,
-    ToConcrete, TomlHelper, TomlValue, TomlValueState, VerifyFromToml, deserialize,
-    deserialize_with_mode, make_partial,
+    AnnotatedError, AsNested, DeserError, FieldMatchMode, FromTomlTable, ToConcrete, TomlHelper,
+    TomlValue, TomlValueState, VerifyFromToml, deserialize, deserialize_with_mode, make_partial,
 };
 
 #[make_partial(false)]
@@ -311,7 +310,6 @@ fn test_array_wrong_element_type() {
         panic!("Expected failure due to wrong array element type")
     }
 }
-
 
 // Test nested struct
 #[derive(Debug)]

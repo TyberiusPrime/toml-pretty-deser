@@ -298,6 +298,190 @@ impl<E: StringNamedEnum> AsEnum<Option<Vec<E>>> for TomlValue<Option<Vec<String>
     }
 }
 
+/// Trait for converting a TOML value (either single string or array of strings) to Vec<E> enum.
+/// This allows `#[tpd_allow_single]` combined with `#[as_enum]`.
+pub trait AsEnumAllowSingle<E>: Sized {
+    fn as_enum_allow_single(self) -> TomlValue<Vec<E>>;
+}
+
+/// Implementation for Vec<E> from a TOML Item (allows single string or array)
+impl<E: StringNamedEnum> AsEnumAllowSingle<E> for TomlValue<toml_edit::Item> {
+    fn as_enum_allow_single(self) -> TomlValue<Vec<E>> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref item) = self.value {
+                    match item {
+                        // Single string value
+                        toml_edit::Item::Value(toml_edit::Value::String(s)) => {
+                            let s_val = s.value();
+                            match convert_string_to_enum(s_val, span) {
+                                Ok(enum_val) => TomlValue {
+                                    value: Some(vec![enum_val]),
+                                    required: self.required,
+                                    state: TomlValueState::Ok { span: span.clone() },
+                                },
+                                Err(message) => TomlValue {
+                                    value: None,
+                                    required: self.required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: "Invalid enum variant.".to_string(),
+                                        help: Some(message),
+                                    },
+                                },
+                            }
+                        }
+                        // Array of strings
+                        toml_edit::Item::Value(toml_edit::Value::Array(arr)) => {
+                            let mut values = Vec::with_capacity(arr.len());
+                            for val in arr.iter() {
+                                if let toml_edit::Value::String(s) = val {
+                                    match convert_string_to_enum(s.value(), span) {
+                                        Ok(enum_val) => values.push(enum_val),
+                                        Err(message) => {
+                                            return TomlValue {
+                                                value: None,
+                                                required: self.required,
+                                                state: TomlValueState::ValidationFailed {
+                                                    span: val.span().unwrap_or(span.clone()),
+                                                    message: "Invalid enum variant.".to_string(),
+                                                    help: Some(message),
+                                                },
+                                            };
+                                        }
+                                    }
+                                } else {
+                                    return TomlValue {
+                                        value: None,
+                                        required: self.required,
+                                        state: TomlValueState::WrongType {
+                                            span: val.span().unwrap_or(span.clone()),
+                                            expected: "string",
+                                            found: val.type_name(),
+                                        },
+                                    };
+                                }
+                            }
+                            TomlValue {
+                                value: Some(values),
+                                required: self.required,
+                                state: TomlValueState::Ok { span: span.clone() },
+                            }
+                        }
+                        _ => TomlValue {
+                            value: None,
+                            required: self.required,
+                            state: TomlValueState::WrongType {
+                                span: span.clone(),
+                                expected: "string or array",
+                                found: item.type_name(),
+                            },
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required: self.required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to enum".to_string(),
+                            help: Some(suggest_alternatives("", E::all_variant_names())),
+                        },
+                    }
+                }
+            }
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+/// Implementation for Option<Vec<E>> from an optional TOML Item (allows single string or array)
+impl<E: StringNamedEnum> AsEnumAllowSingle<E> for TomlValue<Option<toml_edit::Item>> {
+    fn as_enum_allow_single(self) -> TomlValue<Vec<E>> {
+        match &self.state {
+            TomlValueState::Ok { span } => match self.value {
+                Some(Some(item)) => {
+                    let inner: TomlValue<toml_edit::Item> = TomlValue {
+                        value: Some(item),
+                        required: false,
+                        state: TomlValueState::Ok { span: span.clone() },
+                    };
+                    inner.as_enum_allow_single()
+                }
+                Some(None) | None => TomlValue {
+                    value: Some(vec![]),
+                    required: false,
+                    state: TomlValueState::Ok { span: span.clone() },
+                },
+            },
+            TomlValueState::Missing { .. } => TomlValue {
+                value: Some(vec![]),
+                required: false,
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+/// Trait for converting an optional TOML value to Option<Vec<E>> with allow_single semantics
+pub trait AsOptEnumAllowSingle<E>: Sized {
+    fn as_opt_enum_allow_single(self) -> TomlValue<Option<Vec<E>>>;
+}
+
+/// Implementation for Option<Vec<E>> from an optional TOML Item
+impl<E: StringNamedEnum> AsOptEnumAllowSingle<E> for TomlValue<Option<toml_edit::Item>> {
+    fn as_opt_enum_allow_single(self) -> TomlValue<Option<Vec<E>>> {
+        match &self.state {
+            TomlValueState::Ok { span } => match self.value {
+                Some(Some(item)) => {
+                    let inner: TomlValue<toml_edit::Item> = TomlValue {
+                        value: Some(item),
+                        required: false,
+                        state: TomlValueState::Ok { span: span.clone() },
+                    };
+                    let result: TomlValue<Vec<E>> = inner.as_enum_allow_single();
+                    match result.state {
+                        TomlValueState::Ok { span: s } => TomlValue {
+                            value: Some(result.value),
+                            required: false,
+                            state: TomlValueState::Ok { span: s },
+                        },
+                        other => TomlValue {
+                            value: None,
+                            required: false,
+                            state: other,
+                        },
+                    }
+                }
+                Some(None) | None => TomlValue {
+                    value: Some(None),
+                    required: false,
+                    state: TomlValueState::Ok { span: span.clone() },
+                },
+            },
+            TomlValueState::Missing { .. } => TomlValue {
+                value: Some(None),
+                required: false,
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => TomlValue {
+                value: None,
+                required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
 pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
     P: FromTomlTable<()> + VerifyFromToml<()> + ToConcrete<T>,
@@ -1814,6 +1998,205 @@ where
             _ => TomlValue {
                 value: None,
                 required: self.required,
+                state: self.state.clone(),
+            },
+        }
+    }
+}
+
+/// Trait for converting a TOML value (either single table or array of tables) to Vec<E> tagged enum.
+/// This allows `#[tpd_allow_single]` combined with `#[enum_tagged]`.
+pub trait AsVecTaggedEnumAllowSingle<E>: Sized {
+    fn as_vec_tagged_enum_allow_single(
+        self,
+        tag_key: &'static str,
+        tag_aliases: Vec<&'static str>,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+        deserialize_variant: fn(
+            &str,
+            &toml_edit::Item,
+            &Rc<RefCell<Vec<AnnotatedError>>>,
+            FieldMatchMode,
+            &[&str],
+        ) -> Option<E>,
+    ) -> TomlValue<Vec<E>>;
+}
+
+impl<E> AsVecTaggedEnumAllowSingle<E> for TomlValue<toml_edit::Item>
+where
+    E: StringNamedEnum,
+{
+    fn as_vec_tagged_enum_allow_single(
+        self,
+        tag_key: &'static str,
+        tag_aliases: Vec<&'static str>,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        mode: FieldMatchMode,
+        deserialize_variant: fn(
+            &str,
+            &toml_edit::Item,
+            &Rc<RefCell<Vec<AnnotatedError>>>,
+            FieldMatchMode,
+            &[&str],
+        ) -> Option<E>,
+    ) -> TomlValue<Vec<E>> {
+        let required = self.required;
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                if let Some(ref item) = self.value {
+                    match item {
+                        // Single table - wrap in vec
+                        toml_edit::Item::Table(_)
+                        | toml_edit::Item::Value(toml_edit::Value::InlineTable(_)) => {
+                            let single_result = self.as_tagged_enum(
+                                tag_key,
+                                tag_aliases,
+                                errors,
+                                mode,
+                                deserialize_variant,
+                            );
+                            match single_result.state {
+                                TomlValueState::Ok { span: s } => TomlValue {
+                                    value: single_result.value.map(|e| vec![e]),
+                                    required,
+                                    state: TomlValueState::Ok { span: s },
+                                },
+                                other => TomlValue {
+                                    value: None,
+                                    required,
+                                    state: other,
+                                },
+                            }
+                        }
+                        // Array of tables
+                        toml_edit::Item::ArrayOfTables(arr) => {
+                            let mut results: Vec<E> = Vec::with_capacity(arr.len());
+                            let mut has_errors = false;
+
+                            for table in arr.iter() {
+                                let table_item = toml_edit::Item::Table(table.clone());
+                                let item_span = table.span().unwrap_or(span.clone());
+                                let single: TomlValue<toml_edit::Item> = TomlValue {
+                                    value: Some(table_item),
+                                    required: true,
+                                    state: TomlValueState::Ok { span: item_span },
+                                };
+                                let result = single.as_tagged_enum(
+                                    tag_key,
+                                    tag_aliases.clone(),
+                                    errors,
+                                    mode,
+                                    deserialize_variant,
+                                );
+                                match result.value {
+                                    Some(e) => results.push(e),
+                                    None => has_errors = true,
+                                }
+                            }
+
+                            if has_errors {
+                                TomlValue {
+                                    value: Some(results),
+                                    required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: "Array of tagged enums has errors".to_string(),
+                                        help: None,
+                                    },
+                                }
+                            } else {
+                                TomlValue {
+                                    value: Some(results),
+                                    required,
+                                    state: TomlValueState::Ok { span: span.clone() },
+                                }
+                            }
+                        }
+                        // Regular array (with inline tables inside)
+                        toml_edit::Item::Value(toml_edit::Value::Array(arr)) => {
+                            let mut results: Vec<E> = Vec::with_capacity(arr.len());
+                            let mut has_errors = false;
+
+                            for val in arr.iter() {
+                                let item_span = val.span().unwrap_or(span.clone());
+                                match val {
+                                    toml_edit::Value::InlineTable(_) => {
+                                        let item = toml_edit::Item::Value(val.clone());
+                                        let single: TomlValue<toml_edit::Item> = TomlValue {
+                                            value: Some(item),
+                                            required: true,
+                                            state: TomlValueState::Ok { span: item_span },
+                                        };
+                                        let result = single.as_tagged_enum(
+                                            tag_key,
+                                            tag_aliases.clone(),
+                                            errors,
+                                            mode,
+                                            deserialize_variant,
+                                        );
+                                        match result.value {
+                                            Some(e) => results.push(e),
+                                            None => has_errors = true,
+                                        }
+                                    }
+                                    _ => {
+                                        errors.borrow_mut().push(AnnotatedError::placed(
+                                            item_span,
+                                            &format!(
+                                                "Expected inline table in array - was {}",
+                                                val.type_name()
+                                            ),
+                                            "Only inline tables are supported in tagged enum arrays",
+                                        ));
+                                        has_errors = true;
+                                    }
+                                }
+                            }
+
+                            if has_errors {
+                                TomlValue {
+                                    value: Some(results),
+                                    required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span: span.clone(),
+                                        message: "Array of tagged enums has errors".to_string(),
+                                        help: None,
+                                    },
+                                }
+                            } else {
+                                TomlValue {
+                                    value: Some(results),
+                                    required,
+                                    state: TomlValueState::Ok { span: span.clone() },
+                                }
+                            }
+                        }
+                        _ => TomlValue {
+                            value: None,
+                            required,
+                            state: TomlValueState::WrongType {
+                                span: span.clone(),
+                                expected: "table or array",
+                                found: item.type_name(),
+                            },
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        required,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: "Cannot convert empty value to tagged enum".to_string(),
+                            help: None,
+                        },
+                    }
+                }
+            }
+            _ => TomlValue {
+                value: None,
+                required,
                 state: self.state.clone(),
             },
         }

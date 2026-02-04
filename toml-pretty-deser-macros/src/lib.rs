@@ -190,6 +190,26 @@ fn is_vec_type(ty: &Type) -> bool {
     }
 }
 
+
+/// Extract the full inner Type from Option<T>
+fn extract_option_inner_full_type(ty: &Type) -> Option<Type> {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if let Some(segment) = path.segments.last() {
+                if segment.ident == "Option" {
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
+                            return Some(inner_ty.clone());
+                        }
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 fn is_enum_tagged_field(field: &syn::Field) -> bool {
     field
         .attrs
@@ -1248,8 +1268,22 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 } else if is_vec_type(&f.ty) {
                     let inner_type_name = extract_vec_inner_type(&f.ty).unwrap();
                     let partial_type = format_ident!("Partial{}", inner_type_name);
-                    quote! {
-                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_vec_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                    if is_allow_single_field(f) {
+                        // Vec<E> with #[enum_tagged] and #[tpd_allow_single]
+                        quote! {
+                            #name: ::toml_pretty_deser::AsVecTaggedEnumAllowSingle::as_vec_tagged_enum_allow_single(
+                                helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]),
+                                #tag_key,
+                                vec![#(#aliases),*],
+                                &helper.errors,
+                                helper.match_mode,
+                                #partial_type::deserialize_variant
+                            )
+                        }
+                    } else {
+                        quote! {
+                            #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_vec_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                        }
                     }
                 } else {
                     let type_name = extract_type_name(&f.ty).unwrap();
@@ -1259,14 +1293,53 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
             } else if is_as_enum_field(f) {
-                // For enum fields, use aliases if present
-                if aliases.is_empty() {
-                    quote! {
-                        #name: helper.get(#name_str).as_enum()
+                // For enum fields, check if allow_single is also present
+                if is_allow_single_field(f) {
+                    // #[as_enum] combined with #[tpd_allow_single]
+                    if is_vec_type(ty) {
+                        // Vec<E> with allow_single - use as_enum_allow_single
+                        if aliases.is_empty() {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsEnumAllowSingle::as_enum_allow_single(helper.get::<::toml_edit::Item>(#name_str))
+                            }
+                        } else {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsEnumAllowSingle::as_enum_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, vec![#(#aliases),*]))
+                            }
+                        }
+                    } else if is_option_type(ty) && extract_option_inner_full_type(ty).map(|t| is_vec_type(&t)).unwrap_or(false) {
+                        // Option<Vec<E>> with allow_single - use as_opt_enum_allow_single
+                        if aliases.is_empty() {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptEnumAllowSingle::as_opt_enum_allow_single(helper.get::<Option<::toml_edit::Item>>(#name_str))
+                            }
+                        } else {
+                            quote! {
+                                #name: ::toml_pretty_deser::AsOptEnumAllowSingle::as_opt_enum_allow_single(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, vec![#(#aliases),*]))
+                            }
+                        }
+                    } else {
+                        // Single enum with allow_single doesn't make sense, fall back to normal as_enum
+                        if aliases.is_empty() {
+                            quote! {
+                                #name: helper.get(#name_str).as_enum()
+                            }
+                        } else {
+                            quote! {
+                                #name: helper.get_with_aliases(#name_str, vec![]).as_enum()
+                            }
+                        }
                     }
                 } else {
-                    quote! {
-                        #name: helper.get_with_aliases(#name_str, vec![]).as_enum()
+                    // Regular #[as_enum] without allow_single
+                    if aliases.is_empty() {
+                        quote! {
+                            #name: helper.get(#name_str).as_enum()
+                        }
+                    } else {
+                        quote! {
+                            #name: helper.get_with_aliases(#name_str, vec![]).as_enum()
+                        }
                     }
                 }
             } else if is_allow_single_field(f) {
