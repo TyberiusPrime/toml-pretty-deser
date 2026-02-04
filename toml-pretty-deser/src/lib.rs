@@ -4,7 +4,7 @@ use toml_edit::{Document, TomlError};
 
 mod tablelike;
 use tablelike::{AsTableLike, TableLikePlus};
-pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial, make_partial_enum};
+pub use toml_pretty_deser_macros::{make_partial, make_partial_enum, StringNamedEnum};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
@@ -1041,166 +1041,139 @@ impl_from_toml_item_option!(String);
 // implementation for Option<toml_edit::Item> to support optional nested structs
 impl_from_toml_item_option!(toml_edit::Item);
 
-macro_rules! impl_from_toml_item_vec {
-    ($ty:ty) => {
-        impl FromTomlItem for Vec<$ty> {
-            fn from_toml_item(
-                item: &toml_edit::Item,
-                parent_span: Range<usize>,
-            ) -> TomlValue<Self> {
-                match item {
-                    toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
-                    toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
-                        let mut values = Vec::with_capacity(array.len());
-                        let mut has_error = false;
-
-                        for item in array.iter() {
-                            let item_span = item.span().unwrap_or(parent_span.clone());
-                            let wrapped_item = toml_edit::Item::Value(item.clone());
-                            let element: TomlValue<$ty> =
-                                FromTomlItem::from_toml_item(&wrapped_item, item_span.clone());
-
-                            match &element.state {
-                                TomlValueState::Ok { .. } => {
-                                    if let Some(val) = element.value {
-                                        values.push(val);
-                                    }
-                                }
-                                _ => {
-                                    has_error = true;
-                                }
-                            }
-                        }
-
-                        if has_error {
-                            TomlValue {
-                                required: true,
-                                value: None,
-                                state: TomlValueState::ValidationFailed {
-                                    span: array.span().unwrap_or(parent_span.clone()),
-                                    message: "Array contains invalid elements".to_string(),
-                                    help: None,
-                                },
-                            }
-                        } else {
-                            TomlValue {
-                                required: true,
-                                value: Some(values),
-                                state: TomlValueState::Ok {
-                                    span: array.span().unwrap_or(parent_span.clone()),
-                                },
-                            }
-                        }
-                    }
-                    toml_edit::Item::Value(value) => TomlValue {
-                        required: true,
-                        value: None,
-                        state: TomlValueState::WrongType {
-                            span: value.span().unwrap_or(parent_span.clone()),
-                            expected: "array",
-                            found: value.type_name(),
-                        },
-                    },
-                    toml_edit::Item::Table(value) => TomlValue {
-                        required: true,
-                        value: None,
-                        state: TomlValueState::WrongType {
-                            span: value.span().unwrap_or(parent_span.clone()),
-                            expected: "array",
-                            found: "table",
-                        },
-                    },
-                    toml_edit::Item::ArrayOfTables(value) => TomlValue {
-                        required: true,
-                        value: None,
-                        state: TomlValueState::WrongType {
-                            span: value.span().unwrap_or(parent_span.clone()),
-                            expected: "array",
-                            found: "array of tables",
-                        },
-                    },
-                }
-            }
-        }
-
-        impl FromTomlItem for Option<Vec<$ty>> {
-            fn from_toml_item(
-                item: &toml_edit::Item,
-                parent_span: Range<usize>,
-            ) -> TomlValue<Self> {
-                let mut res: TomlValue<Vec<$ty>> = FromTomlItem::from_toml_item(item, parent_span);
-                res.required = false;
-                match res.state {
-                    TomlValueState::Ok { span } => TomlValue {
-                        required: false,
-                        value: Some(res.value),
-                        state: TomlValueState::Ok { span },
-                    },
-                    TomlValueState::Missing { .. } => TomlValue {
-                        required: false,
-                        value: Some(None),
-                        state: TomlValueState::Ok { span: 0..0 },
-                    },
-                    _ => TomlValue {
-                        value: None,
-                        required: false,
-                        state: res.state,
-                    },
-                }
-            }
-        }
-    };
-}
-
-impl_from_toml_item_vec!(u8);
-impl_from_toml_item_vec!(i16);
-impl_from_toml_item_vec!(i32);
-impl_from_toml_item_vec!(u32);
-impl_from_toml_item_vec!(i64);
-impl_from_toml_item_vec!(u64);
-impl_from_toml_item_vec!(f64);
-impl_from_toml_item_vec!(bool);
-impl_from_toml_item_vec!(String);
-
-impl FromTomlItem for Vec<toml_edit::Item> {
+// Blanket implementation for Vec<T> where T: FromTomlItem
+// This handles both regular arrays and ArrayOfTables (for Vec<toml_edit::Item> specifically)
+impl<T: FromTomlItem> FromTomlItem for Vec<T> {
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> TomlValue<Self> {
         match item {
             toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
-            toml_edit::Item::ArrayOfTables(array) => {
-                let items: Vec<toml_edit::Item> = array
-                    .iter()
-                    .map(|table| toml_edit::Item::Table(table.clone()))
-                    .collect();
-                TomlValue {
-                    required: true,
-                    value: Some(items),
-                    state: TomlValueState::Ok {
-                        span: array.span().unwrap_or(parent_span.clone()),
-                    },
-                }
-            }
             toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
-                // Also support regular arrays with inline tables
-                let items: Vec<toml_edit::Item> = array
-                    .iter()
-                    .map(|val| toml_edit::Item::Value(val.clone()))
-                    .collect();
-                TomlValue {
-                    required: true,
-                    value: Some(items),
-                    state: TomlValueState::Ok {
-                        span: array.span().unwrap_or(parent_span.clone()),
-                    },
+                let mut values = Vec::with_capacity(array.len());
+                let mut has_error = false;
+
+                for array_item in array.iter() {
+                    let item_span = array_item.span().unwrap_or(parent_span.clone());
+                    let wrapped_item = toml_edit::Item::Value(array_item.clone());
+                    let element: TomlValue<T> =
+                        FromTomlItem::from_toml_item(&wrapped_item, item_span.clone());
+
+                    match &element.state {
+                        TomlValueState::Ok { .. } => {
+                            if let Some(val) = element.value {
+                                values.push(val);
+                            }
+                        }
+                        _ => {
+                            has_error = true;
+                        }
+                    }
+                }
+
+                if has_error {
+                    TomlValue {
+                        required: true,
+                        value: None,
+                        state: TomlValueState::ValidationFailed {
+                            span: array.span().unwrap_or(parent_span.clone()),
+                            message: "Array contains invalid elements".to_string(),
+                            help: None,
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        required: true,
+                        value: Some(values),
+                        state: TomlValueState::Ok {
+                            span: array.span().unwrap_or(parent_span.clone()),
+                        },
+                    }
                 }
             }
-            _ => TomlValue {
+            // Handle ArrayOfTables - convert each table to an Item and deserialize
+            toml_edit::Item::ArrayOfTables(array) => {
+                let mut values = Vec::with_capacity(array.len());
+                let mut has_error = false;
+
+                for table in array.iter() {
+                    let table_span = table.span().unwrap_or(parent_span.clone());
+                    let wrapped_item = toml_edit::Item::Table(table.clone());
+                    let element: TomlValue<T> =
+                        FromTomlItem::from_toml_item(&wrapped_item, table_span.clone());
+
+                    match &element.state {
+                        TomlValueState::Ok { .. } => {
+                            if let Some(val) = element.value {
+                                values.push(val);
+                            }
+                        }
+                        _ => {
+                            has_error = true;
+                        }
+                    }
+                }
+
+                if has_error {
+                    TomlValue {
+                        required: true,
+                        value: None,
+                        state: TomlValueState::ValidationFailed {
+                            span: array.span().unwrap_or(parent_span.clone()),
+                            message: "Array of tables contains invalid elements".to_string(),
+                            help: None,
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        required: true,
+                        value: Some(values),
+                        state: TomlValueState::Ok {
+                            span: array.span().unwrap_or(parent_span.clone()),
+                        },
+                    }
+                }
+            }
+            toml_edit::Item::Value(value) => TomlValue {
                 required: true,
                 value: None,
                 state: TomlValueState::WrongType {
-                    span: item.span().unwrap_or(parent_span.clone()),
-                    expected: "array of tables",
-                    found: "other type",
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "array",
+                    found: value.type_name(),
                 },
+            },
+            toml_edit::Item::Table(value) => TomlValue {
+                required: true,
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "array",
+                    found: "table",
+                },
+            },
+        }
+    }
+}
+
+// Blanket implementation for Option<Vec<T>> where T: FromTomlItem
+impl<T: FromTomlItem> FromTomlItem for Option<Vec<T>> {
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> TomlValue<Self> {
+        let mut res: TomlValue<Vec<T>> = FromTomlItem::from_toml_item(item, parent_span);
+        res.required = false;
+        match res.state {
+            TomlValueState::Ok { span } => TomlValue {
+                required: false,
+                value: Some(res.value),
+                state: TomlValueState::Ok { span },
+            },
+            TomlValueState::Missing { .. } => TomlValue {
+                required: false,
+                value: Some(None),
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => TomlValue {
+                value: None,
+                required: false,
+                state: res.state,
             },
         }
     }
@@ -1242,7 +1215,11 @@ impl<T> TomlValue<T> {
             },
         }
     }
-    pub fn new_validation_failed(span: Range<usize>, message: String, help: Option<String>) -> Self{
+    pub fn new_validation_failed(
+        span: Range<usize>,
+        message: String,
+        help: Option<String>,
+    ) -> Self {
         TomlValue {
             value: None,
             required: true,
