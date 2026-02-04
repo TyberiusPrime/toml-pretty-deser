@@ -1000,46 +1000,30 @@ impl FromTomlItem for toml_edit::Item {
     }
 }
 
-macro_rules! impl_from_toml_item_option {
-    ($ty:ty) => {
-        impl FromTomlItem for Option<$ty> {
-            fn from_toml_item(
-                item: &toml_edit::Item,
-                parent_span: Range<usize>,
-            ) -> TomlValue<Self> {
-                let mut res: TomlValue<$ty> = FromTomlItem::from_toml_item(item, parent_span);
-                res.required = false;
-                match res.state {
-                    TomlValueState::Ok { span } => TomlValue {
-                        required: false,
-                        value: Some(res.value),
-                        state: TomlValueState::Ok { span },
-                    },
-                    TomlValueState::Missing { .. } => TomlValue {
-                        required: false,
-                        value: Some(None),
-                        state: TomlValueState::Ok { span: 0..0 },
-                    },
-                    _ => TomlValue {
-                        value: None,
-                        required: false,
-                        state: res.state,
-                    },
-                }
-            }
+// Blanket implementation for Option<T> where T: FromTomlItem
+impl<T: FromTomlItem> FromTomlItem for Option<T> {
+    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> TomlValue<Self> {
+        let mut res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span);
+        res.required = false;
+        match res.state {
+            TomlValueState::Ok { span } => TomlValue {
+                required: false,
+                value: Some(res.value),
+                state: TomlValueState::Ok { span },
+            },
+            TomlValueState::Missing { .. } => TomlValue {
+                required: false,
+                value: Some(None),
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => TomlValue {
+                value: None,
+                required: false,
+                state: res.state,
+            },
         }
-    };
+    }
 }
-
-impl_from_toml_item_option!(u8);
-impl_from_toml_item_option!(i16);
-impl_from_toml_item_option!(i32);
-impl_from_toml_item_option!(i64);
-impl_from_toml_item_option!(f64);
-impl_from_toml_item_option!(bool);
-impl_from_toml_item_option!(String);
-// implementation for Option<toml_edit::Item> to support optional nested structs
-impl_from_toml_item_option!(toml_edit::Item);
 
 // Blanket implementation for Vec<T> where T: FromTomlItem
 // This handles both regular arrays and ArrayOfTables (for Vec<toml_edit::Item> specifically)
@@ -1149,31 +1133,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     expected: "array",
                     found: "table",
                 },
-            },
-        }
-    }
-}
-
-// Blanket implementation for Option<Vec<T>> where T: FromTomlItem
-impl<T: FromTomlItem> FromTomlItem for Option<Vec<T>> {
-    fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> TomlValue<Self> {
-        let mut res: TomlValue<Vec<T>> = FromTomlItem::from_toml_item(item, parent_span);
-        res.required = false;
-        match res.state {
-            TomlValueState::Ok { span } => TomlValue {
-                required: false,
-                value: Some(res.value),
-                state: TomlValueState::Ok { span },
-            },
-            TomlValueState::Missing { .. } => TomlValue {
-                required: false,
-                value: Some(None),
-                state: TomlValueState::Ok { span: 0..0 },
-            },
-            _ => TomlValue {
-                value: None,
-                required: false,
-                state: res.state,
             },
         }
     }

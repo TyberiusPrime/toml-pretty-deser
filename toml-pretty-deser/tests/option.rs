@@ -1,9 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsMap, AsMapEnum, AsMapNested, AsMapTaggedEnum, AsMapVec, AsMapVecEnum,
-    AsMapVecNested, AsMapVecTaggedEnum, DeserError, FromTomlItem, FromTomlTable, StringNamedEnum,
-    ToConcrete, TomlHelper, TomlValue, VerifyFromToml, deserialize, make_partial,
-    make_partial_enum,
+    AnnotatedError, FromTomlItem, FromTomlTable, ToConcrete, TomlHelper, TomlValue, VerifyFromToml,
+    deserialize, make_partial,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,7 +46,7 @@ impl FromTomlItem for DNA {
 #[test]
 fn test_opt_validated() {
     let toml = "
-        barcodes = 'agtc'
+        barcode = 'agtc'
     ";
     let result: Result<_, _> = deserialize::<PartialBarcodesValidated, BarcodesValidated>(toml);
     assert!(result.is_ok());
