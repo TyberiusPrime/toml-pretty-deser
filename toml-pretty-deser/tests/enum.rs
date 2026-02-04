@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsEnum, DeserError, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper,
-    TomlValue, VerifyFromToml, deserialize, make_partial,
+    deserialize, make_partial, AnnotatedError, AsEnum, DeserError, FromTomlTable, StringNamedEnum,
+    ToConcrete, TomlHelper, TomlValue, VerifyFromToml,
 };
 #[derive(StringNamedEnum, Debug, Clone)]
 enum Example {
@@ -110,11 +110,9 @@ fn test_enum_invalid_variant() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
     } else {
         panic!("Expected failure due to invalid enum variant")
     }
@@ -130,11 +128,9 @@ fn test_enum_missing_required() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'an_enum'."),
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'an_enum'."),);
     } else {
         panic!("Expected failure due to missing required enum field")
     }

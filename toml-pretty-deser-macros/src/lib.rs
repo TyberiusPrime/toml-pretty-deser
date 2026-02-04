@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath, parse_macro_input,
+    parse_macro_input, Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath,
 };
 
 #[proc_macro_derive(StringNamedEnum)]
@@ -80,18 +80,25 @@ fn extract_aliases(field: &syn::Field) -> Vec<String> {
     for attr in &field.attrs {
         if attr.path().is_ident("alias") {
             // Parse the alias attribute
-            // Expected format: #[alias("name1")] or #[alias("name1", "name2")]
+            // Expected format: #[alias(name1)] or #[alias(name1, name2)]
+            // Also accepts string literals for reserved keywords: #[alias("type")]
             let result: Result<Vec<String>, _> =
                 attr.parse_args_with(|input: syn::parse::ParseStream| {
-                    // input is already the content inside the parentheses
                     let mut names = Vec::new();
                     loop {
                         if input.is_empty() {
                             break;
                         }
 
-                        let lit: syn::LitStr = input.parse()?;
-                        names.push(lit.value());
+                        // Try to parse as string literal first (for reserved keywords like "type")
+                        if input.peek(syn::LitStr) {
+                            let lit: syn::LitStr = input.parse()?;
+                            names.push(lit.value());
+                        } else {
+                            // Otherwise parse as identifier
+                            let ident: syn::Ident = input.parse()?;
+                            names.push(ident.to_string());
+                        }
 
                         if !input.is_empty() {
                             input.parse::<syn::Token![,]>()?;
@@ -100,8 +107,9 @@ fn extract_aliases(field: &syn::Field) -> Vec<String> {
                     Ok(names)
                 });
 
-            if let Ok(found_aliases) = result {
-                aliases.extend(found_aliases);
+            match result {
+                Ok(found_aliases) => aliases.extend(found_aliases),
+                Err(e) => panic!("{}", e),
             }
         }
     }
@@ -1329,9 +1337,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 } else {
                     // Regular #[as_enum] without allow_single
                     quote! {
-                        #name: {
-                            let al: Vec<String> = vec![#(#aliases),*];
-                            dbg!(al);helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_enum()}
+                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_enum()
                     }
                 }
             } else if is_allow_single_field(f) {
