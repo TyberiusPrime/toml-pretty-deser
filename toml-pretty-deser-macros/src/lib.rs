@@ -1313,7 +1313,10 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     let inner_type_name = extract_option_inner_type(&f.ty).unwrap();
                     let partial_type = format_ident!("Partial{}", inner_type_name);
                     quote! {
-                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_optional_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                        #name: {
+                            let t = helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant);
+                            t.into_optional()
+                        }
                     }
                 } else if is_vec_type(&f.ty) {
                     let inner_type_name = extract_vec_inner_type(&f.ty).unwrap();
@@ -1332,7 +1335,9 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         }
                     } else {
                         quote! {
-                            #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_vec_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                            #name: {
+                                helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_vec_tagged_enum(#tag_key, vec![#(#aliases),*], &helper.errors, helper.match_mode, #partial_type::deserialize_variant)
+                            }
                         }
                     }
                 } else {

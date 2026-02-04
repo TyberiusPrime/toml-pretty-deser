@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::{
-    AnnotatedError, AsOptionalTaggedEnum, AsTaggedEnum, AsVecTaggedEnum, DeserError,
+    AnnotatedError, AsTaggedEnum, AsVecTaggedEnum, DeserError,
     FieldMatchMode, FromTomlTable, StringNamedEnum, ToConcrete, TomlHelper, TomlValue,
     TomlValueState, VerifyFromToml, deserialize_with_mode, make_partial, make_partial_enum,
 };
