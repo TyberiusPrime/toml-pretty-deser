@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath,
+    Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath, parse_macro_input,
 };
 
 #[proc_macro_derive(StringNamedEnum)]
@@ -189,7 +189,6 @@ fn is_vec_type(ty: &Type) -> bool {
         _ => false,
     }
 }
-
 
 /// Extract the full inner Type from Option<T>
 fn extract_option_inner_full_type(ty: &Type) -> Option<Type> {
@@ -1136,6 +1135,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             let name_str = name.as_ref().unwrap().to_string();
             let aliases = extract_aliases(f);
             let ty = &f.ty;
+
             // Check for IndexMap types first
             if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                 let is_optional = is_option_indexmap_type(ty);
@@ -1254,7 +1254,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             } else if is_nested_field(f) {
                 // For nested fields, we need to pass mode to as_nested
                 quote! {
-                    #name: helper.get_with_aliases(#name_str, vec![]).as_nested(&helper.errors, helper.match_mode)
+                    #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_nested(&helper.errors, helper.match_mode)
                 }
             } else if is_enum_tagged_field(f) {
                 // For enum_tagged fields, use as_tagged_enum with the tag key, aliases, and deserialize function
@@ -1319,50 +1319,31 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             }
                         }
                     } else {
+                        panic!("#[tpd_allow_single] can not be applied to single fields");
                         // Single enum with allow_single doesn't make sense, fall back to normal as_enum
-                        if aliases.is_empty() {
-                            quote! {
-                                #name: helper.get(#name_str).as_enum()
-                            }
-                        } else {
-                            quote! {
-                                #name: helper.get_with_aliases(#name_str, vec![]).as_enum()
-                            }
-                        }
+                        //
+                        // quote! {
+                        //     #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_enum()
+                        // }
                     }
                 } else {
                     // Regular #[as_enum] without allow_single
-                    if aliases.is_empty() {
-                        quote! {
-                            #name: helper.get(#name_str).as_enum()
-                        }
-                    } else {
-                        quote! {
-                            #name: helper.get_with_aliases(#name_str, vec![]).as_enum()
-                        }
+                    quote! {
+                        #name: {
+                            let al: Vec<String> = vec![#(#aliases),*];
+                            dbg!(al);helper.get_with_aliases(#name_str, vec![#(#aliases),*]).as_enum()}
                     }
                 }
             } else if is_allow_single_field(f) {
                 // For Vec<T> fields with #[tpd_allow_single], allow either array or single value
-                if aliases.is_empty() {
-                    quote! {
-                        #name: helper.get_allow_single(#name_str)
-                    }
-                } else {
-                    quote! {
-                        #name: helper.get_allow_single_with_aliases(#name_str, vec![#(#aliases),*])
-                    }
+
+                quote! {
+                    #name: helper.get_allow_single_with_aliases(#name_str, vec![#(#aliases),*])
                 }
             } else {
                 // For regular fields, use aliases if present
-                if aliases.is_empty() {
-                    quote! {
-                        #name: helper.get(#name_str)
-                    }
-                } else {
-                    quote! {
-                        #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*])
-                    }
+                quote! {
+                    #name: helper.get_with_aliases(#name_str, vec![#(#aliases),*])
                 }
             }
         })

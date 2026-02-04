@@ -4,7 +4,7 @@ use toml_edit::{Document, TomlError};
 
 mod tablelike;
 use tablelike::{AsTableLike, TableLikePlus};
-pub use toml_pretty_deser_macros::{make_partial, make_partial_enum, StringNamedEnum};
+pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial, make_partial_enum};
 
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
@@ -612,10 +612,18 @@ pub struct SpannedMessage {
     pub msg: String,
 }
 
-#[derive(Debug)]
 pub struct HydratedAnnotatedError {
     pub source: Rc<RefCell<String>>,
     pub inner: AnnotatedError,
+}
+
+impl std::fmt::Debug for HydratedAnnotatedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "HydratedAnnotatedError {{ ")?;
+        write!(f, "{}", self.pretty("debug.toml"))?;
+        writeln!(f, " }}")?;
+        Ok(())
+    }
 }
 
 impl AnnotatedError {

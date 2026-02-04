@@ -13,13 +13,17 @@ enum Example {
 #[make_partial]
 #[derive(Debug)]
 struct EnumOutput {
+    #[alias(other_an_enum)]
     #[as_enum]
     an_enum: Example,
     #[as_enum]
+    #[alias(other_opt_enum)]
     opt_enum: Option<Example>,
     #[as_enum]
+    #[alias(other_vec_enum)]
     vec_enum: Vec<Example>,
     #[as_enum]
+    #[alias(other_opt_vec_enum)]
     opt_vec_enum: Option<Vec<Example>>,
 }
 
@@ -30,6 +34,32 @@ fn test_enum_happy_path() {
             opt_enum = 'TwoThree'
             vec_enum = ['One', 'Four']
             opt_vec_enum = ['TwoThree', 'One']
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(matches!(output.an_enum, Example::One));
+        assert!(matches!(output.opt_enum, Some(Example::TwoThree)));
+        assert_eq!(output.vec_enum.len(), 2);
+        assert!(matches!(output.vec_enum[0], Example::One));
+        assert!(matches!(output.vec_enum[1], Example::Four));
+        assert!(output.opt_vec_enum.is_some());
+        let opt_vec = output.opt_vec_enum.unwrap();
+        assert_eq!(opt_vec.len(), 2);
+        assert!(matches!(opt_vec[0], Example::TwoThree));
+        assert!(matches!(opt_vec[1], Example::One));
+    }
+}
+
+#[test]
+fn test_enum_happy_path_alias() {
+    let toml = "
+            other_an_enum = 'One'
+            other_opt_enum = 'TwoThree'
+            other_vec_enum = ['One', 'Four']
+            other_opt_vec_enum = ['TwoThree', 'One']
         ";
 
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
@@ -110,7 +140,6 @@ fn test_enum_missing_required() {
     }
 }
 
-
 #[make_partial]
 #[derive(Debug)]
 struct EnumSingleAllowed {
@@ -163,4 +192,3 @@ fn test_enum_happy_path_multi() {
         assert!(matches!(opt_vec[1], Example::One));
     }
 }
-
