@@ -512,7 +512,7 @@ impl syn::parse::Parse for TaggedEnumArgs {
 /// - A `PartialEitherOne` enum with partial variants
 /// - Implementation of `TaggedEnumMeta` with TAG_KEY and TAG_ALIASES
 /// - Implementation of `ToConcrete<EitherOne>` for `PartialEitherOne`
-/// - Implementation of `FromTomlTable<()>` for error collection
+/// - Implementation of `FromTomlTable` for error collection
 #[proc_macro_attribute]
 pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as TaggedEnumArgs);
@@ -667,7 +667,7 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
             }
         }
 
-        impl #impl_generics FromTomlTable<()> for #partial_name #ty_generics #where_clause {
+        impl #impl_generics FromTomlTable for #partial_name #ty_generics #where_clause {
             fn can_concrete(&self) -> bool {
                 match self {
                     #(#can_concrete_variants)*
@@ -680,16 +680,16 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                 }
             }
 
-            fn from_toml_table(_helper: &mut ::toml_pretty_deser::TomlHelper<'_>, _partial: &()) -> Self {
-                panic!("FromTomlTable<()> should not be called directly on tagged enums. Use TaggedEnumMeta::deserialize_variant instead.");
+            fn from_toml_table(_helper: &mut ::toml_pretty_deser::TomlHelper<'_>) -> Self {
+                panic!("FromTomlTable should not be called directly on tagged enums. Use TaggedEnumMeta::deserialize_variant instead.");
             }
         }
 
-        impl #impl_generics ::toml_pretty_deser::VerifyFromToml<()> for #partial_name #ty_generics #where_clause {
-            fn verify(self, _helper: &mut ::toml_pretty_deser::TomlHelper<'_>, _partial: &()) -> Self {
-                self
-            }
-        }
+        // impl #impl_generics ::toml_pretty_deser::VerifyFromToml<()> for #partial_name #ty_generics #where_clause {
+        //     fn verify(self, _helper: &mut ::toml_pretty_deser::TomlHelper<'_>, _partial: &()) -> Self {
+        //         self
+        //     }
+        // }
     };
 
     TokenStream::from(expanded)
@@ -1453,7 +1453,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
 
-        impl #impl_generics FromTomlTable<()> for #partial_name #ty_generics #where_clause {
+        impl #impl_generics FromTomlTable for #partial_name #ty_generics #where_clause {
             fn can_concrete(&self) -> bool {
                 #(#can_concrete_fields)&&*
             }
@@ -1462,7 +1462,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #(#collect_errors_fields;)*
             }
 
-            fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+            fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self {
                 #partial_name {
                     #(#from_toml_table_fields,)*
                 }

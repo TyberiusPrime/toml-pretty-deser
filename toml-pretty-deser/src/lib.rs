@@ -189,14 +189,14 @@ mod tests {
 
 pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()> + ToConcrete<T>,
+    P: FromTomlTable + VerifyFromToml<()> + ToConcrete<T>,
 {
     deserialize_with_mode(source, FieldMatchMode::default())
 }
 
 pub fn deserialize_with_mode<P, T>(source: &str, mode: FieldMatchMode) -> Result<T, DeserError<P>>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()> + ToConcrete<T>,
+    P: FromTomlTable + VerifyFromToml<()> + ToConcrete<T>,
 {
     let parsed_toml = source.parse::<Document<String>>()?;
     let source = Rc::new(RefCell::new(source.to_string()));
@@ -204,7 +204,7 @@ where
     let errors = Rc::new(RefCell::new(Vec::new()));
     let mut helper = TomlHelper::from_table(parsed_toml.as_table(), errors.clone(), mode);
 
-    let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+    let partial = P::from_toml_table(&mut helper).verify(&mut helper, &());
     helper.deny_unknown();
 
     partial.collect_errors(&errors);
@@ -291,10 +291,10 @@ impl<P> From<TomlError> for DeserError<P> {
     }
 }
 
-pub trait FromTomlTable<T> {
+pub trait FromTomlTable{
     fn can_concrete(&self) -> bool;
     fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>);
-    fn from_toml_table(helper: &mut TomlHelper<'_>, _partial: &T) -> Self
+    fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized;
 }
@@ -1331,7 +1331,7 @@ pub fn deserialize_nested<P>(
     fields_to_ignore: &[&str],
 ) -> TomlValue<P>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()>,
+    P: FromTomlTable + VerifyFromToml<()>,
 {
     match item.as_table_like_plus() {
         Some(table) => {
@@ -1339,7 +1339,7 @@ where
             for f in fields_to_ignore {
                 helper.ignore_field(*f);
             }
-            let partial = P::from_toml_table(&mut helper, &()).verify(&mut helper, &());
+            let partial = P::from_toml_table(&mut helper).verify(&mut helper, &());
             helper.deny_unknown();
 
             if partial.can_concrete() {
@@ -2040,7 +2040,7 @@ pub trait AsNested<P>: Sized {
 
 impl<P> AsNested<P> for TomlValue<toml_edit::Item>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()>,
+    P: FromTomlTable + VerifyFromToml<()>,
 {
     fn as_nested(
         self,
@@ -2074,7 +2074,7 @@ where
 
 impl<P> AsNested<Option<P>> for TomlValue<Option<toml_edit::Item>>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()>,
+    P: FromTomlTable + VerifyFromToml<()>,
 {
     fn as_nested(
         self,
@@ -2124,7 +2124,7 @@ where
 
 impl<P> AsNested<Vec<P>> for TomlValue<Vec<toml_edit::Item>>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()>,
+    P: FromTomlTable + VerifyFromToml<()>,
 {
     fn as_nested(
         self,
@@ -2382,7 +2382,7 @@ pub trait AsMapNested<P>: Sized {
 
 impl<P> AsMapNested<P> for TomlValue<toml_edit::Item>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()>,
+    P: FromTomlTable + VerifyFromToml<()>,
 {
     fn as_map_nested(
         self,
@@ -2685,7 +2685,7 @@ pub trait AsMapVecNested<P>: Sized {
 
 impl<P> AsMapVecNested<P> for TomlValue<toml_edit::Item>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()>,
+    P: FromTomlTable + VerifyFromToml<()>,
 {
     fn as_map_vec_nested(
         self,
@@ -2924,7 +2924,7 @@ impl<T: FromTomlItem> AsOptMap<T> for TomlValue<Option<toml_edit::Item>> {
 /// Implementation for AsOptMapNested on Option<Item> returning Option<IndexMap<String, P>>
 impl<P> AsOptMapNested<P> for TomlValue<Option<toml_edit::Item>>
 where
-    P: FromTomlTable<()> + VerifyFromToml<()>,
+    P: FromTomlTable + VerifyFromToml<()>,
 {
     fn as_opt_map_nested(
         self,
