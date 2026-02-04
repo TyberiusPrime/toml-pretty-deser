@@ -1,4 +1,5 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
+use indexmap::IndexMap;
 use toml_pretty_deser::{
     AnnotatedError, AsMap, AsMapEnum, AsMapNested, AsMapTaggedEnum, AsMapVec, AsMapVecEnum,
     AsMapVecNested, AsMapVecTaggedEnum, DeserError, FromTomlTable, StringNamedEnum, ToConcrete,
@@ -6,21 +7,21 @@ use toml_pretty_deser::{
 };
 
 #[make_partial]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
 #[make_partial]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct InnerB {
     s: u32,
     t: u32,
 }
 
 #[make_partial_enum] // creates PartialEitherOne { KindA(PartialInnerA, ...)}
-#[derive(Debug, Clone)] //todo: whi does this need clone
+#[derive(Debug)] 
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
@@ -41,27 +42,27 @@ struct Inner {
 #[make_partial]
 #[derive(Debug)]
 struct Mapped {
-    mapped_u8: HashMap<String, u8>,
+    mapped_u8: IndexMap<String, u8>,
     #[as_enum]
-    mapped_enum: HashMap<String, ByString>,
+    mapped_enum: IndexMap<String, ByString>,
     #[enum_tagged("_unused")]
-    mapped_either: HashMap<String, EitherOne>,
+    mapped_either: IndexMap<String, EitherOne>,
     #[nested]
-    mapped_struct: HashMap<String, Inner>,
-    mapped_vec_string: HashMap<String, Vec<String>>,
+    mapped_struct: IndexMap<String, Inner>,
+    mapped_vec_string: IndexMap<String, Vec<String>>,
     #[as_enum]
-    mapped_vec_enum: HashMap<String, Vec<ByString>>,
+    mapped_vec_enum: IndexMap<String, Vec<ByString>>,
     #[enum_tagged("_unused")]
-    mapped_vec_either: HashMap<String, Vec<EitherOne>>,
+    mapped_vec_either: IndexMap<String, Vec<EitherOne>>,
     #[nested]
-    mapped_vec_struct: HashMap<String, Vec<Inner>>,
-    opt_mapped_u8: Option<HashMap<String, u8>>,
+    mapped_vec_struct: IndexMap<String, Vec<Inner>>,
+    opt_mapped_u8: Option<IndexMap<String, u8>>,
     #[as_enum]
-    opt_mapped_enum: Option<HashMap<String, ByString>>,
+    opt_mapped_enum: Option<IndexMap<String, ByString>>,
     #[enum_tagged("_unused")]
-    opt_mapped_either: Option<HashMap<String, EitherOne>>,
+    opt_mapped_either: Option<IndexMap<String, EitherOne>>,
     #[nested]
-    opt_mapped_struct: Option<HashMap<String, Inner>>,
+    opt_mapped_struct: Option<IndexMap<String, Inner>>,
 }
 
 #[test]
@@ -830,3 +831,38 @@ fn test_mapped_optional_struct_missing_field() {
         panic!("Expected failure due to missing field in optional struct");
     }
 }
+
+
+#[make_partial]
+#[derive(Debug)]
+struct Barcodes {
+    barcodes: IndexMap<String, String>
+}
+
+#[test]
+fn test_map_order_retained() 
+{
+    let toml = "
+        [barcodes] 
+            alpha = 'agtc'
+            beta = 'cccc'
+            gamma = 'c'
+            delta = 'c'
+            epsilon = 'c'
+            romeo = 'c'
+            tango = 'c'
+            juliet = 'c'
+    ";
+    let result: Result<_, _> = deserialize::<PartialBarcodes, Barcodes>(toml);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        let keys: Vec<&String> = output.barcodes.keys().collect();
+        let should: Vec<String> = ["alpha","beta", "gamma", "delta", "epsilon", "romeo", "tango", "juliet"].iter().map(ToString::to_string).collect();
+        let actual: Vec<String> = keys.iter().map(|x| x.to_string()).collect();
+        assert_eq!(actual, should);
+    }
+}
+
+
+
+

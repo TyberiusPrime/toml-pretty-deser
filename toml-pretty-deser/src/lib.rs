@@ -1,10 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-
 mod tablelike;
-use tablelike::{TableLikePlus, AsTableLike};
+use tablelike::{AsTableLike, TableLikePlus};
 pub use toml_pretty_deser_macros::{StringNamedEnum, make_partial, make_partial_enum};
 
 pub trait StringNamedEnum: Sized + Clone {
@@ -702,7 +701,7 @@ impl<'a> TomlHelper<'a> {
         // Collect all table keys
         let table_keys: Vec<String> = if let Some(table) = self.table {
             table.iter().map(|(k, _)| k.to_string()).collect()
-        }  else {
+        } else {
             vec![]
         };
 
@@ -715,7 +714,7 @@ impl<'a> TomlHelper<'a> {
                             result.push((table_key.clone(), item.clone()));
                             break;
                         }
-                    } 
+                    }
                 }
             }
         }
@@ -813,7 +812,7 @@ impl<'a> TomlHelper<'a> {
 
     pub fn deny_unknown(&self) {
         // Build set of normalized expected names (including aliases)
-        let mut expected_normalized: HashSet<String> = HashSet::new();
+        let mut expected_normalized: IndexSet<String> = IndexSet::new();
         for field_info in &self.expected {
             for normalized_name in field_info.all_normalized_names(&self.match_mode) {
                 expected_normalized.insert(normalized_name);
@@ -828,7 +827,7 @@ impl<'a> TomlHelper<'a> {
         };
 
         // Build set of observed normalized names
-        let observed_set: HashSet<String> = self.observed.iter().cloned().collect();
+        let observed_set: IndexSet<String> = self.observed.iter().cloned().collect();
 
         for key in keys {
             let normalized_key = self.match_mode.normalize(&key);
@@ -978,7 +977,6 @@ impl_from_toml_item_value!(bool, "bool", Boolean);
 impl_from_toml_item_value!(String, "String", String);
 impl_from_toml_item_value!(f64, "Float", Float);
 
-
 // Implementation for raw toml_edit::Item - used for nested struct deserialization
 impl FromTomlItem for TomlValue<toml_edit::Item> {
     fn from_toml_item(item: &toml_edit::Item, parent_span: Range<usize>) -> Self {
@@ -1033,7 +1031,6 @@ impl_from_toml_item_option!(bool);
 impl_from_toml_item_option!(String);
 // implementation for Option<toml_edit::Item> to support optional nested structs
 impl_from_toml_item_option!(toml_edit::Item);
-
 
 macro_rules! impl_from_toml_item_vec {
     ($ty:ty) => {
@@ -1325,7 +1322,7 @@ impl<T> TomlValue<T> {
                 required: false,
                 state: TomlValueState::Ok { span: 0..0 },
             },
-          _ => self,
+            _ => self,
         }
     }
 }
@@ -1919,16 +1916,16 @@ where
 }
 
 // ================================
-// HashMap / Map Support
+// IndexMap / Map Support
 // ================================
 
-/// Trait for converting a TOML table into a HashMap<String, T> where T is a primitive type
+/// Trait for converting a TOML table into a IndexMap<String, T> where T is a primitive type
 pub trait AsMap<T>: Sized {
     fn as_map(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, T>>;
+    ) -> TomlValue<IndexMap<String, T>>;
 }
 
 /// Implementation for primitive types that implement FromTomlItem
@@ -1939,13 +1936,13 @@ macro_rules! impl_as_map_primitive {
                 self,
                 errors: &Rc<RefCell<Vec<AnnotatedError>>>,
                 _mode: FieldMatchMode,
-            ) -> TomlValue<HashMap<String, $ty>> {
+            ) -> TomlValue<IndexMap<String, $ty>> {
                 match &self.state {
                     TomlValueState::Ok { span } => {
                         if let Some(ref item) = self.value {
                             match item.as_table_like_plus() {
                                 Some(table) => {
-                                    let mut map = HashMap::new();
+                                    let mut map = IndexMap::new();
                                     let mut has_errors = false;
 
                                     for (key, value) in table.iter() {
@@ -2019,7 +2016,7 @@ macro_rules! impl_as_map_primitive {
                 self,
                 errors: &Rc<RefCell<Vec<AnnotatedError>>>,
                 mode: FieldMatchMode,
-            ) -> TomlValue<HashMap<String, Option<$ty>>> {
+            ) -> TomlValue<IndexMap<String, Option<$ty>>> {
                 match &self.state {
                     TomlValueState::Ok { span } => match self.value {
                         Some(Some(item)) => {
@@ -2028,11 +2025,11 @@ macro_rules! impl_as_map_primitive {
                                 required: false,
                                 state: TomlValueState::Ok { span: span.clone() },
                             };
-                            let result: TomlValue<HashMap<String, $ty>> =
+                            let result: TomlValue<IndexMap<String, $ty>> =
                                 single.as_map(errors, mode);
                             match result.state {
                                 TomlValueState::Ok { span } => {
-                                    let converted: HashMap<String, Option<$ty>> = result
+                                    let converted: IndexMap<String, Option<$ty>> = result
                                         .value
                                         .unwrap()
                                         .into_iter()
@@ -2052,7 +2049,7 @@ macro_rules! impl_as_map_primitive {
                             }
                         }
                         Some(None) => TomlValue {
-                            value: Some(HashMap::new()),
+                            value: Some(IndexMap::new()),
                             required: self.required,
                             state: TomlValueState::Ok { span: span.clone() },
                         },
@@ -2067,7 +2064,7 @@ macro_rules! impl_as_map_primitive {
                         },
                     },
                     TomlValueState::Missing { parent_span, .. } => TomlValue {
-                        value: Some(HashMap::new()),
+                        value: Some(IndexMap::new()),
                         required: self.required,
                         state: TomlValueState::Ok {
                             span: parent_span.clone(),
@@ -2094,13 +2091,13 @@ impl_as_map_primitive!(f64);
 impl_as_map_primitive!(bool);
 impl_as_map_primitive!(String);
 
-/// Trait for converting a TOML table into a HashMap<String, E> where E is a StringNamedEnum
+/// Trait for converting a TOML table into a IndexMap<String, E> where E is a StringNamedEnum
 pub trait AsMapEnum<E>: Sized {
     fn as_map_enum(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, E>>;
+    ) -> TomlValue<IndexMap<String, E>>;
 }
 
 impl<E: StringNamedEnum> AsMapEnum<E> for TomlValue<toml_edit::Item> {
@@ -2108,13 +2105,13 @@ impl<E: StringNamedEnum> AsMapEnum<E> for TomlValue<toml_edit::Item> {
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         _mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, E>> {
+    ) -> TomlValue<IndexMap<String, E>> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     match item.as_table_like_plus() {
                         Some(table) => {
-                            let mut map = HashMap::new();
+                            let mut map = IndexMap::new();
                             let mut has_errors = false;
 
                             for (key, value) in table.iter() {
@@ -2184,13 +2181,13 @@ impl<E: StringNamedEnum> AsMapEnum<E> for TomlValue<toml_edit::Item> {
     }
 }
 
-/// Trait for converting a TOML table into a HashMap<String, P> where P is a nested struct
+/// Trait for converting a TOML table into a IndexMap<String, P> where P is a nested struct
 pub trait AsMapNested<P>: Sized {
     fn as_map_nested(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, P>>;
+    ) -> TomlValue<IndexMap<String, P>>;
 }
 
 impl<P> AsMapNested<P> for TomlValue<toml_edit::Item>
@@ -2201,13 +2198,13 @@ where
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, P>> {
+    ) -> TomlValue<IndexMap<String, P>> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     match item.as_table_like_plus() {
                         Some(table) => {
-                            let mut map = HashMap::new();
+                            let mut map = IndexMap::new();
                             let mut has_errors = false;
 
                             for (key, value) in table.iter() {
@@ -2278,7 +2275,7 @@ where
     }
 }
 
-/// Trait for converting a TOML table into a HashMap<String, E> where E is a tagged enum (externally tagged)
+/// Trait for converting a TOML table into a IndexMap<String, E> where E is a tagged enum (externally tagged)
 pub trait AsMapTaggedEnum<E>: Sized {
     fn as_map_tagged_enum(
         self,
@@ -2291,7 +2288,7 @@ pub trait AsMapTaggedEnum<E>: Sized {
             FieldMatchMode,
             &[&str],
         ) -> Option<E>,
-    ) -> TomlValue<HashMap<String, E>>;
+    ) -> TomlValue<IndexMap<String, E>>;
 }
 
 impl<E: StringNamedEnum> AsMapTaggedEnum<E> for TomlValue<toml_edit::Item> {
@@ -2306,13 +2303,13 @@ impl<E: StringNamedEnum> AsMapTaggedEnum<E> for TomlValue<toml_edit::Item> {
             FieldMatchMode,
             &[&str],
         ) -> Option<E>,
-    ) -> TomlValue<HashMap<String, E>> {
+    ) -> TomlValue<IndexMap<String, E>> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     match item.as_table_like_plus() {
                         Some(table) => {
-                            let mut map = HashMap::new();
+                            let mut map = IndexMap::new();
                             let mut has_errors = false;
 
                             for (key, value) in table.iter() {
@@ -2419,13 +2416,13 @@ impl<E: StringNamedEnum> AsMapTaggedEnum<E> for TomlValue<toml_edit::Item> {
     }
 }
 
-/// Trait for converting a TOML table into a HashMap<String, Vec<T>>
+/// Trait for converting a TOML table into a IndexMap<String, Vec<T>>
 pub trait AsMapVec<T>: Sized {
     fn as_map_vec(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, Vec<T>>>;
+    ) -> TomlValue<IndexMap<String, Vec<T>>>;
 }
 
 macro_rules! impl_as_map_vec_primitive {
@@ -2435,13 +2432,13 @@ macro_rules! impl_as_map_vec_primitive {
                 self,
                 errors: &Rc<RefCell<Vec<AnnotatedError>>>,
                 _mode: FieldMatchMode,
-            ) -> TomlValue<HashMap<String, Vec<$ty>>> {
+            ) -> TomlValue<IndexMap<String, Vec<$ty>>> {
                 match &self.state {
                     TomlValueState::Ok { span } => {
                         if let Some(ref item) = self.value {
                             match item.as_table_like_plus() {
                                 Some(table) => {
-                                    let mut map = HashMap::new();
+                                    let mut map = IndexMap::new();
                                     let mut has_errors = false;
 
                                     for (key, value) in table.iter() {
@@ -2523,13 +2520,13 @@ impl_as_map_vec_primitive!(f64);
 impl_as_map_vec_primitive!(bool);
 impl_as_map_vec_primitive!(String);
 
-/// Trait for converting a TOML table into a HashMap<String, Vec<E>> where E is a StringNamedEnum
+/// Trait for converting a TOML table into a IndexMap<String, Vec<E>> where E is a StringNamedEnum
 pub trait AsMapVecEnum<E>: Sized {
     fn as_map_vec_enum(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, Vec<E>>>;
+    ) -> TomlValue<IndexMap<String, Vec<E>>>;
 }
 
 impl<E: StringNamedEnum> AsMapVecEnum<E> for TomlValue<toml_edit::Item> {
@@ -2537,13 +2534,13 @@ impl<E: StringNamedEnum> AsMapVecEnum<E> for TomlValue<toml_edit::Item> {
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         _mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, Vec<E>>> {
+    ) -> TomlValue<IndexMap<String, Vec<E>>> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     match item.as_table_like_plus() {
                         Some(table) => {
-                            let mut map = HashMap::new();
+                            let mut map = IndexMap::new();
                             let mut has_errors = false;
 
                             for (key, value) in table.iter() {
@@ -2613,13 +2610,13 @@ impl<E: StringNamedEnum> AsMapVecEnum<E> for TomlValue<toml_edit::Item> {
     }
 }
 
-/// Trait for converting a TOML table into a HashMap<String, Vec<P>> where P is a nested struct
+/// Trait for converting a TOML table into a IndexMap<String, Vec<P>> where P is a nested struct
 pub trait AsMapVecNested<P>: Sized {
     fn as_map_vec_nested(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, Vec<P>>>;
+    ) -> TomlValue<IndexMap<String, Vec<P>>>;
 }
 
 impl<P> AsMapVecNested<P> for TomlValue<toml_edit::Item>
@@ -2630,13 +2627,13 @@ where
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<HashMap<String, Vec<P>>> {
+    ) -> TomlValue<IndexMap<String, Vec<P>>> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     match item.as_table_like_plus() {
                         Some(table) => {
-                            let mut map = HashMap::new();
+                            let mut map = IndexMap::new();
                             let mut has_errors = false;
 
                             for (key, value) in table.iter() {
@@ -2737,7 +2734,7 @@ where
     }
 }
 
-/// Trait for converting a TOML table into a HashMap<String, Vec<E>> where E is a tagged enum
+/// Trait for converting a TOML table into a IndexMap<String, Vec<E>> where E is a tagged enum
 pub trait AsMapVecTaggedEnum<E>: Sized {
     fn as_map_vec_tagged_enum(
         self,
@@ -2750,7 +2747,7 @@ pub trait AsMapVecTaggedEnum<E>: Sized {
             FieldMatchMode,
             &[&str],
         ) -> Option<E>,
-    ) -> TomlValue<HashMap<String, Vec<E>>>;
+    ) -> TomlValue<IndexMap<String, Vec<E>>>;
 }
 
 impl<E: StringNamedEnum> AsMapVecTaggedEnum<E> for TomlValue<toml_edit::Item> {
@@ -2765,13 +2762,13 @@ impl<E: StringNamedEnum> AsMapVecTaggedEnum<E> for TomlValue<toml_edit::Item> {
             FieldMatchMode,
             &[&str],
         ) -> Option<E>,
-    ) -> TomlValue<HashMap<String, Vec<E>>> {
+    ) -> TomlValue<IndexMap<String, Vec<E>>> {
         match &self.state {
             TomlValueState::Ok { span } => {
                 if let Some(ref item) = self.value {
                     match item.as_table_like_plus() {
                         Some(table) => {
-                            let mut map = HashMap::new();
+                            let mut map = IndexMap::new();
                             let mut has_errors = false;
 
                             for (key, value) in table.iter() {
@@ -2930,38 +2927,38 @@ pub enum TomlValueState {
 }
 
 // ================================
-// Optional HashMap Traits and Implementations
-// These convert TomlValue<Option<Item>> to TomlValue<Option<HashMap<String, T>>>
+// Optional IndexMap Traits and Implementations
+// These convert TomlValue<Option<Item>> to TomlValue<Option<IndexMap<String, T>>>
 // ================================
 
-/// Trait for converting an optional TOML table into Option<HashMap<String, T>>
+/// Trait for converting an optional TOML table into Option<IndexMap<String, T>>
 pub trait AsOptMap<T>: Sized {
     fn as_opt_map(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<Option<HashMap<String, T>>>;
+    ) -> TomlValue<Option<IndexMap<String, T>>>;
 }
 
-/// Trait for converting an optional TOML table into Option<HashMap<String, E>> for string-named enums
+/// Trait for converting an optional TOML table into Option<IndexMap<String, E>> for string-named enums
 pub trait AsOptMapEnum<E>: Sized {
     fn as_opt_map_enum(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<Option<HashMap<String, E>>>;
+    ) -> TomlValue<Option<IndexMap<String, E>>>;
 }
 
-/// Trait for converting an optional TOML table into Option<HashMap<String, P>> for nested structs
+/// Trait for converting an optional TOML table into Option<IndexMap<String, P>> for nested structs
 pub trait AsOptMapNested<P>: Sized {
     fn as_opt_map_nested(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<Option<HashMap<String, P>>>;
+    ) -> TomlValue<Option<IndexMap<String, P>>>;
 }
 
-/// Trait for converting an optional TOML table into Option<HashMap<String, E>> for tagged enums
+/// Trait for converting an optional TOML table into Option<IndexMap<String, E>> for tagged enums
 pub trait AsOptMapTaggedEnum<E>: Sized {
     fn as_opt_map_tagged_enum(
         self,
@@ -2974,37 +2971,37 @@ pub trait AsOptMapTaggedEnum<E>: Sized {
             FieldMatchMode,
             &[&str],
         ) -> Option<E>,
-    ) -> TomlValue<Option<HashMap<String, E>>>;
+    ) -> TomlValue<Option<IndexMap<String, E>>>;
 }
 
-/// Trait for converting an optional TOML table into Option<HashMap<String, Vec<T>>>
+/// Trait for converting an optional TOML table into Option<IndexMap<String, Vec<T>>>
 pub trait AsOptMapVec<T>: Sized {
     fn as_opt_map_vec(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<Option<HashMap<String, Vec<T>>>>;
+    ) -> TomlValue<Option<IndexMap<String, Vec<T>>>>;
 }
 
-/// Trait for converting an optional TOML table into Option<HashMap<String, Vec<E>>> for string-named enums
+/// Trait for converting an optional TOML table into Option<IndexMap<String, Vec<E>>> for string-named enums
 pub trait AsOptMapVecEnum<E>: Sized {
     fn as_opt_map_vec_enum(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<Option<HashMap<String, Vec<E>>>>;
+    ) -> TomlValue<Option<IndexMap<String, Vec<E>>>>;
 }
 
-/// Trait for converting an optional TOML table into Option<HashMap<String, Vec<P>>> for nested structs
+/// Trait for converting an optional TOML table into Option<IndexMap<String, Vec<P>>> for nested structs
 pub trait AsOptMapVecNested<P>: Sized {
     fn as_opt_map_vec_nested(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<Option<HashMap<String, Vec<P>>>>;
+    ) -> TomlValue<Option<IndexMap<String, Vec<P>>>>;
 }
 
-/// Trait for converting an optional TOML table into Option<HashMap<String, Vec<E>>> for tagged enums
+/// Trait for converting an optional TOML table into Option<IndexMap<String, Vec<E>>> for tagged enums
 pub trait AsOptMapVecTaggedEnum<E>: Sized {
     fn as_opt_map_vec_tagged_enum(
         self,
@@ -3017,10 +3014,10 @@ pub trait AsOptMapVecTaggedEnum<E>: Sized {
             FieldMatchMode,
             &[&str],
         ) -> Option<E>,
-    ) -> TomlValue<Option<HashMap<String, Vec<E>>>>;
+    ) -> TomlValue<Option<IndexMap<String, Vec<E>>>>;
 }
 
-/// Implementation for AsOptMap on Option<Item> returning Option<HashMap<String, T>>
+/// Implementation for AsOptMap on Option<Item> returning Option<IndexMap<String, T>>
 macro_rules! impl_as_opt_map_primitive {
     ($ty:ty) => {
         impl AsOptMap<$ty> for TomlValue<Option<toml_edit::Item>> {
@@ -3028,7 +3025,7 @@ macro_rules! impl_as_opt_map_primitive {
                 self,
                 errors: &Rc<RefCell<Vec<AnnotatedError>>>,
                 mode: FieldMatchMode,
-            ) -> TomlValue<Option<HashMap<String, $ty>>> {
+            ) -> TomlValue<Option<IndexMap<String, $ty>>> {
                 match &self.state {
                     TomlValueState::Ok { span } => match self.value {
                         Some(Some(item)) => {
@@ -3037,7 +3034,7 @@ macro_rules! impl_as_opt_map_primitive {
                                 required: false,
                                 state: TomlValueState::Ok { span: span.clone() },
                             };
-                            let result: TomlValue<HashMap<String, $ty>> =
+                            let result: TomlValue<IndexMap<String, $ty>> =
                                 single.as_map(errors, mode);
                             match result.state {
                                 TomlValueState::Ok { span } => TomlValue {
@@ -3091,13 +3088,13 @@ impl_as_opt_map_primitive!(f64);
 impl_as_opt_map_primitive!(bool);
 impl_as_opt_map_primitive!(String);
 
-/// Implementation for AsOptMapEnum on Option<Item> returning Option<HashMap<String, E>>
+/// Implementation for AsOptMapEnum on Option<Item> returning Option<IndexMap<String, E>>
 impl<E: StringNamedEnum> AsOptMapEnum<E> for TomlValue<Option<toml_edit::Item>> {
     fn as_opt_map_enum(
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<Option<HashMap<String, E>>> {
+    ) -> TomlValue<Option<IndexMap<String, E>>> {
         match &self.state {
             TomlValueState::Ok { span } => match self.value {
                 Some(Some(item)) => {
@@ -3106,7 +3103,7 @@ impl<E: StringNamedEnum> AsOptMapEnum<E> for TomlValue<Option<toml_edit::Item>> 
                         required: false,
                         state: TomlValueState::Ok { span: span.clone() },
                     };
-                    let result: TomlValue<HashMap<String, E>> = single.as_map_enum(errors, mode);
+                    let result: TomlValue<IndexMap<String, E>> = single.as_map_enum(errors, mode);
                     match result.state {
                         TomlValueState::Ok { span } => TomlValue {
                             value: Some(result.value),
@@ -3143,7 +3140,7 @@ impl<E: StringNamedEnum> AsOptMapEnum<E> for TomlValue<Option<toml_edit::Item>> 
     }
 }
 
-/// Implementation for AsOptMapNested on Option<Item> returning Option<HashMap<String, P>>
+/// Implementation for AsOptMapNested on Option<Item> returning Option<IndexMap<String, P>>
 impl<P> AsOptMapNested<P> for TomlValue<Option<toml_edit::Item>>
 where
     P: FromTomlTable<()> + VerifyFromToml<()>,
@@ -3152,7 +3149,7 @@ where
         self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         mode: FieldMatchMode,
-    ) -> TomlValue<Option<HashMap<String, P>>> {
+    ) -> TomlValue<Option<IndexMap<String, P>>> {
         match &self.state {
             TomlValueState::Ok { span } => match self.value {
                 Some(Some(item)) => {
@@ -3161,7 +3158,7 @@ where
                         required: false,
                         state: TomlValueState::Ok { span: span.clone() },
                     };
-                    let result: TomlValue<HashMap<String, P>> = single.as_map_nested(errors, mode);
+                    let result: TomlValue<IndexMap<String, P>> = single.as_map_nested(errors, mode);
                     match result.state {
                         TomlValueState::Ok { span } => TomlValue {
                             value: Some(result.value),
@@ -3204,7 +3201,7 @@ where
     }
 }
 
-/// Implementation for AsOptMapTaggedEnum on Option<Item> returning Option<HashMap<String, E>>
+/// Implementation for AsOptMapTaggedEnum on Option<Item> returning Option<IndexMap<String, E>>
 impl<E: StringNamedEnum> AsOptMapTaggedEnum<E> for TomlValue<Option<toml_edit::Item>> {
     fn as_opt_map_tagged_enum(
         self,
@@ -3217,7 +3214,7 @@ impl<E: StringNamedEnum> AsOptMapTaggedEnum<E> for TomlValue<Option<toml_edit::I
             FieldMatchMode,
             &[&str],
         ) -> Option<E>,
-    ) -> TomlValue<Option<HashMap<String, E>>> {
+    ) -> TomlValue<Option<IndexMap<String, E>>> {
         match &self.state {
             TomlValueState::Ok { span } => match self.value {
                 Some(Some(item)) => {
@@ -3226,7 +3223,7 @@ impl<E: StringNamedEnum> AsOptMapTaggedEnum<E> for TomlValue<Option<toml_edit::I
                         required: false,
                         state: TomlValueState::Ok { span: span.clone() },
                     };
-                    let result: TomlValue<HashMap<String, E>> =
+                    let result: TomlValue<IndexMap<String, E>> =
                         single.as_map_tagged_enum(errors, mode, deserialize_variant);
                     match result.state {
                         TomlValueState::Ok { span } => TomlValue {
@@ -3270,7 +3267,7 @@ impl<E: StringNamedEnum> AsOptMapTaggedEnum<E> for TomlValue<Option<toml_edit::I
     }
 }
 
-/// Implementation for AsOptMapVec on Option<Item> returning Option<HashMap<String, Vec<T>>>
+/// Implementation for AsOptMapVec on Option<Item> returning Option<IndexMap<String, Vec<T>>>
 macro_rules! impl_as_opt_map_vec_primitive {
     ($ty:ty) => {
         impl AsOptMapVec<$ty> for TomlValue<Option<toml_edit::Item>> {
@@ -3278,7 +3275,7 @@ macro_rules! impl_as_opt_map_vec_primitive {
                 self,
                 errors: &Rc<RefCell<Vec<AnnotatedError>>>,
                 mode: FieldMatchMode,
-            ) -> TomlValue<Option<HashMap<String, Vec<$ty>>>> {
+            ) -> TomlValue<Option<IndexMap<String, Vec<$ty>>>> {
                 match &self.state {
                     TomlValueState::Ok { span } => match self.value {
                         Some(Some(item)) => {
@@ -3287,7 +3284,7 @@ macro_rules! impl_as_opt_map_vec_primitive {
                                 required: false,
                                 state: TomlValueState::Ok { span: span.clone() },
                             };
-                            let result: TomlValue<HashMap<String, Vec<$ty>>> =
+                            let result: TomlValue<IndexMap<String, Vec<$ty>>> =
                                 single.as_map_vec(errors, mode);
                             match result.state {
                                 TomlValueState::Ok { span } => TomlValue {
