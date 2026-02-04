@@ -509,3 +509,58 @@ fn test_many_either_empty() {
         panic!("expected error when both kind and type are present");
     }
 }
+
+#[make_partial]
+#[derive(Debug)]
+struct OuterManyTaggedAllowOne {
+    #[tpd_allow_single]
+    #[enum_tagged("kind")]
+    choices: Vec<EitherOne>,
+}
+
+#[test]
+fn test_many_either_one_allow_one_happy() {
+    let toml = "
+    [choices]
+        kind = 'KindA',
+        n = -5,
+        o = 1,
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialOuterManyTaggedAllowOne,
+        OuterManyTaggedAllowOne,
+    >(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.choices.len(), 1);
+        assert!(matches!(
+            output.choices[0],
+            EitherOne::KindA(InnerA { n: -5, o: 1 })
+        ));
+    }
+}
+
+#[test]
+fn test_many_either_one_allow_one_happy_inline() {
+    let toml = "
+    choices = {
+        kind = 'KindA',
+        n = -5,
+        o = 1,
+    }
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialOuterManyTaggedAllowOne,
+        OuterManyTaggedAllowOne,
+    >(toml, FieldMatchMode::Exact);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.choices.len(), 1);
+        assert!(matches!(
+            output.choices[0],
+            EitherOne::KindA(InnerA { n: -5, o: 1 })
+        ));
+    }
+}
