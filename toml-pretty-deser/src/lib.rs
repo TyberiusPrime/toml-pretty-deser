@@ -14,7 +14,8 @@
 //! becomes
 //!
 //! ```text
-//!   ╭─example-table.toml
+//! Error 1/2
+//!   ╭─example.toml
 //!   ┆
 //!
 //! 2 │         a = 5
@@ -31,7 +32,20 @@
 //!   ┆             ╰─ See a
 //! ──╯
 //! Hint: For example, set a = 33, b=66, c=0
-//! ```
+//!
+//! Error 2/2
+//!   ╭─example.toml
+//!   ┆
+//! 1 │
+//! 2 │         a = 5
+//! 3 │         b = 10
+//! 4 │         c = 3
+//! 5 │         d = 100
+//!   ┆             ─┬─
+//!   ┆              │
+//!   ┆              ╰── Must be below 50
+//! ──╯
+//! Hint: For demonstration purposes only`
 //!
 //! Using this client Rust code:
 //!
@@ -42,10 +56,11 @@
 //!     a: i64,
 //!     b: i64,
 //!     c: i64,
+//!     d: i64,
 //! }
 //!
 //! impl VerifyFromToml for PartialShowOffTwoValueErrors {
-//!     fn verify(self, helper: &mut TomlHelper<'_>) -> Self
+//!     fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self
 //!     where
 //!         Self: Sized,
 //!     {
@@ -66,6 +81,18 @@
 //!                 helper.add_err_by_spans(spans, "For example, set a = 33, b=66, c=0")
 //!             }
 //!         }
+//!
+//!         self.d = self.d.verify(helper, |value| {
+//!             if *value < 50 {
+//!                 Ok(())
+//!             } else {
+//!                Err((
+//!                    "Must be below 50".to_string(),
+//!                    Some("For demonstration purposes only".to_string())
+//!                ))
+//!             }
+//!         });
+//!
 //!         self
 //!     }
 //! }
@@ -73,11 +100,12 @@
 //!         a = 5
 //!         b = 10
 //!         c = 3
+//!         d = 100
 //!         ";
 //!
 //!     let result = deserialize::<PartialShowOffTwoValueErrors, ShowOffTwoValueErrors>(toml);
-//!     if let Err(DeserError::DeserFailure(errors, _partial)) = result {
-//!         println!("{}", errors[0].pretty("example-table.toml"));
+//!     if let Err(err) = result {
+//!         println!("{}", err.pretty("example.toml"));
 //!     }
 //! ```
 //!
@@ -220,9 +248,11 @@ use toml_edit::{Document, TomlError};
 pub mod prelude;
 mod tablelike;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
-pub use toml_pretty_deser_macros::{tpd_make_partial, tpd_make_enum, tpd_make_tagged_enum};
+pub use toml_pretty_deser_macros::{tpd_make_enum, tpd_make_partial, tpd_make_tagged_enum};
 
-//needed to get the names from enums, implemented by tpd_make_enum
+/// Get enum variant names.
+///
+/// Implemented by [toml_pretty_deser_macros::tpd_make_enum]
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
     fn from_str(s: &str) -> Option<Self>;
@@ -477,8 +507,12 @@ impl<P> DeserError<P> {
                 ))
             }
             DeserError::DeserFailure(items, _) => {
-                for item in items {
+                let total = items.len();
+                for (ii, item) in items.iter().enumerate() {
+                    let ii = ii + 1;
+                    out.push_str(&format!("Error {ii}/{total}\n"));
                     out.push_str(&item.pretty(toml_filename));
+                    out.push('\n');
                 }
             }
         }
@@ -500,6 +534,7 @@ pub trait FromTomlTable<T> {
     fn to_concrete(self) -> Option<T>;
 }
 
+/// Your main hook into verifying your values
 pub trait VerifyFromToml {
     fn verify(self, _helper: &mut TomlHelper<'_>) -> Self
     where
@@ -743,14 +778,14 @@ impl FieldInfo {
 
 /// Parameter to [deserialize_with_mode]
 #[derive(Clone, Debug)]
-pub enum VecMode { 
+pub enum VecMode {
     /// Accept single values in lieu of ```[value]```
     SingleOk,
     /// Vecs must be TOML arrays. Always.
     Strict,
 }
 
-/// Grab bag that collects the errors and provides parameterisation to 
+/// Grab bag that collects the errors and provides parameterisation to
 /// the deser functions
 #[derive(Clone, Debug)]
 pub struct TomlCollector {
@@ -1202,11 +1237,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                 if has_error {
                     TomlValue {
                         value: None,
-                        state: TomlValueState::ValidationFailed {
-                            span: array.span().unwrap_or(parent_span.clone()),
-                            message: "Array contains invalid elements".to_string(),
-                            help: None,
-                        },
+                        state: TomlValueState::Nested {},
                     }
                 } else {
                     TomlValue {
@@ -1313,7 +1344,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
     }
 }
 
-/// The internal representation of a value to-have-been-deserialized 
+/// The internal representation of a value to-have-been-deserialized
 #[derive(Debug, Clone)]
 pub struct TomlValue<T> {
     pub value: Option<T>,
@@ -1453,7 +1484,7 @@ impl<T> TomlValue<T> {
                 errors.borrow_mut().push(AnnotatedError::placed(
                     span.clone(),
                     &format!("Wrong type: expected {}, found {}", expected, found),
-                    "The value has the wrong type.",
+                    "This value has the wrong type.",
                 ));
             }
             TomlValueState::ValidationFailed {
@@ -1592,11 +1623,7 @@ pub fn toml_item_as_map<T: FromTomlItem>(
                         if has_errors {
                             TomlValue {
                                 value: Some(map),
-                                state: TomlValueState::ValidationFailed {
-                                    span: span.clone(),
-                                    message: "Map contains invalid values".to_string(),
-                                    help: None,
-                                },
+                                state: TomlValueState::Nested {},
                             }
                         } else {
                             TomlValue {

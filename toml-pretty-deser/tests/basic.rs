@@ -306,10 +306,8 @@ fn test_array_wrong_element_type() {
         ";
 
     let result: Result<_, _> = deserialize::<PartialComplexOutput, ComplexOutput>(toml);
-    dbg!(&result);
-    if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors.len() >= 1);
-        // Should have errors about wrong type in array
+    if let Err(err) = result {
+        insta::assert_snapshot!(err.pretty("test.toml"));
     } else {
         panic!("Expected failure due to wrong array element type")
     }
@@ -737,23 +735,8 @@ fn test_two_errors_pretty() {
 
     let result: Result<_, _> = deserialize::<PartialRoot, Root>(toml);
     dbg!(&result);
-    if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert_eq!(errors.len(), 2);
-        assert!(errors.iter().any(|e| {
-            e.inner.spans[0]
-                .msg
-                .contains("Missing required key: 'data'.")
-        }));
-        assert_eq!(
-            errors[1].pretty("test.toml"),
-            "  ╭─test.toml\n  ┆\n5 │         [level1.level2]\n6 │             other = 2\n  ┆             ──┬──    \n  ┆               │      \n  ┆               ╰─────── Unknown key.\n──╯\nHint: Did you mean: 'data'?\n"
-        );
-        assert_eq!(
-            errors[0].pretty("test.toml"),
-            "  ╭─test.toml\n  ┆\n\n5 │         [level1.level2]\n  ┆         ───────┬───────\n  ┆                │       \n  ┆                ╰──────── Missing required key: 'data'.\n──╯\nHint: This key is required but was not found in the TOML document.\n"
-        );
-        // let pretty = errors[0].pretty("test.toml");
-        // println!("Pretty error:\n{}", pretty);
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
     } else {
         panic!("Expected failure due to missing data field in level2");
     }
@@ -1109,22 +1092,11 @@ fn test_complex_mixed_case_key_reused() {
         VecMode::Strict,
     );
     //dbg!(&result);
-    if let Err(DeserError::DeserFailure(errors, output)) = result {
+    if let Err(DeserError::DeserFailure(_errors, output)) = &result {
         assert!(output.api_key.as_ref().is_none());
         assert!(output.html_parser.as_ref().is_none());
         assert_eq!(*output.get_http_response.as_ref().unwrap(), 42);
-        assert_eq!(errors.len(), 2);
-        for e in &errors {
-            println!("{}", e.pretty("test.toml"));
-        }
-        assert_eq!(
-            errors[0].pretty("test.toml"),
-            "  ╭─test.toml\n  ┆\n\n2 │         API_KEY = 'shouty alias'\n  ┆         ───┬───                 \n  ┆            │                    \n  ┆            ╰───────────────────── Key/alias conflict (defined multiple times)\n5 │         api-key = 24\n  ┆         ───┬───     \n  ┆            │        \n  ┆            ╰───────── Also defined here\n──╯\nHint: Use only one of the keys involved. Canonical is 'api_key'\n"
-        );
-        assert_eq!(
-            errors[1].pretty("test.toml"),
-            "  ╭─test.toml\n  ┆\n1 │ \n2 │         API_KEY = 'shouty alias'\n3 │         htmlparser= '23'\n  ┆         ─────┬────      \n  ┆              │          \n  ┆              ╰─────────── Key/alias conflict (defined multiple times)\n4 │         HTMLPARSER = 'consecutive caps'\n  ┆         ─────┬────                     \n  ┆              │                         \n  ┆              ╰────────────────────────── Also defined here\n──╯\nHint: Use only one of the keys involved. Canonical is 'html_parser'\n"
-        );
+        insta::assert_snapshot!(result.unwrap_err().pretty("test.toml"));
     } else {
         panic!("should have been a DeserFailure");
     }
@@ -1200,20 +1172,7 @@ fn showoff() {
     ";
     let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        //println!("{}", errors[0].pretty("example-table.toml"));
-        assert_eq!(
-            errors[0].pretty("example-table.toml"),
-            "  ╭─example-table.toml
-  ┆
-
-2 │     [something]
-  ┆     ─────┬─────
-  ┆          │     
-  ┆          ╰────── Missing required key: 'value'.
-──╯
-Hint: This key is required but was not found in the TOML document.
-"
-        );
+        insta::assert_snapshot!(errors[0].pretty("test.toml"));
     } else {
         unreachable!("");
     }
@@ -1226,24 +1185,7 @@ Hint: This key is required but was not found in the TOML document.
     let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         println!("{}", errors[0].pretty("example-table.toml"));
-        assert_eq!(
-            errors[0].pretty("example-table.toml"),
-            "  ╭─example-table.toml
-  ┆
-
-2 │       something = {
-  ┆                   ▲
-  ┆ ╭─────────────────╯
-3 │ │         name = 'hello',
-  ┆ │                       
-4 │ │     }
-  ┆ │     ▲
-  ┆ │     │
-  ┆ ╰─────┴─ Missing required key: 'value'.
-──╯
-Hint: This key is required but was not found in the TOML document.
-"
-        );
+        insta::assert_snapshot!(errors[0].pretty("test.toml"));
     } else {
         unreachable!("");
     }
@@ -1292,28 +1234,7 @@ fn test_showoff_value_errors() {
 ";
     let result = deserialize::<PartialShowOffTwoValueErrors, ShowOffTwoValueErrors>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        println!("{}", errors[0].pretty("example-table.toml"));
-        assert_eq!(
-            errors[0].pretty("example-table.toml"),
-            "  ╭─example-table.toml
-  ┆
-
-2 │         a = 5
-  ┆             ┬
-  ┆             │
-  ┆             ╰─ a+b+c must add up to 100. Sum was 18.
-3 │         b = 10
-  ┆             ─┬
-  ┆              │
-  ┆              ╰─ See a
-4 │         c = 3
-  ┆             ┬
-  ┆             │
-  ┆             ╰─ See c
-──╯
-Hint: For example, set a = 33, b=66, c=0
-"
-        );
+        insta::assert_snapshot!(errors[0].pretty("test.toml"));
     } else {
         unreachable!("");
     }
@@ -1329,18 +1250,6 @@ fn test_parsing_error() {
     let result = deserialize::<PartialShowOffTwoValueErrors, ShowOffTwoValueErrors>(toml);
     assert!(result.is_err());
     if let Err(e) = result {
-        let pretty = e.pretty("shu.toml");
-        println!("Pretty error:\n{}", pretty);
-        assert_eq!(pretty, 
-"  ╭─shu.toml
-  ┆
-
-2 │         a = 5,
-  ┆              ┬ 
-  ┆              │ 
-  ┆              ╰── unexpected key or value, expected newline, `#`
-──╯
-Hint: See the TOML Spec: https://toml.io/en/v1.1.0
-");
+        insta::assert_snapshot!(e.pretty("test.toml"));
     }
 }

@@ -1,0 +1,13 @@
+---
+source: toml-pretty-deser/tests/basic.rs
+expression: "errors[0].pretty(\"test.toml\")"
+---
+  ╭─test.toml
+  ┆
+
+2 │     [something]
+  ┆     ─────┬─────
+  ┆          │     
+  ┆          ╰────── Missing required key: 'value'.
+──╯
+Hint: This key is required but was not found in the TOML document.

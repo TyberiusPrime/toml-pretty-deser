@@ -13,3 +13,7 @@ toml_edit = "0.24.0"
 toml-pretty-deser-macros = { path = "../toml-pretty-deser-macros" }
 mutants = "0.0.4"
 indexmap = "2.13.0"
+
+[dev-dependencies]
+cargo-insta = "1.46.3"
+insta = { version = "1.46.3", features = ["yaml"] }

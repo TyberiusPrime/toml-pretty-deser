@@ -837,20 +837,7 @@ fn test_mapped_struct_wrong_field_type() {
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     assert!(!result.is_ok());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        let pretty = errors[0].pretty("test.toml");
-        assert_eq!(
-            pretty,
-            "  ╭─test.toml
-  ┆
-8 │         [mapped_struct]
-9 │             a = { n = 'not a number' }
-  ┆                       ───────┬──────  
-  ┆                              │        
-  ┆                              ╰───────── Wrong type: expected u8, found string
-──╯
-Hint: The value has the wrong type.
-"
-        );
+        insta::assert_snapshot!(errors[0].pretty("test.toml"));
     } else {
         panic!("expected Deserfailure")
     }

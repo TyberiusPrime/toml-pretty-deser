@@ -1,0 +1,36 @@
+---
+source: toml-pretty-deser/tests/basic.rs
+expression: "err.pretty(\"test.toml\")"
+---
+Error 1/3
+  ╭─test.toml
+  ┆
+
+2 │             items = [1, 2, 3]  # wrong type - should be strings
+  ┆                      ┬                                         
+  ┆                      │                                         
+  ┆                      ╰────────────────────────────────────────── Wrong type: expected String, found integer
+──╯
+Hint: This value has the wrong type.
+
+Error 2/3
+  ╭─test.toml
+  ┆
+
+2 │             items = [1, 2, 3]  # wrong type - should be strings
+  ┆                         ┬                                      
+  ┆                         │                                      
+  ┆                         ╰─────────────────────────────────────── Wrong type: expected String, found integer
+──╯
+Hint: This value has the wrong type.
+
+Error 3/3
+  ╭─test.toml
+  ┆
+
+2 │             items = [1, 2, 3]  # wrong type - should be strings
+  ┆                            ┬                                   
+  ┆                            │                                   
+  ┆                            ╰──────────────────────────────────── Wrong type: expected String, found integer
+──╯
+Hint: This value has the wrong type.
