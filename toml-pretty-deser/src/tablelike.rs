@@ -1,12 +1,13 @@
+///
 /// Reimplement TableLike until the PR in toml_edit lands
 use toml_edit::{Entry, InlineTable, Item, Iter, IterMut, Key, KeyMut, Table, TableLike, Value};
 
-pub trait AsTableLike {
+pub trait AsTableLikePlus {
     /// Casts `self` to either a table or an inline table.
     fn as_table_like_plus(&self) -> Option<&dyn TableLikePlus>;
 }
 
-impl AsTableLike for toml_edit::Item {
+impl AsTableLikePlus for toml_edit::Item {
     fn as_table_like_plus(&self) -> Option<&dyn TableLikePlus> {
         self.as_table()
             .map(|t| t as &dyn TableLikePlus)
@@ -14,15 +15,9 @@ impl AsTableLike for toml_edit::Item {
     }
 }
 
-impl AsTableLike for &toml_edit::Item {
-    fn as_table_like_plus(&self) -> Option<&dyn TableLikePlus> {
-        self.as_table()
-            .map(|t| t as &dyn TableLikePlus)
-            .or_else(|| self.as_inline_table().map(|t| t as &dyn TableLikePlus))
-    }
-}
 
 /// This trait represents either a `Table`, or an `InlineTable`.
+#[mutants::skip]
 pub trait TableLikePlus {
     /// Returns an iterator over key/value pairs.
     fn iter(&self) -> Iter<'_>;
@@ -90,6 +85,7 @@ pub trait TableLikePlus {
     fn span(&self) -> Option<std::ops::Range<usize>>;
 }
 
+#[mutants::skip]
 impl TableLikePlus for Table {
     fn iter(&self) -> Iter<'_> {
         self.iter()
@@ -156,6 +152,7 @@ impl TableLikePlus for Table {
     }
 }
 
+#[mutants::skip]
 impl TableLikePlus for InlineTable {
     fn iter(&self) -> Iter<'_> {
         TableLike::iter(self)

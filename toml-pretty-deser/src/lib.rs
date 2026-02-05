@@ -4,7 +4,7 @@ use toml_edit::{Document, TomlError};
 
 pub mod prelude;
 mod tablelike;
-pub use tablelike::{AsTableLike, TableLikePlus};
+pub use tablelike::{AsTableLikePlus, TableLikePlus};
 pub use toml_pretty_deser_macros::{make_partial, tpd_make_enum, tpd_make_tagged_enum};
 
 //needed to get the names from enums, implemented by tpd_make_enum
@@ -268,6 +268,7 @@ pub struct HydratedAnnotatedError {
 }
 
 impl std::fmt::Debug for HydratedAnnotatedError {
+    #[mutants::skip]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "HydratedAnnotatedError {{ ")?;
         write!(f, "{}", self.pretty("debug.toml"))?;
@@ -646,99 +647,6 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    /// Get a `Vec<T>` field with aliases that allows either an array `[x, y, z]` or a single value `x`.
-    /// If a single value is provided, it will be wrapped in a `Vec` of length 1.
-    pub fn get_allow_single_with_aliases<T>(
-        &mut self,
-        query_key: &str,
-        aliases: &'static [&'static str],
-        missing_is_error: bool,
-    ) -> TomlValue<Vec<T>>
-    where
-        T: FromTomlItem + std::fmt::Debug,
-    {
-        let parent_span = if let Some(table) = self.table {
-            table.span().unwrap_or(0..0)
-        } else {
-            0..0
-        };
-
-        // Register this field as expected
-        self.expect_field(query_key, aliases);
-
-        // Try to find a matching key (considering aliases and match mode)
-        let found_keys = self.find_matching_keys(query_key, &aliases);
-
-        match found_keys.len() {
-            0 => {
-                // No match found - return a Missing state
-                let res = TomlValue {
-                    value: None,
-                    state: TomlValueState::Missing {
-                        key: query_key.to_string(),
-                        parent_span: parent_span.clone(),
-                    },
-                };
-                if missing_is_error {
-                    res.register_error(&self.col.errors);
-                }
-                res
-            }
-            1 => {
-                let (matched_key, item) = found_keys.iter().next().unwrap();
-                self.observed
-                    .push(self.col.match_mode.normalize(&matched_key));
-
-                // Check if the item is an array or a single value
-                match item {
-                    toml_edit::Item::Value(toml_edit::Value::Array(_)) => {
-                        // It's an array, parse normally as Vec<T>
-                        FromTomlItem::from_toml_item(&item, parent_span, &self.col)
-                    }
-                    toml_edit::Item::ArrayOfTables(_) => {
-                        //todo fold with above
-                        // It's an array of tables, parse normally as Vec<T>
-                        FromTomlItem::from_toml_item(&item, parent_span, &self.col)
-                    }
-                    _ => {
-                        // It's a single value, try to parse as T and wrap in Vec
-                        let item_span = item.span().unwrap_or(parent_span.clone());
-                        let single: TomlValue<T> =
-                            FromTomlItem::from_toml_item(&item, item_span.clone(), &self.col);
-                        match single.state {
-                            TomlValueState::Ok { span } => TomlValue {
-                                value: single.value.map(|v| vec![v]),
-                                state: TomlValueState::Ok { span },
-                            },
-                            other => TomlValue {
-                                value: None,
-                                state: other,
-                            },
-                        }
-                    }
-                }
-            }
-            _ => {
-                let spans = found_keys
-                    .iter()
-                    .map(|(matched_key, _item)| self.span_from_key(matched_key))
-                    .collect();
-                for (matched_key, _) in &found_keys {
-                    self.observed
-                        .push(self.col.match_mode.normalize(matched_key));
-                }
-
-                TomlValue {
-                    value: None,
-                    state: TomlValueState::MultiDefined {
-                        key: query_key.to_string(),
-                        spans,
-                    },
-                }
-            }
-        }
-    }
-
     fn span_from_key(&self, key: &str) -> Range<usize> {
         if let Some(table) = self.table {
             table.key(key).and_then(|item| item.span()).unwrap_or(0..0)
@@ -958,19 +866,9 @@ impl<T: FromTomlItem> FromTomlItem for Option<T> {
         col: &TomlCollector,
     ) -> TomlValue<Self> {
         let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, col);
-        match res.state {
-            TomlValueState::Ok { span } => TomlValue {
-                value: Some(res.value),
-                state: TomlValueState::Ok { span },
-            },
-            TomlValueState::Missing { .. } => TomlValue {
-                value: Some(None),
-                state: TomlValueState::Ok { span: 0..0 },
-            },
-            _ => TomlValue {
-                value: Some(res.value),
-                state: res.state,
-            },
+        TomlValue {
+            value: Some(res.value),
+            state: res.state,
         }
     }
 }
