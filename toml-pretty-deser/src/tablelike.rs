@@ -1,8 +1,8 @@
 ///
-/// Reimplement TableLike until the PR in toml_edit lands
+/// Reimplement `TableLike` until the PR in `toml_edit` lands
 use toml_edit::{InlineTable, Item, Iter, Key, Table, TableLike};
 
-/// Get a TableLikePlus from an Item if it is either a Table or InlineTable
+/// Get a `TableLikePlus` from an Item if it is either a Table or `InlineTable`
 pub trait AsTableLikePlus {
     /// Casts `self` to either a table or an inline table.
     fn as_table_like_plus(&self) -> Option<&dyn TableLikePlus>;

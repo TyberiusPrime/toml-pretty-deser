@@ -154,14 +154,8 @@ fn test_tpd_make_enum_vec_with_invalid() {
     dbg!(&result);
 
     match result {
-        Err(DeserError::DeserFailure(errors, _)) => {
-            // The Vec<T> deserialization produces "Array contains invalid elements"
-            assert!(errors.iter().any(|e| {
-                e.inner
-                    .spans
-                    .iter()
-                    .any(|s| s.msg.contains("Array contains invalid elements"))
-            }));
+        Err(e) => {
+            insta::assert_snapshot!(e.pretty("test.toml"));
         }
         _ => panic!("Expected DeserFailure due to invalid enum in array"),
     }

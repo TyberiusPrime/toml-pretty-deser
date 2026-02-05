@@ -111,15 +111,15 @@
 //!
 //! ## How this works:
 //!
-//! `#[tpd_make_partial]` writes a PartialT for every struct T you apply it on,
-//! and implementations to go from toml_edit types to your PartialT, as well
-//! as a conversion to turn complete PartialT back into T.
+//! `#[tpd_make_partial]` writes a `PartialT` for every struct T you apply it on,
+//! and implementations to go from `toml_edit` types to your `PartialT`, as well
+//! as a conversion to turn complete `PartialT` back into T.
 //!
-//! The `PartialT` consists of all the same fields, wrapped in TomlValue - which records the
+//! The `PartialT` consists of all the same fields, wrapped in `TomlValue` - which records the
 //! deserialization state and where in the TOML document it was.
 //!
 //! `deserialize` will then give you an Ok(T) or an Err with a list of errors and the partial
-//! state (If parsing succeeded. Otherwise you get just a parse error). See [DeserError]
+//! state (If parsing succeeded. Otherwise you get just a parse error). See [`DeserError`]
 //!
 //!
 //! The hydrated errors contain information about what went wrong, and can turn themselves into pretty error messages
@@ -144,7 +144,7 @@
 //!
 //! ### Nested structs
 //!
-//! When you want to represent NestedT as PartialNestedT inside your struct T,
+//! When you want to represent `NestedT` as `PartialNestedT` inside your struct T,
 //! tag them with `#[tpd_nested]`
 //!
 //! Complete error checking is provided either way.
@@ -153,10 +153,10 @@
 //!
 //!
 //! For simple string-typed Enums without an inner payload, tag the enum declaration with
-//! [toml_pretty_deser_macros::tpd_make_enum].
+//! [`toml_pretty_deser_macros::tpd_make_enum`].
 //!
 //! For deserializing tagged Enums with a struct payload,
-//! use [toml_pretty_deser_macros::tpd_make_tagged_enum] on the enum declaration,
+//! use [`toml_pretty_deser_macros::tpd_make_tagged_enum`] on the enum declaration,
 //! and pass in the tag key name (and it's aliases).
 //!
 //! Example:
@@ -196,20 +196,20 @@
 //!
 //! By default, field names and enum variants are matched strictl.
 //!
-//! [deserialize_with_mode] allows you to change this to case-insensitive (upper/lower only) or
-//! code-case-insensitive (allowing snake_case, camelCase, kebab-case, etc. to match each other).
+//! [`deserialize_with_mode`] allows you to change this to case-insensitive (upper/lower only) or
+//! code-case-insensitive (allowing `snake_case`, camelCase, kebab-case, etc. to match each other).
 //!
 //!
 //!## Single elements to Vecs
 //!
 //! By default, when a field is `Vec<T>`, a TOML list must be provided.
-//! [deserialize_with_mode] allows you to change this to allow single elements to be treated as
+//! [`deserialize_with_mode`] allows you to change this to allow single elements to be treated as
 //! one-element Vecs instead.
 //!
 //!
 //!## Custom types
 //!
-//! To enable the deserialization of custom types, implement [FromTomlItem] for them.
+//! To enable the deserialization of custom types, implement [`FromTomlItem`] for them.
 //!```
 //! use toml_pretty_deser::prelude::*;
 //! struct DNA(String);
@@ -244,7 +244,7 @@ use indexmap::{IndexMap, IndexSet};
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::{Document, TomlError};
 
-/// Import toml_pretty_deser::prelude::* to make use of our macros
+/// Import `toml_pretty_deser::prelude::`* to make use of our macros
 pub mod prelude;
 mod tablelike;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
@@ -252,7 +252,7 @@ pub use toml_pretty_deser_macros::{tpd_make_enum, tpd_make_partial, tpd_make_tag
 
 /// Get enum variant names.
 ///
-/// Implemented by [toml_pretty_deser_macros::tpd_make_enum]
+/// Implemented by [`toml_pretty_deser_macros::tpd_make_enum`]
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
     fn from_str(s: &str) -> Option<Self>;
@@ -284,28 +284,30 @@ pub enum FieldMatchMode {
     Exact,
     /// Case insensitive match (case insensitive exact match only)
     UpperLower,
-    /// Any case variant match (allows camelCase, snake_case, kebab-case, etc.)
+    /// Any case variant match (allows camelCase, `snake_case`, kebab-case, etc.)
     AnyCase,
 }
 
 impl FieldMatchMode {
     /// Normalize a name according to the match mode
+    #[must_use] 
     pub fn normalize(&self, name: &str) -> String {
         match self {
-            FieldMatchMode::Exact => name.to_string(),
-            FieldMatchMode::UpperLower => name.to_lowercase(),
-            FieldMatchMode::AnyCase => normalize_to_no_case(name),
+            Self::Exact => name.to_string(),
+            Self::UpperLower => name.to_lowercase(),
+            Self::AnyCase => normalize_to_no_case(name),
         }
     }
 
     /// Check if two names match under this mode
+    #[must_use] 
     pub fn matches(&self, a: &str, b: &str) -> bool {
         self.normalize(a) == self.normalize(b)
     }
 }
 
-/// Convert any case variant to snake_case for comparison
-/// Supports: camelCase, UpperCamelCase, snake_case, kebab-case, SHOUTY_SNAKE_CASE, Train-Case
+/// Convert any case variant to `snake_case` for comparison
+/// Supports: camelCase, `UpperCamelCase`, `snake_case`, kebab-case, `SHOUTY_SNAKE_CASE`, Train-Case
 fn normalize_to_no_case(s: &str) -> String {
     s.chars()
         .filter_map(|c| match c {
@@ -362,7 +364,7 @@ mod tests {
 
 /// Convenience entry point
 ///
-/// See [deserialize_with_mode] for full description.
+/// See [`deserialize_with_mode`] for full description.
 pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
     P: FromTomlTable<T> + VerifyFromToml + std::fmt::Debug,
@@ -377,7 +379,7 @@ where
 /// `Err((Vec<[HydratedAnnotatedError]>, PartialT))
 ///
 ///
-/// `P` is the PartialT written by #[tpd_make_partial} on your struct `T`
+/// `P` is the `PartialT` written by #[`tpd_make_partial`} on your struct `T`
 /// See main documentation page.
 pub fn deserialize_with_mode<P, T>(
     source: &str,
@@ -460,32 +462,33 @@ pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> St
 fn format_quoted_list(items: &[&str]) -> String {
     match items {
         [] => String::new(),
-        [single] => format!("'{}'", single),
-        [first, second] => format!("'{}' or '{}'", first, second),
+        [single] => format!("'{single}'"),
+        [first, second] => format!("'{first}' or '{second}'"),
         rest => {
             let (last, init) = rest.split_last().expect("can't fail");
             let start = init
                 .iter()
-                .map(|s| format!("'{}'", s))
+                .map(|s| format!("'{s}'"))
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{}, or '{}'", start, last)
+            format!("{start}, or '{last}'")
         }
     }
 }
 
 #[doc(hidden)]
+#[must_use] 
 pub fn suggest_enum_alternatives<E: StringNamedEnum>(current: &str) -> String {
     suggest_alternatives(current, E::all_variant_names())
 }
 
 /// The failure states of deserialization
 ///
-/// Use DeserError.pretty(source_name) to get a nice error message with code snippets and hints.
+/// Use `DeserError.pretty(source_name)` to get a nice error message with code snippets and hints.
 #[derive(Debug)]
 pub enum DeserError<P> {
     /// TOML parsing failed. No `PartialT` available.
-    /// A wrapper around [toml_edit::TomlError]
+    /// A wrapper around [`toml_edit::TomlError`]
     ParsingFailure(TomlError, String),
     /// Parsing suceeded, but deserialization failed. `PartialT` available with whatever could be
     /// understood.
@@ -496,7 +499,7 @@ impl<P> DeserError<P> {
     pub fn pretty(&self, toml_filename: &str) -> String {
         let mut out = String::new();
         match self {
-            DeserError::ParsingFailure(toml_error, source) => {
+            Self::ParsingFailure(toml_error, source) => {
                 let spans = vec![SpannedMessage {
                     span: toml_error.span().unwrap_or(0..0),
                     msg: toml_error.message().to_string(),
@@ -506,9 +509,9 @@ impl<P> DeserError<P> {
                     source,
                     &spans,
                     Some(&"See the TOML Spec: https://toml.io/en/v1.1.0".to_string()),
-                ))
+                ));
             }
-            DeserError::DeserFailure(items, _) => {
+            Self::DeserFailure(items, _) => {
                 let total = items.len();
                 for (ii, item) in items.iter().enumerate() {
                     let ii = ii + 1;
@@ -524,9 +527,9 @@ impl<P> DeserError<P> {
 
 /// Deser complex values from TOML tables.
 ///
-/// All known implementations get created by [toml_pretty_deser_macros::tpd_make_partial]
+/// All known implementations get created by [`toml_pretty_deser_macros::tpd_make_partial`]
 ///
-/// You shouldn't need to implement this, use FromTomlItem instead.
+/// You shouldn't need to implement this, use `FromTomlItem` instead.
 ///
 pub trait FromTomlTable<T> {
     fn can_concrete(&self) -> bool;
@@ -563,7 +566,7 @@ pub struct SpannedMessage {
 
 /// The user (developer) facing representation of issues with your TOML deserialization
 ///
-/// Combines an [AnnotatedError] with the source TOML string to be able to produce pretty error
+/// Combines an [`AnnotatedError`] with the source TOML string to be able to produce pretty error
 /// messages with code snippets and hints.
 pub struct HydratedAnnotatedError {
     pub source: Rc<RefCell<String>>,
@@ -581,15 +584,17 @@ impl std::fmt::Debug for HydratedAnnotatedError {
 }
 
 impl AnnotatedError {
+    #[must_use] 
     pub fn unplaced(help: &str) -> Self {
-        AnnotatedError {
+        Self {
             spans: vec![],
             help: Some(help.to_string()),
         }
     }
 
+    #[must_use] 
     pub fn placed(span: Range<usize>, msg: &str, help: &str) -> Self {
-        AnnotatedError {
+        Self {
             spans: vec![SpannedMessage {
                 span,
                 msg: msg.to_string(),
@@ -599,7 +604,7 @@ impl AnnotatedError {
     }
 }
 
-/// Convenience methods for building up AnnotatedErrors
+/// Convenience methods for building up `AnnotatedErrors`
 pub trait AnnotatedErrorExt {
     fn add_span(&mut self, span: Range<usize>, msg: &str);
 }
@@ -625,8 +630,14 @@ fn pretty_error_message(
 
     let source = source;
 
-    if !spans.is_empty() {
-        let idx = LineIndex::new(&source);
+    if spans.is_empty() {
+        format!(
+            "ConfigError at unknown location. Help text: {}",
+            help.as_ref()
+                .map_or("None available", |x| x.as_str())
+        )
+    } else {
+        let idx = LineIndex::new(source);
         let mut spans = spans.clone();
         spans.sort_by_key(|span| span.span.start);
 
@@ -641,7 +652,7 @@ fn pretty_error_message(
 
         let mut labels = Vec::new();
 
-        for span in spans.clone().into_iter() {
+        for span in spans.clone() {
             labels.push(Label::new(span.span).with_text(span.msg));
         }
 
@@ -654,15 +665,14 @@ fn pretty_error_message(
                     .collect();
                 let span_str = span_str.join("\n");
                 let final_message = format!(
-                    "Error spans were overlapping so we were unable to process a pretty code block. Spans & messages:\n{}",
-                    span_str
+                    "Error spans were overlapping so we were unable to process a pretty code block. Spans & messages:\n{span_str}"
                 );
                 let labels = vec![Label::new(0..0).with_text(final_message)];
                 Block::new(&idx, labels).expect("can not fail")
             });
 
         let (lines_before, digits_needed) = match previous_newline {
-            None => ("".to_string(), 1),
+            None => (String::new(), 1),
             Some(previous_newline) => {
                 let upto_span = &BStr::new(source.as_bytes())[..previous_newline];
                 let lines: Vec<_> = upto_span.lines().collect();
@@ -672,7 +682,6 @@ fn pretty_error_message(
                 let mut lines_before: Vec<_> = lines
                     .into_iter()
                     .enumerate()
-                    .map(|(line_no, line)| (line_no, line))
                     .rev()
                     .take_while(move |x| {
                         if BStr::new(x.1).trim_ascii_start().starts_with(b"[") {
@@ -699,16 +708,16 @@ fn pretty_error_message(
         let mut out = String::new();
         writeln!(&mut out, "{}{}", block.prologue(), source_name).expect("can't fail");
         write!(&mut out, " {:digits_needed$}┆\n{}\n", " ", lines_before).expect("can't fail");
-        let blockf: String = format!("{}", block)
+        let blockf: String = format!("{block}")
             .lines()
             .skip(1)
-            .map(|x| format!("{}\n", x))
+            .map(|x| format!("{x}\n"))
             .collect();
-        write!(&mut out, "{}", blockf).expect("can't fail");
+        write!(&mut out, "{blockf}").expect("can't fail");
         writeln!(&mut out, "{}", block.epilogue()).expect("can't fail");
 
-        if let Some(help) = help.as_ref() {
-            if !help.is_empty() {
+        if let Some(help) = help.as_ref()
+            && !help.is_empty() {
                 let mut first = true;
                 write!(&mut out, "Hint: ").expect("Can't fail");
                 for line in help.lines() {
@@ -716,22 +725,15 @@ fn pretty_error_message(
                         write!(&mut out, "      ").expect("can't fail");
                     }
                     first = false;
-                    writeln!(&mut out, "{}", line).expect("can't fail");
+                    writeln!(&mut out, "{line}").expect("can't fail");
                 }
             }
-        }
         out
-    } else {
-        format!(
-            "ConfigError at unknown location. Help text: {}",
-            help.as_ref()
-                .map(|x| x.as_str())
-                .unwrap_or("None available")
-        )
     }
 }
 
 impl HydratedAnnotatedError {
+    #[must_use] 
     pub fn pretty(&self, source_name: &str) -> String {
         pretty_error_message(
             source_name,
@@ -758,17 +760,20 @@ impl FieldInfo {
         }
     }
 
+    #[must_use] 
     pub fn with_alias(mut self, alias: &'static str) -> Self {
         self.aliases.push(alias);
         self
     }
 
+    #[must_use] 
     pub fn with_aliases(mut self, aliases: &'static [&'static str]) -> Self {
         self.aliases.extend(aliases);
         self
     }
 
     /// Get all normalized names for this field (primary name + aliases)
+    #[must_use] 
     pub fn all_normalized_names(&self, mode: &FieldMatchMode) -> Vec<String> {
         let mut names = vec![mode.normalize(&self.name)];
         for alias in &self.aliases {
@@ -778,7 +783,7 @@ impl FieldInfo {
     }
 }
 
-/// Parameter to [deserialize_with_mode]
+/// Parameter to [`deserialize_with_mode`]
 #[derive(Clone, Debug)]
 pub enum VecMode {
     /// Accept single values in lieu of ```[value]```
@@ -817,7 +822,8 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    /// Create a TomlHelper from a toml_edit::Item (either Table or InlineTable)
+    /// Create a `TomlHelper` from a `toml_edit::Item` (either Table or `InlineTable`)
+    #[must_use] 
     pub fn from_item(item: &'a toml_edit::Item, col: &TomlCollector) -> Self {
         match item.as_table_like_plus() {
             Some(table) => Self::from_table(table, col.clone()),
@@ -864,7 +870,7 @@ impl<'a> TomlHelper<'a> {
         let mut result = Vec::new();
         let _normalized_target = self.col.match_mode.normalize(name);
         let candidates = std::iter::once(name.to_string())
-            .chain(aliases.iter().map(|x| x.to_string()))
+            .chain(aliases.iter().map(std::string::ToString::to_string))
             .collect::<Vec<_>>();
 
         // Collect all table keys
@@ -877,14 +883,12 @@ impl<'a> TomlHelper<'a> {
         // Try to find a match
         for table_key in &table_keys {
             for candidate in &candidates {
-                if self.col.match_mode.matches(candidate, table_key) {
-                    if let Some(table) = self.table {
-                        if let Some(item) = table.get(table_key) {
+                if self.col.match_mode.matches(candidate, table_key)
+                    && let Some(table) = self.table
+                        && let Some(item) = table.get(table_key) {
                             result.push((table_key.clone(), item.clone()));
                             break;
                         }
-                    }
-                }
             }
         }
 
@@ -910,7 +914,7 @@ impl<'a> TomlHelper<'a> {
         self.expect_field(query_key, aliases);
 
         // Try to find a matching key (considering aliases and match mode)
-        let found_keys = self.find_matching_keys(query_key, &aliases);
+        let found_keys = self.find_matching_keys(query_key, aliases);
 
         match found_keys.len() {
             0 => {
@@ -928,13 +932,13 @@ impl<'a> TomlHelper<'a> {
                 res
             }
             1 => {
-                let (matched_key, item) = found_keys.iter().next().expect("can't fail");
-                let res: TomlValue<T> = FromTomlItem::from_toml_item(&item, parent_span, &self.col);
+                let (matched_key, item) = found_keys.first().expect("can't fail");
+                let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, &self.col);
                 if !matches!(res.state, TomlValueState::Ok { .. }) {
                     res.register_error(&self.col.errors);
                 }
                 self.observed
-                    .push(self.col.match_mode.normalize(&matched_key));
+                    .push(self.col.match_mode.normalize(matched_key));
                 res
             }
             _ => {
@@ -962,7 +966,7 @@ impl<'a> TomlHelper<'a> {
 
     fn span_from_key(&self, key: &str) -> Range<usize> {
         if let Some(table) = self.table {
-            table.key(key).and_then(|item| item.span()).unwrap_or(0..0)
+            table.key(key).and_then(toml_edit::Key::span).unwrap_or(0..0)
         // } else if let Some(inline_table) = self.inline_table {
         //     // For inline tables, we can't easily get the key span, so use the table span
         //     inline_table.span().unwrap_or(0..0)
@@ -977,7 +981,7 @@ impl<'a> TomlHelper<'a> {
     }
 
     pub fn add_err_by_span(&self, span: Range<usize>, msg: &str, help: &str) {
-        let err = AnnotatedError::placed(span.clone(), msg, help);
+        let err = AnnotatedError::placed(span, msg, help);
         self.col.errors.borrow_mut().push(err);
     }
     pub fn add_err_by_spans(&self, spans: Vec<(Range<usize>, String)>, help: &str) {
@@ -1023,7 +1027,7 @@ impl<'a> TomlHelper<'a> {
                 let still_available: Vec<_> = expected_normalized
                     .iter()
                     .filter(|expected| !observed_set.contains(*expected))
-                    .map(|s| s.as_str())
+                    .map(std::string::String::as_str)
                     .collect();
 
                 self.add_err_by_key(
@@ -1176,11 +1180,11 @@ impl FromTomlItem for toml_edit::Item {
         _col: &TomlCollector,
     ) -> TomlValue<Self> {
         match item {
-            toml_edit::Item::None => unreachable!(),
+            Self::None => unreachable!(),
             _ => TomlValue {
                 value: Some(item.clone()),
                 state: TomlValueState::Ok {
-                    span: item.span().unwrap_or(parent_span.clone()),
+                    span: item.span().unwrap_or(parent_span),
                 },
             },
         }
@@ -1194,11 +1198,9 @@ impl<T: FromTomlItem> FromTomlItem for Option<T> {
         col: &TomlCollector,
     ) -> TomlValue<Self> {
         let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, col);
-        match res.state {
-            _ => TomlValue {
-                value: Some(res.value),
-                state: res.state,
-            },
+        TomlValue {
+            value: Some(res.value),
+            state: res.state,
         }
     }
 }
@@ -1214,25 +1216,22 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
         match item {
             toml_edit::Item::None => unreachable!(),
             toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
-                let mut values = Vec::with_capacity(array.len());
+                let mut values = Self::with_capacity(array.len());
                 let mut has_error = false;
 
-                for array_item in array.iter() {
+                for array_item in array {
                     let item_span = array_item.span().unwrap_or(parent_span.clone());
                     let wrapped_item = toml_edit::Item::Value(array_item.clone());
                     let element: TomlValue<T> =
                         FromTomlItem::from_toml_item(&wrapped_item, item_span.clone(), col);
 
-                    match &element.state {
-                        TomlValueState::Ok { .. } => {
-                            if let Some(val) = element.value {
-                                values.push(val);
-                            }
+                    if let TomlValueState::Ok { .. } = &element.state {
+                        if let Some(val) = element.value {
+                            values.push(val);
                         }
-                        _ => {
-                            element.register_error(&col.errors);
-                            has_error = true;
-                        }
+                    } else {
+                        element.register_error(&col.errors);
+                        has_error = true;
                     }
                 }
 
@@ -1245,32 +1244,29 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     TomlValue {
                         value: Some(values),
                         state: TomlValueState::Ok {
-                            span: array.span().unwrap_or(parent_span.clone()),
+                            span: array.span().unwrap_or(parent_span),
                         },
                     }
                 }
             }
             // Handle ArrayOfTables - convert each table to an Item and deserialize
             toml_edit::Item::ArrayOfTables(array) => {
-                let mut values = Vec::with_capacity(array.len());
+                let mut values = Self::with_capacity(array.len());
                 let mut has_error = false;
 
-                for table in array.iter() {
+                for table in array {
                     let table_span = table.span().unwrap_or(parent_span.clone());
                     let wrapped_item = toml_edit::Item::Table(table.clone());
                     let element: TomlValue<T> =
                         FromTomlItem::from_toml_item(&wrapped_item, table_span.clone(), col);
 
-                    match &element.state {
-                        TomlValueState::Ok { .. } => {
-                            if let Some(val) = element.value {
-                                values.push(val);
-                            }
+                    if let TomlValueState::Ok { .. } = &element.state {
+                        if let Some(val) = element.value {
+                            values.push(val);
                         }
-                        _ => {
-                            element.register_error(&col.errors);
-                            has_error = true;
-                        }
+                    } else {
+                        element.register_error(&col.errors);
+                        has_error = true;
                     }
                 }
 
@@ -1283,7 +1279,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     TomlValue {
                         value: Some(values),
                         state: TomlValueState::Ok {
-                            span: array.span().unwrap_or(parent_span.clone()),
+                            span: array.span().unwrap_or(parent_span),
                         },
                     }
                 }
@@ -1291,25 +1287,22 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
             toml_edit::Item::Value(value) => match col.vec_mode {
                 VecMode::SingleOk => {
                     let element: TomlValue<T> =
-                        FromTomlItem::from_toml_item(&item, parent_span.clone(), col);
-                    match &element.state {
-                        TomlValueState::Ok { span } => TomlValue::new_ok(
-                            vec![element.value.expect("unreachable")],
-                            span.clone(),
-                        ),
-                        _ => {
-                            element.register_error(&col.errors);
-                            TomlValue {
-                                state: TomlValueState::Nested {},
-                                value: None,
-                            }
+                        FromTomlItem::from_toml_item(item, parent_span, col);
+                    if let TomlValueState::Ok { span } = &element.state { TomlValue::new_ok(
+                        vec![element.value.expect("unreachable")],
+                        span.clone(),
+                    ) } else {
+                        element.register_error(&col.errors);
+                        TomlValue {
+                            state: TomlValueState::Nested {},
+                            value: None,
                         }
                     }
                 }
                 VecMode::Strict => TomlValue {
                     value: None,
                     state: TomlValueState::WrongType {
-                        span: value.span().unwrap_or(parent_span.clone()),
+                        span: value.span().unwrap_or(parent_span),
                         expected: "array",
                         found: value.type_name(),
                     },
@@ -1318,25 +1311,22 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
             toml_edit::Item::Table(value) => match col.vec_mode {
                 VecMode::SingleOk => {
                     let element: TomlValue<T> =
-                        FromTomlItem::from_toml_item(&item, parent_span.clone(), col);
-                    match &element.state {
-                        TomlValueState::Ok { span } => TomlValue::new_ok(
-                            vec![element.value.expect("unreachable")],
-                            span.clone(),
-                        ),
-                        _ => {
-                            element.register_error(&col.errors);
-                            TomlValue {
-                                state: TomlValueState::Nested {},
-                                value: None,
-                            }
+                        FromTomlItem::from_toml_item(item, parent_span, col);
+                    if let TomlValueState::Ok { span } = &element.state { TomlValue::new_ok(
+                        vec![element.value.expect("unreachable")],
+                        span.clone(),
+                    ) } else {
+                        element.register_error(&col.errors);
+                        TomlValue {
+                            state: TomlValueState::Nested {},
+                            value: None,
                         }
                     }
                 }
                 VecMode::Strict => TomlValue {
                     value: None,
                     state: TomlValueState::WrongType {
-                        span: value.span().unwrap_or(parent_span.clone()),
+                        span: value.span().unwrap_or(parent_span),
                         expected: "array (maybe of tables)",
                         found: "table",
                     },
@@ -1354,28 +1344,30 @@ pub struct TomlValue<T> {
 }
 
 impl<T> TomlValue<T> {
-    pub fn new_ok(value: T, span: Range<usize>) -> Self {
-        TomlValue {
+    pub const fn new_ok(value: T, span: Range<usize>) -> Self {
+        Self {
             value: Some(value),
             state: TomlValueState::Ok { span },
         }
     }
 
-    pub fn new_empty_missing(parent_span: Range<usize>) -> Self {
-        TomlValue {
+    #[must_use] 
+    pub const fn new_empty_missing(parent_span: Range<usize>) -> Self {
+        Self {
             value: None,
             state: TomlValueState::Missing {
-                key: "".to_string(),
+                key: String::new(),
                 parent_span,
             },
         }
     }
-    pub fn new_validation_failed(
+    #[must_use] 
+    pub const fn new_validation_failed(
         span: Range<usize>,
         message: String,
         help: Option<String>,
     ) -> Self {
-        TomlValue {
+        Self {
             value: None,
             state: TomlValueState::ValidationFailed {
                 span,
@@ -1385,12 +1377,13 @@ impl<T> TomlValue<T> {
         }
     }
 
+    #[must_use] 
     pub fn new_wrong_type(
         item: &toml_edit::Item,
         parent_span: Range<usize>,
         expected: &'static str,
     ) -> Self {
-        TomlValue {
+        Self {
             value: None,
             state: TomlValueState::WrongType {
                 span: item.span().unwrap_or(parent_span),
@@ -1400,7 +1393,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub fn has_value(&self) -> bool {
+    pub const fn has_value(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
     }
 
@@ -1431,7 +1424,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub fn as_ref(&self) -> Option<&T> {
+    pub const fn as_ref(&self) -> Option<&T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value.as_ref(),
             _ => None,
@@ -1471,7 +1464,7 @@ impl<T> TomlValue<T> {
                 let mut err = AnnotatedError::placed(
                     spans[0].clone(),
                     "Key/alias conflict (defined multiple times)",
-                    &format!("Use only one of the keys involved. Canonical is '{}'", key),
+                    &format!("Use only one of the keys involved. Canonical is '{key}'"),
                 );
                 for span in spans.iter().skip(1) {
                     err.add_span(span.clone(), "Also defined here");
@@ -1485,7 +1478,7 @@ impl<T> TomlValue<T> {
             } => {
                 errors.borrow_mut().push(AnnotatedError::placed(
                     span.clone(),
-                    &format!("Wrong type: expected {}, found {}", expected, found),
+                    &format!("Wrong type: expected {expected}, found {found}"),
                     "This value has the wrong type.",
                 ));
             }
@@ -1497,14 +1490,14 @@ impl<T> TomlValue<T> {
                 errors.borrow_mut().push(AnnotatedError::placed(
                     span.clone(),
                     message,
-                    help.as_ref().map(|x| x.as_str()).unwrap_or(""),
+                    help.as_ref().map_or("", std::string::String::as_str),
                 ));
             }
             TomlValueState::Ok { .. } => {}
         }
     }
 
-    pub fn verify<F>(self, helper: &mut TomlHelper, verification_func: F) -> TomlValue<T>
+    pub fn verify<F>(self, helper: &mut TomlHelper, verification_func: F) -> Self
     where
         F: FnOnce(&T) -> Result<(), (String, Option<String>)>,
     {
@@ -1516,12 +1509,12 @@ impl<T> TomlValue<T> {
             ) {
                 Ok(()) => self,
                 Err((msg, help)) => {
-                    let res = TomlValue {
+                    let res = Self {
                         value: None,
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
                             message: msg,
-                            help: help, //todo
+                            help, //todo
                         },
                     };
                     res.register_error(&helper.col.errors);
@@ -1532,9 +1525,9 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub fn or_default(self, default: T) -> TomlValue<T> {
+    pub fn or_default(self, default: T) -> Self {
         match &self.state {
-            TomlValueState::Missing { .. } => TomlValue {
+            TomlValueState::Missing { .. } => Self {
                 value: Some(default),
                 state: TomlValueState::Ok { span: 0..0 },
             },
@@ -1544,6 +1537,7 @@ impl<T> TomlValue<T> {
 }
 
 #[doc(hidden)]
+#[must_use] 
 pub fn deserialize_nested<P, T>(
     item: &toml_edit::Item,
     span: &Range<usize>,
@@ -1595,6 +1589,7 @@ where
 
 ///Internally called by the macros
 #[doc(hidden)]
+#[must_use] 
 pub fn toml_item_as_map<T: FromTomlItem>(
     toml_item: TomlValue<toml_edit::Item>,
     col: &TomlCollector,
@@ -1611,16 +1606,13 @@ pub fn toml_item_as_map<T: FromTomlItem>(
                             let item_span = value.span().unwrap_or(span.clone());
                             let val: TomlValue<T> =
                                 FromTomlItem::from_toml_item(value, item_span.clone(), col);
-                            match val.state {
-                                TomlValueState::Ok { .. } => {
-                                    if let Some(v) = val.value {
-                                        map.insert(key.to_string(), v);
-                                    }
+                            if let TomlValueState::Ok { .. } = val.state {
+                                if let Some(v) = val.value {
+                                    map.insert(key.to_string(), v);
                                 }
-                                _ => {
-                                    val.register_error(&col.errors);
-                                    has_errors = true;
-                                }
+                            } else {
+                                val.register_error(&col.errors);
+                                has_errors = true;
                             }
                         }
 

@@ -493,17 +493,8 @@ fn test_mapped_vec_enum_invalid_variant() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     dbg!(&result);
-    if let Err(DeserError::DeserFailure(errors, _)) = result {
-        // When Vec<E> has an invalid element, the error is either "Array contains invalid elements"
-        // (from Vec deserialization) or "Map contains invalid vec values" (from IndexMap)
-        assert!(errors.iter().any(|e| {
-            e.inner.spans[0]
-                .msg
-                .contains("Array contains invalid elements")
-                || e.inner.spans[0]
-                    .msg
-                    .contains("Map contains invalid vec values")
-        }));
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
     } else {
         panic!("Expected failure due to invalid enum variant in vec");
     }
