@@ -142,11 +142,13 @@ pub fn tdp_make_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             }
                             ::std::option::Option::None => {
                                 let help = ::toml_pretty_deser::suggest_enum_alternatives::<#enum_name>(s);
-                                ::toml_pretty_deser::TomlValue::new_validation_failed(
+                                let res = ::toml_pretty_deser::TomlValue::new_validation_failed(
                                     span,
                                     "Invalid enum variant.".to_string(),
                                     ::std::option::Option::Some(help),
-                                )
+                                );
+                                res.register_error(&col.errors);
+                                res
                             }
                         }
                     }
@@ -164,6 +166,13 @@ fn is_nested_field(field: &syn::Field) -> bool {
         .attrs
         .iter()
         .any(|attr| attr.path().is_ident("nested"))
+}
+
+fn is_defaulted_field(field: &syn::Field) -> bool {
+    field
+        .attrs
+        .iter()
+        .any(|attr| attr.path().is_ident("tdp_default_in_verify"))
 }
 
 /// Check if a field has the #[tpd_allow_single] attribute.
@@ -553,17 +562,6 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
         })
         .collect();
 
-    // Collect errors implementation
-    let collect_errors_variants: Vec<_> = variants
-        .iter()
-        .map(|v| {
-            let variant_name = &v.ident;
-            quote_spanned! { input.ident.span() =>
-                #partial_name::#variant_name(inner) => inner.collect_errors(&errors),
-            }
-        })
-        .collect();
-
     // Can concrete implementation
     let can_concrete_variants: Vec<_> = variants
         .iter()
@@ -674,15 +672,6 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                 }
             }
 
-            fn collect_errors(&self,
-                errors: &Rc<RefCell<Vec<AnnotatedError>>>
-
-            ) {
-                match self {
-                    #(#collect_errors_variants)*
-                }
-            }
-
             fn from_toml_table(_helper: &mut ::toml_pretty_deser::TomlHelper<'_>) -> Self {
                 panic!("FromTomlTable should not be called directly on tagged enums. Use TaggedEnumMeta::deserialize_variant instead.");
             }
@@ -699,7 +688,8 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                     let tag_key = #tag_key;
                     let tag_aliases = &[#(#tag_aliases),*];
                     let tag_result: TomlValue<String> =
-                            helper.get_with_aliases(tag_key, tag_aliases);
+                            helper.get_with_aliases(tag_key, tag_aliases, false); //we handle the
+                            // missing case below explicitly
                     // Build the list of fields to ignore (canonical key + all aliases)
                     let mut fields_to_ignore: Vec<&str> = vec![tag_key];
                     fields_to_ignore.extend(tag_aliases.iter().copied());
@@ -813,7 +803,7 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                     let tag_key = #tag_key;
                     let tag_aliases = &[#(#tag_aliases),*];
                     let tag_result: TomlValue<String> =
-                            helper.get_with_aliases(tag_key, tag_aliases);
+                            helper.get_with_aliases(tag_key, tag_aliases, true);
                     // Build the list of fields to ignore (canonical key + all aliases)
                     let mut fields_to_ignore: Vec<&str> = vec![tag_key];
                     fields_to_ignore.extend(tag_aliases.iter().copied());
@@ -980,6 +970,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         && !attr.path().is_ident("enum_tagged")
                         && !attr.path().is_ident("alias")
                         && !attr.path().is_ident("tpd_allow_single")
+                        && !attr.path().is_ident("tdp_default_in_verify")
                 });
             }
         }
@@ -1130,146 +1121,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             } else {
                 quote! {
                     #name: TomlValue<#ty>
-                }
-            }
-        })
-        .collect();
-
-    let collect_errors_fields: Vec<_> = fields
-        .iter()
-        .map(|f| {
-            let name = &f.ident;
-            let ty = &f.ty;
-
-            // Check for IndexMap types first
-            if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
-                let is_optional = is_option_indexmap_type(ty);
-                let value_ty = if is_optional {
-                    extract_option_indexmap_value_type(ty).unwrap()
-                } else {
-                    extract_indexmap_value_type(ty).unwrap()
-                };
-                let kind = analyze_indexmap_value_type(&value_ty, f);
-
-                match kind {
-                    IndexMapValueKind::Nested(_) | IndexMapValueKind::TaggedEnum(_) => {
-                        if is_optional {
-                            quote! {
-                                if let Some(Some(ref map)) = self.#name.value {
-                                    for partial in map.values() {
-                                        partial.collect_errors(&errors);
-                                    }
-                                } else if self.#name.value.is_none() {
-                                    self.#name.register_error(&errors);
-                                }
-                            }
-                        } else {
-                            quote! {
-                                if let Some(ref map) = self.#name.value {
-                                    for partial in map.values() {
-                                        partial.collect_errors(&errors);
-                                    }
-                                } else {
-                                    self.#name.register_error(&errors);
-                                }
-                            }
-                        }
-                    }
-                    IndexMapValueKind::VecNested(_) | IndexMapValueKind::VecTaggedEnum(_) => {
-                        if is_optional {
-                            quote! {
-                                if let Some(Some(ref map)) = self.#name.value {
-                                    for vec in map.values() {
-                                        for partial in vec.iter() {
-                                            partial.collect_errors(&errors);
-                                        }
-                                    }
-                                } else if self.#name.value.is_none() {
-                                    self.#name.register_error(&errors);
-                                }
-                            }
-                        } else {
-                            quote! {
-                                if let Some(ref map) = self.#name.value {
-                                    for vec in map.values() {
-                                        for partial in vec.iter() {
-                                            partial.collect_errors(&errors);
-                                        }
-                                    }
-                                } else {
-                                    self.#name.register_error(&errors);
-                                }
-                            }
-                        }
-                    }
-                    // For primitives and regular enums, just register errors on the TomlValue
-                    _ => {
-                        quote! {
-                            self.#name.register_error(&errors)
-                        }
-                    }
-                }
-            } else if is_nested_field(f) {
-                // For nested fields (including Option<Nested> and Vec<Nested>), recursively collect errors
-                if is_option_type(&f.ty) {
-                    // For Option<Nested>, value is Option<Option<PartialType>>
-                    quote! {
-                        if let Some(Some(ref partial)) = self.#name.value {
-                            partial.collect_errors(&errors);
-                        }
-                    }
-                } else if is_vec_type(&f.ty) {
-                    // For Vec<Nested>, value is Option<Vec<PartialType>>
-                    quote! {
-                        if let Some(ref partials) = self.#name.value {
-                            for partial in partials.iter() {
-                                partial.collect_errors(&errors);
-                            }
-                        }
-                    }
-                } else {
-                    quote! {
-                        if let Some(ref partial) = self.#name.value {
-                            partial.collect_errors(&errors);
-                        } else {
-                            self.#name.register_error(&errors)
-                        }
-                    }
-                }
-            } else if is_enum_tagged_field(f) {
-                // For enum_tagged fields, recursively collect errors from the partial enum
-                if is_option_type(&f.ty) {
-                    // For Option<EnumTagged>, value is Option<Option<PartialEnumType>>
-                    quote! {
-                        if let Some(Some(ref partial)) = self.#name.value {
-                            partial.collect_errors(&errors);
-                        } else if self.#name.value.is_none() {
-                            self.#name.register_error(&col.errors);
-                        }
-                    }
-                } else if is_vec_type(&f.ty) {
-                    // For Vec<EnumTagged>, value is Option<Vec<PartialEnumType>>
-                    quote! {
-                        if let Some(ref partials) = self.#name.value {
-                            for partial in partials.iter() {
-                                partial.collect_errors(&errors);
-                            }
-                        } else {
-                            self.#name.register_error(&errors);
-                        }
-                    }
-                } else {
-                    quote! {
-                        if let Some(ref partial) = self.#name.value {
-                            partial.collect_errors(&errors);
-                        } else {
-                            self.#name.register_error(&errors);
-                        }
-                    }
-                }
-            } else {
-                quote! {
-                    self.#name.register_error(&errors)
                 }
             }
         })
@@ -1509,34 +1360,34 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     match kind {
                         IndexMapValueKind::Primitive => {
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMap::as_opt_map(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
+                                #name: ::toml_pretty_deser::AsOptMap::as_opt_map(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*], false), &helper.col)
                             }
                         }
                         IndexMapValueKind::Nested(_) => {
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMapNested::as_opt_map_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
+                                #name: ::toml_pretty_deser::AsOptMapNested::as_opt_map_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*], false), &helper.col)
                             }
                         }
                         IndexMapValueKind::TaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::FromOptMapTaggedEnum::<#partial_type>::from_opt_map_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
+                                #name: ::toml_pretty_deser::FromOptMapTaggedEnum::<#partial_type>::from_opt_map_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*], false), &helper.col)
                             }
                         }
                         IndexMapValueKind::VecPrimitive => {
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMapVec::as_opt_map_vec(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
+                                #name: ::toml_pretty_deser::AsOptMapVec::as_opt_map_vec(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*], false), &helper.col)
                             }
                         }
                         IndexMapValueKind::VecNested(_) => {
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMapVecNested::as_opt_map_vec_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
+                                #name: ::toml_pretty_deser::AsOptMapVecNested::as_opt_map_vec_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*], false), &helper.col)
                             }
                         }
                         IndexMapValueKind::VecTaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::FromOptMapVecTaggedEnum::<#partial_type>::from_opt_map_vec_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
+                                #name: ::toml_pretty_deser::FromOptMapVecTaggedEnum::<#partial_type>::from_opt_map_vec_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*], false), &helper.col)
                             }
                         }
                     }
@@ -1545,115 +1396,63 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         IndexMapValueKind::Primitive => {
                             // as_map for primitives
                             quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map(&helper.col)
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true).as_map(&helper.col)
                             }
                         }
                         IndexMapValueKind::Nested(_inner_name) => {
                             // Note: The type is inferred from the return type, no turbofish needed
                             quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map_nested(&helper.col)
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true).as_map(&helper.col)
                             }
                         }
                         IndexMapValueKind::TaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::FromMapTaggedEnum::<#partial_type>::from_map_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.col)
+                                #name: ::toml_pretty_deser::FromMapTaggedEnum::<#partial_type>::from_map_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true), &helper.col)
                             }
                         }
                         IndexMapValueKind::VecPrimitive => {
                             // as_map_vec for Vec of primitives, or as_map_vec_allow_single if #[tpd_allow_single]
                             if is_allow_single_field(f) {
                                 quote! {
-                                    #name: ::toml_pretty_deser::AsMapVecAllowSingle::as_map_vec_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.col)
+                                    #name: ::toml_pretty_deser::AsMapVecAllowSingle::as_map_vec_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true), &helper.col)
                                 }
                             } else {
                                 quote! {
-                                    #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map_vec(&helper.col)
+                                    #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true).as_map(&helper.col)
                                 }
                             }
                         }
                         IndexMapValueKind::VecNested(_inner_name) => {
                             // Note: The type is inferred from the return type, no turbofish needed
                             quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*])
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true)
                                     .as_map_vec_nested(&helper.col)
                             }
                         }
                         IndexMapValueKind::VecTaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::FromMapVecTaggedEnum::<#partial_type>::from_map_vec_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.col)
+                                #name: ::toml_pretty_deser::FromMapVecTaggedEnum::<#partial_type>::from_map_vec_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true), &helper.col)
                             }
                         }
                     }
                 }
-            //} else if false && is_nested_field(f) {
-                // For nested fields, we need to pass mode to as_nested
-                // quote! {
-                //     #name: helper.get_with_aliases(#name_str,
-                //     &[#(#aliases),*]).as_nested(&helper.col)
-                // }
-            // } else if false &&is_enum_tagged_field(f) {
-            //     // For enum_tagged fields, use FromTaggedEnum which gets tag info from TaggedEnumMeta
-            //     if is_option_type(&f.ty) {
-            //         let inner_type_name = extract_option_inner_type(&f.ty).unwrap();
-            //         let partial_type = format_ident!("Partial{}", inner_type_name);
-            //         quote! {
-            //             #name: {
-            //                 let t: ::toml_pretty_deser::TomlValue<#partial_type> = ::toml_pretty_deser::FromTaggedEnum::from_tagged_enum(
-            //                     helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]),
-            //                     &helper.errors,
-            //                     helper.match_mode
-            //                 );
-            //                 t.into_optional()
-            //             }
-            //         }
-            //     } else if is_vec_type(&f.ty) {
-            //         let inner_type_name = extract_vec_inner_type(&f.ty).unwrap();
-            //         let partial_type = format_ident!("Partial{}", inner_type_name);
-            //         if is_allow_single_field(f) {
-            //             // Vec<E> with #[enum_tagged] and #[tpd_allow_single]
-            //             quote! {
-            //                 #name: ::toml_pretty_deser::FromVecTaggedEnumAllowSingle::<#partial_type>::from_vec_tagged_enum_allow_single(
-            //                     helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]),
-            //                     &helper.errors,
-            //                     helper.match_mode
-            //                 )
-            //             }
-            //         } else {
-            //             quote! {
-            //                 #name: ::toml_pretty_deser::FromVecTaggedEnum::<#partial_type>::from_vec_tagged_enum(
-            //                     helper.get_with_aliases::<Vec<::toml_edit::Item>>(#name_str, &[#(#aliases),*]),
-            //                     &helper.errors,
-            //                     helper.match_mode
-            //                 )
-            //             }
-            //         }
-            //     } else {
-            //         let type_name = extract_type_name(&f.ty).unwrap();
-            //         let partial_type = format_ident!("Partial{}", type_name);
-            //         quote! {
-            //             #name: ::toml_pretty_deser::FromTaggedEnum::<#partial_type>::from_tagged_enum(
-            //                 helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]),
-            //                 &helper.errors,
-            //                 helper.match_mode
-            //             )
-            //         }
-            //     }
+         
             } else if is_allow_single_field(f) {
                 // For fields with #[tpd_allow_single], allow either array or single value
                 if is_option_type(ty) {
                     // Option<Vec<T>> with allow_single
                     quote! {
                         #name: {
-                            let t: TomlValue<Vec<_>> = helper.get_allow_single_with_aliases(#name_str, &[#(#aliases),*]);
+                            let t: TomlValue<Vec<_>> = helper.get_allow_single_with_aliases(#name_str, &[#(#aliases),*], false);
                             t.into_optional()
                         }
                     }
                 } else {
                     // Vec<T> with allow_single
                     quote! {
-                        #name: helper.get_allow_single_with_aliases(#name_str, &[#(#aliases),*])
+                        #name: helper.get_allow_single_with_aliases(#name_str, &[#(#aliases),*], true)
                     }
                 }
             } else {
@@ -1661,7 +1460,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 if is_option_type(ty) {
                     quote! {
                         #name: {
-                            let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
+                            let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
                             //do we really need this? Replace value with None for a test.
                             if let TomlValueState::Missing {parent_span, ..} = t.state {
                                 TomlValue{
@@ -1675,8 +1474,9 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         }
                     }
                 } else  {
+                    let missing_is_error = !is_defaulted_field(f);
                     quote! {
-                        #name: helper.get_with_aliases(#name_str, &[#(#aliases),*])
+                        #name: helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error)
                     }
                 }
             }
@@ -1721,13 +1521,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 })
             }
 
-            fn collect_errors(&self,
-                errors: &Rc<RefCell<Vec<AnnotatedError>>>
-
-                ) {
-                #(#collect_errors_fields;)*
-            }
-
             fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self {
                 #partial_name {
                     #(#from_toml_table_fields,)*
@@ -1742,19 +1535,23 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     Some(table) => {
                         let mut helper = TomlHelper::from_table(table,
                             col.errors.clone(), col.match_mode);
-                        let t: #partial_name = FromTomlTable::from_toml_table(&mut helper);
+                        let partial = #partial_name::from_toml_table(&mut helper).verify(&mut helper, &());
                         helper.deny_unknown();
-                        if t.can_concrete() {
-                            TomlValue::new_ok(t, table.span().unwrap_or(0..0))
+
+                        if partial.can_concrete()  {
+                            TomlValue {
+                                    value: Some(partial), 
+                                    required: true,
+                                    state: TomlValueState::Ok {
+                                        span: table.span().unwrap_or(parent_span).clone(),
+                                    }
+                            }
                         } else {
-                            TomlValue{
-                                value: Some(t),
-                                required: true,
-                                    state: TomlValueState::ValidationFailed {
-                                    span: table.span().unwrap_or(0..0),
-                                    message: "Nested failure".to_string(),
-                                    help: None,
-                                },
+                            TomlValue {
+                                    value: Some(partial),
+                                    required: true, //todo: check
+                                    state: TomlValueState::Nested {
+                                    },
                             }
                         }
                     },

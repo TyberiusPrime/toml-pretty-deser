@@ -4,7 +4,7 @@ pub use crate::{
     deserialize_with_mode, make_partial, tdp_make_enum, tdp_make_tagged_enum,
     TaggedEnumMeta, suggest_alternatives,
     AsMap,
-    AsMapNested, AsMapVec, AsMapVecNested,
+    AsMapNested, AsMapVecNested,
 };
 pub use std::cell::RefCell;
 pub use std::rc::Rc;

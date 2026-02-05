@@ -1,5 +1,4 @@
 use indexmap::IndexMap;
-use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::prelude::*;
 
 #[make_partial]
@@ -330,9 +329,11 @@ fn test_mapped_wrong_type_primitive() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     } else {
         panic!("Expected failure due to wrong type");
     }
@@ -346,9 +347,11 @@ fn test_mapped_wrong_type_enum() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     } else {
         panic!("Expected failure due to wrong type for enum");
     }
@@ -362,9 +365,11 @@ fn test_mapped_invalid_enum_variant() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
+        );
     } else {
         panic!("Expected failure due to invalid enum variant");
     }
@@ -381,12 +386,14 @@ fn test_mapped_vec_enum_invalid_variant() {
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         // When Vec<E> has an invalid element, the error is either "Array contains invalid elements"
         // (from Vec deserialization) or "Map contains invalid vec values" (from IndexMap)
-        assert!(errors.iter().any(|e| e.inner.spans[0]
-            .msg
-            .contains("Array contains invalid elements")
-            || e.inner.spans[0]
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
                 .msg
-                .contains("Map contains invalid vec values")));
+                .contains("Array contains invalid elements")
+                || e.inner.spans[0]
+                    .msg
+                    .contains("Map contains invalid vec values")
+        }));
     } else {
         panic!("Expected failure due to invalid enum variant in vec");
     }
@@ -417,9 +424,11 @@ fn test_mapped_tagged_enum_unknown_variant() {
         for e in &errors {
             eprintln!("Error: {}", e.inner.spans[0].msg);
         }
-        assert!(errors
-            .iter()
-            .any(|e| { e.inner.spans[0].msg.contains("Unknown enum variant") }));
+        assert!(
+            errors
+                .iter()
+                .any(|e| { e.inner.spans[0].msg.contains("Unknown enum variant") })
+        );
     } else {
         panic!("Expected failure due to unknown tagged enum variant");
     }
@@ -433,9 +442,11 @@ fn test_mapped_tagged_enum_missing_variant_field() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
+        );
     } else {
         panic!("Expected failure due to missing variant field");
     }
@@ -448,43 +459,25 @@ fn test_mapped_nested_missing_field() {
             a = { }  # missing n field
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
+    dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'."));
-        assert_eq!(
-            errors[1].inner.spans[0].msg,
-            "Missing required key: 'mapped_u8'."
-        );
-        assert_eq!(
-            errors[2].inner.spans[0].msg,
-            "Missing required key: 'mapped_enum'."
-        );
-        assert_eq!(
-            errors[3].inner.spans[0].msg,
-            "Missing required key: 'mapped_either'."
-        );
-        assert_eq!(
-            errors[4].inner.spans[0].msg,
-            "Missing required key: 'mapped_vec_string'."
-        );
-        assert_eq!(
-            errors[5].inner.spans[0].msg,
-            "Missing required key: 'mapped_vec_enum'."
-        );
-        assert_eq!(
-            errors[6].inner.spans[0].msg,
-            "Missing required key: 'mapped_vec_either'."
-        );
-        assert_eq!(
-            errors[7].inner.spans[0].msg,
-            "Missing required key: 'mapped_vec_struct'."
-        );
-        let pretty = errors[0].pretty("test.toml");
-        println!("{}", pretty);
-        assert_eq!(
-            pretty,
-            "  ╭─test.toml
+        let expected = &[
+            "Missing required key: 'n'.",
+            "Missing required key: 'mapped_u8'.",
+            "Missing required key: 'mapped_enum'.",
+            "Missing required key: 'mapped_either'.",
+            "Missing required key: 'mapped_vec_string'.",
+            "Missing required key: 'mapped_vec_enum'.",
+            "Missing required key: 'mapped_vec_either'.",
+            "Missing required key: 'mapped_vec_struct'.",
+        ];
+        for exp in expected {
+            assert!(errors.iter().any(|e| e.inner.spans[0].msg == *exp));
+        }
+        assert!(errors.iter().any(|e| {
+            let pretty = e.pretty("test.toml");
+            pretty
+                == "  ╭─test.toml
   ┆
 2 │         [mapped_struct]
 3 │             a = { }  # missing n field
@@ -494,7 +487,7 @@ fn test_mapped_nested_missing_field() {
 ──╯
 Hint: This key is required but was not found in the TOML document.
 "
-        );
+        }));
     } else {
         panic!("Expected failure due to missing nested field");
     }
@@ -509,9 +502,11 @@ fn test_mapped_vec_struct_missing_field() {
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, output)) = result {
         dbg!(&output);
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
+        );
     } else {
         panic!("Expected failure due to missing field in vec struct");
     }
@@ -663,9 +658,11 @@ fn test_mapped_optional_wrong_type() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     } else {
         panic!("Expected failure due to wrong type in optional map");
     }
@@ -679,9 +676,11 @@ fn test_mapped_nested_unknown_key() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Unknown key."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Unknown key.")
+        );
     } else {
         panic!("Expected failure due to unknown key in nested struct");
     }
@@ -695,9 +694,11 @@ fn test_mapped_tagged_enum_unknown_key_in_variant() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Unknown key."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Unknown key.")
+        );
     } else {
         panic!("Expected failure due to unknown key in tagged enum variant");
     }
@@ -782,9 +783,11 @@ fn test_mapped_mixed_valid_invalid() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     } else {
         panic!("Expected failure due to mixed valid/invalid entries");
     }
@@ -798,9 +801,11 @@ fn test_mapped_optional_struct_missing_field() {
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
+        );
     } else {
         panic!("Expected failure due to missing field in optional struct");
     }
@@ -859,7 +864,7 @@ impl FromTomlItem for DNA {
     fn from_toml_item(
         item: &toml_edit::Item,
         parent_span: std::ops::Range<usize>,
-        _col: &TomlCollector
+        _col: &TomlCollector,
     ) -> TomlValue<DNA> {
         match item.as_str() {
             Some(s) => {

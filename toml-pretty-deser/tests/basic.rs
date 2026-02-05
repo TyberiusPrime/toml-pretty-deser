@@ -1,4 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
 use toml_pretty_deser::prelude::*;
 
 #[make_partial(false)]
@@ -15,12 +14,13 @@ struct Output {
     opt_a_string: Option<String>,
     opt_a_bool: Option<bool>,
     verified_i16: i16,
+    #[tdp_default_in_verify]
     defaulted_i16: i16,
 }
 
 impl VerifyFromToml<()> for PartialOutput {
-    fn verify(mut self, _helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
-        self.verified_i16 = self.verified_i16.verify(|v: &i16| {
+    fn verify(mut self, helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+        self.verified_i16 = self.verified_i16.verify(helper, |v: &i16| {
             if *v > 5 {
                 Ok(())
             } else {
@@ -138,7 +138,7 @@ fn test_optional_missing() {
 }
 
 #[test]
-fn test_validation_failure() {
+fn test_verify_failure() {
     let toml = "
             a_u8 = 255
             a_i64 = -123
@@ -398,7 +398,7 @@ fn test_nested_happy_half() {
                 .as_ref()
                 .is_none()
         );
-        assert_eq!(errors.len(), 2);
+        assert_eq!(errors.len(), 3);
         assert_eq!(
             errors[0].inner.spans[0].msg,
             "Missing required key: 'value'."
@@ -406,6 +406,10 @@ fn test_nested_happy_half() {
         assert_eq!(
             errors[1].inner.spans[0].msg,
             "Missing required key: 'inline_nested'."
+        );
+        assert_eq!(
+            errors[2].inner.spans[0].msg,
+            "Missing required key: 'vec_nested'."
         );
         assert!(output.opt_nested.as_ref().unwrap().is_none());
         assert!(matches!(output.opt_nested.state, TomlValueState::Ok { .. }));
@@ -467,19 +471,19 @@ fn test_nested_lower_failure() {
 
         assert!(matches!(
             output.opt_nested.state,
-            TomlValueState::ValidationFailed { .. }
+            TomlValueState::Nested { .. }
         ));
         assert!(matches!(
             output.nested.state,
-            TomlValueState::ValidationFailed { .. }
+            TomlValueState::Nested { .. }
         ));
         assert!(matches!(
             output.inline_nested.state,
-            TomlValueState::ValidationFailed { .. }
+            TomlValueState::Nested { .. }
         ));
         assert!(matches!(
             output.vec_nested.state,
-            TomlValueState::ValidationFailed { .. }
+            TomlValueState::Nested { .. }
         ));
     } else {
         panic!();
@@ -639,7 +643,7 @@ fn test_two_level_nested_inline_table_failure() {
 
         assert!(matches!(
             output.level1.value.as_ref().unwrap().opt_level2.state,
-            TomlValueState::ValidationFailed { .. }
+            TomlValueState::Nested { .. }
         ));
         assert!(
             output
@@ -737,11 +741,11 @@ fn test_two_errors_pretty() {
                 .contains("Missing required key: 'data'.")
         }));
         assert_eq!(
-            errors[0].pretty("test.toml"),
+            errors[1].pretty("test.toml"),
             "  ╭─test.toml\n  ┆\n5 │         [level1.level2]\n6 │             other = 2\n  ┆             ──┬──    \n  ┆               │      \n  ┆               ╰─────── Unknown key.\n──╯\nHint: Did you mean: 'data'?\n"
         );
         assert_eq!(
-            errors[1].pretty("test.toml"),
+            errors[0].pretty("test.toml"),
             "  ╭─test.toml\n  ┆\n\n5 │         [level1.level2]\n  ┆         ───────┬───────\n  ┆                │       \n  ┆                ╰──────── Missing required key: 'data'.\n──╯\nHint: This key is required but was not found in the TOML document.\n"
         );
         // let pretty = errors[0].pretty("test.toml");
@@ -1146,28 +1150,57 @@ struct ShowOffTable {
     #[nested]
     something: Nested,
 }
-//
-// #[test]
-// fn showoff()
-// {
-//     let toml = "
-//     [something]
-//         name = 'hello'
-//     ";
-//     let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
-//     if let Err(DeserError::DeserFailure(errors, _)) = result {
-//         println!("{}", errors[0].pretty("example-table.toml"));
-//     }
-//
-// let toml = "
-//     something = {
-//         name = 'hello',
-//     }
-//     ";
-//     let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
-//     if let Err(DeserError::DeserFailure(errors, _)) = result {
-//         println!("{}", errors[0].pretty("example-table.toml"));
-//     }
-//     panic!();
-//
-// }
+
+#[test]
+fn showoff()
+{
+    let toml = "
+    [something]
+        name = 'hello'
+    ";
+    let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        //println!("{}", errors[0].pretty("example-table.toml"));
+        assert_eq!(errors[0].pretty("example-table.toml"),
+"  ╭─example-table.toml
+  ┆
+
+2 │     [something]
+  ┆     ─────┬─────
+  ┆          │     
+  ┆          ╰────── Missing required key: 'value'.
+──╯
+Hint: This key is required but was not found in the TOML document.
+"); 
+    } else {
+        unreachable!("");
+    }
+
+let toml = "
+    something = {
+        name = 'hello',
+    }
+    ";
+    let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
+     if let Err(DeserError::DeserFailure(errors, _)) = result {
+        println!("{}", errors[0].pretty("example-table.toml"));
+        assert_eq!(errors[0].pretty("example-table.toml"),
+"  ╭─example-table.toml
+  ┆
+
+2 │       something = {
+  ┆                   ▲
+  ┆ ╭─────────────────╯
+3 │ │         name = 'hello',
+  ┆ │                       
+4 │ │     }
+  ┆ │     ▲
+  ┆ │     │
+  ┆ ╰─────┴─ Missing required key: 'value'.
+──╯
+Hint: This key is required but was not found in the TOML document.
+"); 
+    } else {
+        unreachable!("");
+    }
+}
