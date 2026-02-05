@@ -192,7 +192,7 @@ where
 
     let partial = P::from_toml_table(&mut helper);
 
-    let partial = partial.verify(&mut helper, &());
+    let partial = partial.verify(&mut helper);
     helper.deny_unknown();
 
     if !errors.borrow().is_empty() {
@@ -210,6 +210,7 @@ where
         panic!(
             "The Partial was still incomplete, but no error was logged.
 Do you have a #[tpd_default_in_verify] field that you're not setting?
+Otherwise, this points to a bug in toml_pretty_deser
 
 Partial: 
 {partial:#?}
@@ -290,7 +291,7 @@ pub trait FromTomlTable<T> {
 }
 
 pub trait VerifyFromToml<T> {
-    fn verify(self, _helper: &mut TomlHelper<'_>, _partial: &T) -> Self
+    fn verify(self, _helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized,
     {
@@ -1375,7 +1376,7 @@ where
             for f in fields_to_ignore {
                 helper.ignore_field(*f);
             }
-            let partial = P::from_toml_table(&mut helper).verify(&mut helper, &());
+            let partial = P::from_toml_table(&mut helper).verify(&mut helper);
             helper.deny_unknown();
 
             if partial.can_concrete() {

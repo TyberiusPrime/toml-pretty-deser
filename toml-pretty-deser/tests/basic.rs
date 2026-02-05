@@ -19,7 +19,7 @@ struct Output {
 }
 
 impl VerifyFromToml<()> for PartialOutput {
-    fn verify(mut self, helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
         self.verified_i16 = self.verified_i16.verify(helper, |v: &i16| {
             if *v > 5 {
                 Ok(())

@@ -841,11 +841,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
             }
         }
 
-        // impl #impl_generics ::toml_pretty_deser::VerifyFromToml<()> for #partial_name #ty_generics #where_clause {
-        //     fn verify(self, _helper: &mut ::toml_pretty_deser::TomlHelper<'_>, _partial: &()) -> Self {
-        //         self
-        //     }
-        // }
     };
 
     TokenStream::from(expanded)
@@ -1313,7 +1308,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
     let generate_verify_impl = if generate_verify {
         quote! {
             impl #impl_generics VerifyFromToml<()> for #partial_name #ty_generics #where_clause {
-                fn verify(self, _helper: &mut TomlHelper<'_>, _partial: &()) -> Self {
+                fn verify(self, _helper: &mut TomlHelper<'_>) -> Self {
                     self
                 }
             }
@@ -1361,7 +1356,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     Some(table) => {
                         let mut helper = TomlHelper::from_table(table,
                             col.clone());
-                        let partial = #partial_name::from_toml_table(&mut helper).verify(&mut helper, &());
+                        let partial = #partial_name::from_toml_table(&mut helper).verify(&mut helper);
                         helper.deny_unknown();
 
                         if partial.can_concrete()  {
