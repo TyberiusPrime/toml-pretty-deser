@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Extract version from tag
+        id: tag_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Tag version: $VERSION"
+
+      - name: Verify tag version matches Cargo.toml
+        run: |
+          CARGO_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | select(.name == "${{ github.event.repository.name }}") | .version')
+          if [ "$CARGO_VERSION" != "${{ steps.tag_version.outputs.version }}" ]; then
+            echo "Error: Tag version ${{ steps.tag_version.outputs.version }} does not match Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
+          echo "Versions match: $CARGO_VERSION"
+
+      - name: Publish to crates.io
+        run: |
+          cargo publish --no-verify
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

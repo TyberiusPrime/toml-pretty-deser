@@ -1,15 +1,15 @@
 [package]
 name = "toml-pretty-deser"
-version = "0.2.0"
-edition = "2024"
 
 readme = "README.md"
-license = workspace.license
-description = workspace.description
-authors = workspace.authors
-repository = workspace.repository
-documentation = workspace.documentation
-keywords = workspace.keywords
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 
 
@@ -20,7 +20,7 @@ memchr = "2.7.6"
 num-traits = "0.2.19"
 strsim = "0.11.1"
 toml_edit = "0.24.0"
-toml-pretty-deser-macros = { path = "../toml-pretty-deser-macros" }
+toml-pretty-deser-macros = { path = "../toml-pretty-deser-macros", version="0.1.0" }
 mutants = "0.0.4"
 indexmap = "2.13.0"
 

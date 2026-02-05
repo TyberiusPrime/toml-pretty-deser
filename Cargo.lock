@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "toml-pretty-deser"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "bstr",
  "cargo-insta",
@@ -770,7 +770,7 @@ dependencies = [
 
 [[package]]
 name = "toml-pretty-deser-macros"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",

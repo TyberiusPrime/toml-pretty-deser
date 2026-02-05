@@ -1,15 +1,16 @@
 [package]
 name = "toml-pretty-deser-macros"
-version = "0.2.0"
-edition = "2024"
 
 description = "TOML deserilization with pretty error messages - macro crate"
 readme = "README.md"
-license = workspace.license
-authors = workspace.authors
-repository = workspace.repository
-documentation = workspace.documentation
-keywords = workspace.keywords
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 
 [lib]
