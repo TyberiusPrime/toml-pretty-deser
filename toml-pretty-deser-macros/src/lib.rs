@@ -181,13 +181,15 @@ fn extract_option_inner_type(ty: &Type) -> Option<syn::Ident> {
         Type::Path(TypePath { path, .. }) => {
             // Check if the path ends with "Option"
             if let Some(segment) = path.segments.last()
-                && segment.ident == "Option" {
-                    // Extract the inner type from the angle brackets
-                    if let PathArguments::AngleBracketed(args) = &segment.arguments
-                        && let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return extract_type_name(inner_ty);
-                        }
+                && segment.ident == "Option"
+            {
+                // Extract the inner type from the angle brackets
+                if let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return extract_type_name(inner_ty);
                 }
+            }
             None
         }
         _ => None,
@@ -213,13 +215,15 @@ fn extract_vec_inner_type(ty: &Type) -> Option<syn::Ident> {
         Type::Path(TypePath { path, .. }) => {
             // Check if the path ends with "Vec"
             if let Some(segment) = path.segments.last()
-                && segment.ident == "Vec" {
-                    // Extract the inner type from the angle brackets
-                    if let PathArguments::AngleBracketed(args) = &segment.arguments
-                        && let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return extract_type_name(inner_ty);
-                        }
+                && segment.ident == "Vec"
+            {
+                // Extract the inner type from the angle brackets
+                if let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return extract_type_name(inner_ty);
                 }
+            }
             None
         }
         _ => None,
@@ -266,10 +270,11 @@ fn is_option_indexmap_type(ty: &Type) -> bool {
         Type::Path(TypePath { path, .. }) => {
             if let Some(segment) = path.segments.last()
                 && segment.ident == "Option"
-                    && let PathArguments::AngleBracketed(args) = &segment.arguments
-                        && let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return is_indexmap_type(inner_ty);
-                        }
+                && let PathArguments::AngleBracketed(args) = &segment.arguments
+                && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+            {
+                return is_indexmap_type(inner_ty);
+            }
             false
         }
         _ => false,
@@ -282,14 +287,15 @@ fn extract_indexmap_value_type(ty: &Type) -> Option<Type> {
         Type::Path(TypePath { path, .. }) => {
             if let Some(segment) = path.segments.last()
                 && segment.ident == "IndexMap"
-                    && let PathArguments::AngleBracketed(args) = &segment.arguments {
-                        // IndexMap<String, T> has two type arguments
-                        let mut iter = args.args.iter();
-                        iter.next(); // Skip String (the key type)
-                        if let Some(GenericArgument::Type(value_ty)) = iter.next() {
-                            return Some(value_ty.clone());
-                        }
-                    }
+                && let PathArguments::AngleBracketed(args) = &segment.arguments
+            {
+                // IndexMap<String, T> has two type arguments
+                let mut iter = args.args.iter();
+                iter.next(); // Skip String (the key type)
+                if let Some(GenericArgument::Type(value_ty)) = iter.next() {
+                    return Some(value_ty.clone());
+                }
+            }
             None
         }
         _ => None,
@@ -302,10 +308,11 @@ fn extract_option_indexmap_value_type(ty: &Type) -> Option<Type> {
         Type::Path(TypePath { path, .. }) => {
             if let Some(segment) = path.segments.last()
                 && segment.ident == "Option"
-                    && let PathArguments::AngleBracketed(args) = &segment.arguments
-                        && let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return extract_indexmap_value_type(inner_ty);
-                        }
+                && let PathArguments::AngleBracketed(args) = &segment.arguments
+                && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+            {
+                return extract_indexmap_value_type(inner_ty);
+            }
             None
         }
         _ => None,
@@ -318,10 +325,11 @@ fn extract_vec_inner_full_type(ty: &Type) -> Option<Type> {
         Type::Path(TypePath { path, .. }) => {
             if let Some(segment) = path.segments.last()
                 && segment.ident == "Vec"
-                    && let PathArguments::AngleBracketed(args) = &segment.arguments
-                        && let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
-                            return Some(inner_ty.clone());
-                        }
+                && let PathArguments::AngleBracketed(args) = &segment.arguments
+                && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+            {
+                return Some(inner_ty.clone());
+            }
             None
         }
         _ => None,
@@ -335,14 +343,8 @@ enum IndexMapValueKind {
     Primitive,
     /// Nested struct type (needs #[nested] or similar)
     Nested(syn::Ident),
-    /// Tagged enum type (needs #[`enum_tagged`])
-    TaggedEnum(syn::Ident),
-    /// Vec of primitive
-    VecPrimitive,
     /// Vec of nested struct
     VecNested(syn::Ident),
-    /// Vec of tagged enum
-    VecTaggedEnum(syn::Ident),
 }
 
 /// Analyze the value type of a `IndexMap` and determine what kind it is
@@ -353,29 +355,21 @@ fn analyze_indexmap_value_type(value_ty: &Type, field: &syn::Field) -> IndexMapV
     // Check if value type is Vec<T>
     if let Some(vec_inner) = extract_vec_inner_full_type(value_ty) {
         // It's a Vec<T>, now determine what T is
-        if is_nested
-            && let Some(ident) = extract_type_name(&vec_inner) {
-                return IndexMapValueKind::VecNested(ident);
-            }
-        if is_enum_tagged
-            && let Some(ident) = extract_type_name(&vec_inner) {
-                return IndexMapValueKind::VecTaggedEnum(ident);
-            }
-        // Otherwise it's a Vec of primitive
-        return IndexMapValueKind::VecPrimitive;
+        if (is_nested | is_enum_tagged)
+            && let Some(ident) = extract_type_name(&vec_inner)
+        {
+            return IndexMapValueKind::VecNested(ident);
+        }
     }
 
     // Not a Vec, check if it's a struct/enum type
-    if is_nested
-        && let Some(ident) = extract_type_name(value_ty) {
-            return IndexMapValueKind::Nested(ident);
-        }
-    if is_enum_tagged
-        && let Some(ident) = extract_type_name(value_ty) {
-            return IndexMapValueKind::TaggedEnum(ident);
-        }
+    if (is_nested | is_enum_tagged)
+        && let Some(ident) = extract_type_name(value_ty)
+    {
+        return IndexMapValueKind::Nested(ident);
+    }
 
-    // Otherwise it's a primitive type
+    // Otherwise it's a primitive type (that) includes Vec
     IndexMapValueKind::Primitive
 }
 
@@ -531,7 +525,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                     let partial_inner_type = format_ident!("Partial{}", inner_type_name);
                     quote_spanned! { input.ident.span() =>
                         #variant_name_str => {
-                            let result: ::toml_pretty_deser::TomlValue<#partial_inner_type> = 
+                            let result: ::toml_pretty_deser::TomlValue<#partial_inner_type> =
                                     ::toml_pretty_deser::deserialize_nested(
                                 item,
                                 &(0..0),
@@ -828,7 +822,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
 
 /// Tag a struct for use with `deserialize`
 ///
-/// # Panics 
+/// # Panics
 ///
 /// * When the arguments aren't true/false or left off
 /// * when the struct has nunamed fields
@@ -866,16 +860,17 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Create a version of the input struct without attributes
     let mut cleaned_input = input.clone();
     if let Data::Struct(ref mut data) = cleaned_input.data
-        && let Fields::Named(ref mut fields) = data.fields {
-            for field in &mut fields.named {
-                field.attrs.retain(|attr| {
-                    !attr.path().is_ident("nested")
-                        && !attr.path().is_ident("enum_tagged")
-                        && !attr.path().is_ident("tpd_alias")
-                        && !attr.path().is_ident("tpd_default_in_verify")
-                });
-            }
+        && let Fields::Named(ref mut fields) = data.fields
+    {
+        for field in &mut fields.named {
+            field.attrs.retain(|attr| {
+                !attr.path().is_ident("nested")
+                    && !attr.path().is_ident("enum_tagged")
+                    && !attr.path().is_ident("tpd_alias")
+                    && !attr.path().is_ident("tpd_default_in_verify")
+            });
         }
+    }
 
     // Validate nested and enum_tagged fields first
     for f in fields {
@@ -885,9 +880,15 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         if is_nested_field(f) && !is_indexmap {
             if is_option_type(ty) {
-                assert!(extract_option_inner_type(ty).is_some(), "nested attribute on Option field requires a simple inner type name");
+                assert!(
+                    extract_option_inner_type(ty).is_some(),
+                    "nested attribute on Option field requires a simple inner type name"
+                );
             } else if is_vec_type(ty) {
-                assert!(extract_vec_inner_type(ty).is_some(), "nested attribute on Vec field requires a simple inner type name");
+                assert!(
+                    extract_vec_inner_type(ty).is_some(),
+                    "nested attribute on Vec field requires a simple inner type name"
+                );
             } else if extract_type_name(ty).is_none() {
                 panic!("nested attribute requires a simple type name");
             }
@@ -896,11 +897,15 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             // enum_tagged can be applied to EnumType, Option<EnumType>, or Vec<EnumType>
             // The tag key is now provided by the enum's TaggedEnumMeta impl, not here
             if is_option_type(ty) {
-                assert!(extract_option_inner_type(ty).is_some(), 
+                assert!(
+                    extract_option_inner_type(ty).is_some(),
                     "enum_tagged attribute on Option field requires a simple inner type name"
                 );
             } else if is_vec_type(ty) {
-                assert!(extract_vec_inner_type(ty).is_some(), "enum_tagged attribute on Vec field requires a simple inner type name");
+                assert!(
+                    extract_vec_inner_type(ty).is_some(),
+                    "enum_tagged attribute on Vec field requires a simple inner type name"
+                );
             } else if extract_type_name(ty).is_none() {
                 panic!("enum_tagged attribute requires a simple type name");
             }
@@ -924,8 +929,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let kind = analyze_indexmap_value_type(&value_ty, f);
 
                 match kind {
-                    IndexMapValueKind::Nested(inner_name) |
-                    IndexMapValueKind::TaggedEnum(inner_name) => {
+                    IndexMapValueKind::Nested(inner_name) => {
                         let partial_type = format_ident!("Partial{}", inner_name);
                         if is_optional {
                             quote! { #name: TomlValue<Option<indexmap::IndexMap<String, #partial_type>>> }
@@ -933,8 +937,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             quote! { #name: TomlValue<indexmap::IndexMap<String, #partial_type>> }
                         }
                     }
-                    IndexMapValueKind::VecNested(inner_name) |
-                    IndexMapValueKind::VecTaggedEnum(inner_name) => {
+                    IndexMapValueKind::VecNested(inner_name) => {
                         let partial_type = format_ident!("Partial{}", inner_name);
                         if is_optional {
                             quote! { #name: TomlValue<Option<indexmap::IndexMap<String, Vec<#partial_type>>>> }
@@ -943,7 +946,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         }
                     }
                     // For primitives and regular enums, keep the original type
-                    _ => {
+                    IndexMapValueKind::Primitive => {
                         if is_optional {
                             // Extract the inner IndexMap type from Option<IndexMap<...>>
                             quote! { #name: TomlValue<#ty> }
@@ -1022,7 +1025,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let kind = analyze_indexmap_value_type(&value_ty, f);
 
                 match kind {
-                    IndexMapValueKind::Nested(_) | IndexMapValueKind::TaggedEnum(_) => {
+                    IndexMapValueKind::Nested(_) => {
                         if is_optional {
                             quote! {
                                 self.#name.value.as_ref().map(|opt| {
@@ -1037,7 +1040,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             }
                         }
                     }
-                    IndexMapValueKind::VecNested(_) | IndexMapValueKind::VecTaggedEnum(_) => {
+                    IndexMapValueKind::VecNested(_) => {
                         if is_optional {
                             quote! {
                                 self.#name.value.as_ref().map(|opt| {
@@ -1053,7 +1056,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         }
                     }
                     // For primitives and regular enums, just check has_value
-                    _ => {
+                    IndexMapValueKind::Primitive => {
                         quote! {
                             self.#name.has_value()
                         }
@@ -1126,7 +1129,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let kind = analyze_indexmap_value_type(&value_ty, f);
 
                 match kind {
-                    IndexMapValueKind::Nested(_) | IndexMapValueKind::TaggedEnum(_) => {
+                    IndexMapValueKind::Nested(_) => {
                         if is_optional {
                             quote! {
                                 #name: self.#name.value.flatten().map(|map| {
@@ -1141,7 +1144,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             }
                         }
                     }
-                    IndexMapValueKind::VecNested(_) | IndexMapValueKind::VecTaggedEnum(_) => {
+                    IndexMapValueKind::VecNested(_) => {
                         if is_optional {
                             quote! {
                                 #name: self.#name.value.flatten().map(|map| {
@@ -1161,7 +1164,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         }
                     }
                     // For primitives and regular enums, just unwrap
-                    _ => {
+                    IndexMapValueKind::Primitive => {
                         quote! {
                             #name: self.#name.expect("was checked by can_concrete before")
                         }
