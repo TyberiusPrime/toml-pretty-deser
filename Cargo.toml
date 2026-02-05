@@ -1,3 +1,12 @@
 [workspace]
 members = ["toml-pretty-deser", "toml-pretty-deser-macros"]
 resolver = "2"
+
+authors = ["Florian Finkernagel <finkernagel@imt.uni-marburg.de>"]
+description = "TOML deserilization with pretty error messages"
+license = "MIT"
+repository = "https://github.com/TyberiusPrime/toml-pretty-deser"
+documentation = "https://docs.rs/toml-pretty-deser"
+keywords = ["TOML","deserialization"]
+
+categories = ["parsing", "deserialization"]

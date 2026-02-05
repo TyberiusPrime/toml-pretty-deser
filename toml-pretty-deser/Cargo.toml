@@ -1,7 +1,17 @@
 [package]
 name = "toml-pretty-deser"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
+
+readme = "README.md"
+license = workspace.license
+description = workspace.description
+authors = workspace.authors
+repository = workspace.repository
+documentation = workspace.documentation
+keywords = workspace.keywords
+
+
 
 [dependencies]
 bstr = "1.12.1"

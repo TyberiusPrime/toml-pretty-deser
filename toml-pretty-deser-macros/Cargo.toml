@@ -1,13 +1,21 @@
 [package]
 name = "toml-pretty-deser-macros"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
+
+description = "TOML deserilization with pretty error messages - macro crate"
+readme = "README.md"
+license = workspace.license
+authors = workspace.authors
+repository = workspace.repository
+documentation = workspace.documentation
+keywords = workspace.keywords
+
 
 [lib]
 proc-macro = true
 
 [dependencies]
-proc-macro-error = "1.0.4"
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
