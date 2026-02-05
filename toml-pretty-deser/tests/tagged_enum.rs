@@ -1,13 +1,13 @@
 use toml_pretty_deser::prelude::*;
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug, Clone)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug, Clone)]
 struct InnerB {
     s: u32,
@@ -21,7 +21,7 @@ enum EitherOne {
     KindB(InnerB),
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct OuterEither {
     #[nested]
@@ -440,7 +440,7 @@ fn test_either_one_both_kind_and_type_present() {
     }
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct OuterMaybeEither {
     choice: Option<EitherOne>,
@@ -473,7 +473,7 @@ fn test_maybe_either_one_happy_a() {
         }
     }
 }
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct OuterManyTagged {
     choices: Vec<EitherOne>,
@@ -541,7 +541,7 @@ fn test_many_either_empty() {
     }
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct OuterManyTaggedAllowOne {
     choices: Vec<EitherOne>,

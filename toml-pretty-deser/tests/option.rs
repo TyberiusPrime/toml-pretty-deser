@@ -9,7 +9,7 @@ impl PartialEq<&str> for DNA {
     }
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct BarcodesValidated {
     barcode: Option<DNA>,

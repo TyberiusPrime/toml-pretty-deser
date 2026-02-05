@@ -15,7 +15,7 @@ use syn::{
 ///     Blue,
 /// }
 ///
-/// #[make_partial]
+/// #[tpd_make_partial]
 /// struct Config {
 ///     color: Color,  // Just works!
 ///     colors: Vec<Color>,  // Also works!
@@ -846,7 +846,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
 
 #[proc_macro_error]
 #[proc_macro_attribute]
-pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the boolean argument (default to true)
     let generate_verify = if attr.is_empty() {
         true
@@ -855,7 +855,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
         match attr_str.as_str() {
             "true" => true,
             "false" => false,
-            _ => panic!("make_partial expects 'true' or 'false', got: {}", attr_str),
+            _ => panic!("tpd_make_partial expects 'true' or 'false', got: {}", attr_str),
         }
     };
 
@@ -869,9 +869,9 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
     let fields = match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => &fields.named,
-            _ => panic!("make_partial only supports structs with named fields"),
+            _ => panic!("tpd_make_partial only supports structs with named fields"),
         },
-        _ => panic!("make_partial only supports structs"),
+        _ => panic!("tpd_make_partial only supports structs"),
     };
 
     // Create a version of the input struct without attributes

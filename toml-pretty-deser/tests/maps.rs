@@ -1,14 +1,14 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::prelude::*;
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct InnerB {
     s: u32,
@@ -29,13 +29,13 @@ enum ByString {
     GammaDelta,
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug, Clone)]
 struct Inner {
     n: u8,
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct Mapped {
     mapped_u8: IndexMap<String, u8>,
@@ -921,7 +921,7 @@ fn test_mapped_optional_struct_missing_field() {
     }
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct Barcodes {
     barcodes: IndexMap<String, String>,
@@ -958,7 +958,7 @@ fn test_map_order_retained() {
 #[derive(Debug, Clone)]
 struct DNA(String);
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct BarcodesValidated {
     barcodes: IndexMap<String, DNA>,
@@ -1015,7 +1015,7 @@ fn test_map_validate_elements() {
     }
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct BarcodesMapVec {
     barcodes: IndexMap<String, Vec<DNA>>,

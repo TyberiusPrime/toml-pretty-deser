@@ -7,7 +7,7 @@ enum Example {
     Four,
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct EnumOutput {
     #[tpd_alias(other_an_enum)]
@@ -133,7 +133,7 @@ fn test_enum_missing_required() {
     }
 }
 
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct EnumSingleAllowed {
     vec_enum: Vec<Example>,

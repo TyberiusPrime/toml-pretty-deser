@@ -19,7 +19,7 @@ enum Size {
 }
 
 /// A struct using tpd_make_enum enums - no #[as_enum] needed!
-#[make_partial]
+#[tpd_make_partial]
 #[derive(Debug)]
 struct Config {
     color: Color,

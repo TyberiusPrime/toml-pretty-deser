@@ -39,7 +39,7 @@ Using this client Rust code:
 
 ```rust
 use toml_pretty_deser::prelude::*;
-#[make_partial(false)]
+#[tpd_make_partial(false)]
 struct ShowOffTwoValueErrors {
     a: i64,
     b: i64,
@@ -85,7 +85,7 @@ let toml = "
 
 == How this works:
 
-`#[make_partial]` writes a PartialT for every struct T you apply it on,
+`#[tpd_make_partial]` writes a PartialT for every struct T you apply it on,
 and implementations to go from toml_edit types to your PartialT, as well
 as a conversion to turn complete PartialT back into T.
 
@@ -101,5 +101,3 @@ Serde is great. If it works for you, good, use it!.
 But I want pretty error messages, more than one error reported at once,
 pinpoint accuracy in the errors and the ability to continue on with partially
 read configurations.
-
-

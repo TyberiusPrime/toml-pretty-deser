@@ -37,7 +37,7 @@
 //!
 //! ```rust
 //! use toml_pretty_deser::prelude::*;
-//! #[make_partial(false)]
+//! #[tpd_make_partial(false)]
 //! struct ShowOffTwoValueErrors {
 //!     a: i64,
 //!     b: i64,
@@ -83,7 +83,7 @@
 //!
 //! ## How this works:
 //!
-//! `#[make_partial]` writes a PartialT for every struct T you apply it on,
+//! `#[tpd_make_partial]` writes a PartialT for every struct T you apply it on,
 //! and implementations to go from toml_edit types to your PartialT, as well
 //! as a conversion to turn complete PartialT back into T.
 //!
@@ -110,7 +110,7 @@
 //!
 //! ### No custom validation
 //!
-//! Use `make_partial(true)` or plain `make_partial`.
+//! Use `tpd_make_partial(true)` or plain `tpd_make_partial`.
 //!
 //! `VerifyFromToml for PartialT` will be produced by the macro.
 //!
@@ -135,14 +135,14 @@
 //!
 //! ```rust
 //! use toml_pretty_deser::prelude::*;
-//! #[make_partial]
+//! #[tpd_make_partial]
 //! #[derive(Debug, Clone)]
 //! struct InnerA {
 //!     n: i32,
 //!     o: u32,
 //! }
 //!
-//! #[make_partial]
+//! #[tpd_make_partial]
 //! #[derive(Debug, Clone)]
 //! struct InnerB {
 //!     s: u32,
@@ -168,14 +168,14 @@
 //!
 //! By default, field names and enum variants are matched strictl.
 //!
-//! [deserialise_with_mode] allows you to change this to case-insensitive (upper/lower only) or
+//! [deserialize_with_mode] allows you to change this to case-insensitive (upper/lower only) or
 //! code-case-insensitive (allowing snake_case, camelCase, kebab-case, etc. to match each other).
 //!
 //!
 //!## Single elements to Vecs
 //!
 //! By default, when a field is `Vec<T>`, a TOML list must be provided.
-//! [deserialise_with_mode] allows you to change this to allow single elements to be treated as
+//! [deserialize_with_mode] allows you to change this to allow single elements to be treated as
 //! one-element Vecs instead.
 //!
 //!
@@ -220,7 +220,7 @@ use toml_edit::{Document, TomlError};
 pub mod prelude;
 mod tablelike;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
-pub use toml_pretty_deser_macros::{make_partial, tpd_make_enum, tpd_make_tagged_enum};
+pub use toml_pretty_deser_macros::{tpd_make_partial, tpd_make_enum, tpd_make_tagged_enum};
 
 //needed to get the names from enums, implemented by tpd_make_enum
 pub trait StringNamedEnum: Sized + Clone {
@@ -347,7 +347,7 @@ where
 /// `Err((Vec<[HydratedAnnotatedError]>, PartialT))
 ///
 ///
-/// `P` is the PartialT written by #[make_partial} on your struct `T`
+/// `P` is the PartialT written by #[tpd_make_partial} on your struct `T`
 /// See main documentation page.
 pub fn deserialize_with_mode<P, T>(
     source: &str,
@@ -741,10 +741,10 @@ impl FieldInfo {
     }
 }
 
-/// Parameter to [deserialise_with_mode]
+/// Parameter to [deserialize_with_mode]
 #[derive(Clone, Debug)]
 pub enum VecMode { 
-    /// Accept single values in lieu of [value]
+    /// Accept single values in lieu of ```[value]```
     SingleOk,
     /// Vecs must be TOML arrays. Always.
     Strict,
