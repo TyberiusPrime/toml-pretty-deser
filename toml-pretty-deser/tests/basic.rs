@@ -18,7 +18,7 @@ struct Output {
     defaulted_i16: i16,
 }
 
-impl VerifyFromToml<()> for PartialOutput {
+impl VerifyFromToml for PartialOutput {
     fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
         self.verified_i16 = self.verified_i16.verify(helper, |v: &i16| {
             if *v > 5 {
@@ -1246,5 +1246,101 @@ Hint: This key is required but was not found in the TOML document.
         );
     } else {
         unreachable!("");
+    }
+}
+
+#[allow(dead_code)]
+#[make_partial(false)]
+struct ShowOffTwoValueErrors {
+    a: i64,
+    b: i64,
+    c: i64,
+}
+
+impl VerifyFromToml for PartialShowOffTwoValueErrors {
+    fn verify(self, helper: &mut TomlHelper<'_>) -> Self
+    where
+        Self: Sized,
+    {
+        if let Some(a) = self.a.value
+            && let Some(b) = self.b.value
+            && let Some(c) = self.c.value
+        {
+            let sum = a + b + c;
+            if sum != 99 {
+                let spans = vec![
+                    (
+                        self.a.span(),
+                        format!("a+b+c must add up to 100. Sum was {sum}."),
+                    ),
+                    (self.b.span(), "See a".to_string()),
+                    (self.c.span(), "See c".to_string()),
+                ];
+                helper.add_err_by_spans(spans, "For example, set a = 33, b=66, c=0")
+            }
+        }
+        self
+    }
+}
+
+#[test]
+fn test_showoff_value_errors() {
+    let toml = "
+        a = 5
+        b = 10
+        c = 3
+";
+    let result = deserialize::<PartialShowOffTwoValueErrors, ShowOffTwoValueErrors>(toml);
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        println!("{}", errors[0].pretty("example-table.toml"));
+        assert_eq!(
+            errors[0].pretty("example-table.toml"),
+            "  ╭─example-table.toml
+  ┆
+
+2 │         a = 5
+  ┆             ┬
+  ┆             │
+  ┆             ╰─ a+b+c must add up to 100. Sum was 18.
+3 │         b = 10
+  ┆             ─┬
+  ┆              │
+  ┆              ╰─ See a
+4 │         c = 3
+  ┆             ┬
+  ┆             │
+  ┆             ╰─ See c
+──╯
+Hint: For example, set a = 33, b=66, c=0
+"
+        );
+    } else {
+        unreachable!("");
+    }
+}
+
+#[test]
+fn test_parsing_error() {
+    let toml = "
+        a = 5,
+        b = 10
+        c = 3
+";
+    let result = deserialize::<PartialShowOffTwoValueErrors, ShowOffTwoValueErrors>(toml);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let pretty = e.pretty("shu.toml");
+        println!("Pretty error:\n{}", pretty);
+        assert_eq!(pretty, 
+"  ╭─shu.toml
+  ┆
+
+2 │         a = 5,
+  ┆              ┬ 
+  ┆              │ 
+  ┆              ╰── unexpected key or value, expected newline, `#`
+──╯
+Hint: See the TOML Spec: https://toml.io/en/v1.1.0
+");
     }
 }

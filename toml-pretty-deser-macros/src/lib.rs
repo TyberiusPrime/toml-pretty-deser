@@ -122,7 +122,6 @@ fn is_defaulted_field(field: &syn::Field) -> bool {
         .any(|attr| attr.path().is_ident("tpd_default_in_verify"))
 }
 
-
 /// Extract aliases from #[alias("name1", "name2", ...)] attribute
 fn extract_aliases(field: &syn::Field) -> Vec<String> {
     let mut aliases = Vec::new();
@@ -634,7 +633,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                     match &tag_result.state {
                         TomlValueState::Ok { .. } => {
                             // Successfully found the tag value
-                            let tag_str = tag_result.value.as_ref().unwrap();
+                            let tag_str = tag_result.value.as_ref().expect("No avlue on TomlValueState::Ok. Bug");
                             let mut matched_variant: Option<&str> = None;
 
                             for variant_name in variant_names {
@@ -740,7 +739,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                     match &tag_result.state {
                         TomlValueState::Ok { .. } => {
                             // Successfully found the tag value
-                            let tag_str = tag_result.value.as_ref().unwrap();
+                            let tag_str = tag_result.value.as_ref().expect("No value on TomlValueState::Ok. Bug");
                             let mut matched_variant: Option<&str> = None;
 
                             for variant_name in variant_names {
@@ -938,9 +937,9 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                 let is_optional = is_option_indexmap_type(ty);
                 let value_ty = if is_optional {
-                    extract_option_indexmap_value_type(ty).unwrap()
+                    extract_option_indexmap_value_type(ty).expect("Can't fail")
                 } else {
-                    extract_indexmap_value_type(ty).unwrap()
+                    extract_indexmap_value_type(ty).expect("Can't fail")
                 };
                 let kind = analyze_indexmap_value_type(&value_ty, f);
 
@@ -991,21 +990,21 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 // Check if this is Option<InnerType>, Vec<InnerType>, or just InnerType
                 if is_option_type(ty) {
                     // For Option<Nested> fields, use Option<PartialType>
-                    let inner_type_name = extract_option_inner_type(ty).unwrap();
+                    let inner_type_name = extract_option_inner_type(ty).expect("can't fail");
                     let partial_type = format_ident!("Partial{}", inner_type_name);
                     quote! {
                         #name: TomlValue<Option<#partial_type>>
                     }
                 } else if is_vec_type(ty) {
                     // For Vec<Nested> fields, use Vec<PartialType>
-                    let inner_type_name = extract_vec_inner_type(ty).unwrap();
+                    let inner_type_name = extract_vec_inner_type(ty).expect("can't fail");
                     let partial_type = format_ident!("Partial{}", inner_type_name);
                     quote! {
                         #name: TomlValue<Vec<#partial_type>>
                     }
                 } else {
                     // For regular nested fields, use Partial{Type}
-                    let type_name = extract_type_name(ty).unwrap();
+                    let type_name = extract_type_name(ty).expect("can't fail");
                     let partial_type = format_ident!("Partial{}", type_name);
                     quote! {
                         #name: TomlValue<#partial_type>
@@ -1014,19 +1013,19 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             } else if is_enum_tagged_field(f) {
                 // For enum_tagged fields, handle Option<EnumType>, Vec<EnumType>, or just EnumType
                 if is_option_type(ty) {
-                    let inner_type_name = extract_option_inner_type(ty).unwrap();
+                    let inner_type_name = extract_option_inner_type(ty).expect("can't fail");
                     let partial_type = format_ident!("Partial{}", inner_type_name);
                     quote! {
                         #name: TomlValue<Option<#partial_type>>
                     }
                 } else if is_vec_type(ty) {
-                    let inner_type_name = extract_vec_inner_type(ty).unwrap();
+                    let inner_type_name = extract_vec_inner_type(ty).expect("can't fail");
                     let partial_type = format_ident!("Partial{}", inner_type_name);
                     quote! {
                         #name: TomlValue<Vec<#partial_type>>
                     }
                 } else {
-                    let type_name = extract_type_name(ty).unwrap();
+                    let type_name = extract_type_name(ty).expect("can't fail");
                     let partial_type = format_ident!("Partial{}", type_name);
                     quote! {
                         #name: TomlValue<#partial_type>
@@ -1050,9 +1049,9 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                 let is_optional = is_option_indexmap_type(ty);
                 let value_ty = if is_optional {
-                    extract_option_indexmap_value_type(ty).unwrap()
+                    extract_option_indexmap_value_type(ty).expect("can't fail")
                 } else {
-                    extract_indexmap_value_type(ty).unwrap()
+                    extract_indexmap_value_type(ty).expect("can't fail")
                 };
                 let kind = analyze_indexmap_value_type(&value_ty, f);
 
@@ -1172,7 +1171,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             quote! {
                                 #name: self.#name.value.map(|map| {
                                     map.into_iter().filter_map(|(k, p)| p.to_concrete().map(|v| (k, v))).collect()
-                                }).unwrap()
+                                }).expect("was checked by can_concrete before")
                             }
                         }
                     }
@@ -1191,14 +1190,14 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                                     map.into_iter().map(|(k, vec)| {
                                         (k, vec.into_iter().filter_map(|p| p.to_concrete()).collect())
                                     }).collect()
-                                }).unwrap()
+                                }).expect("was checked by can_concrete before")
                             }
                         }
                     }
                     // For primitives and regular enums, just unwrap
                     _ => {
                         quote! {
-                            #name: self.#name.unwrap()
+                            #name: self.#name.expect("was checked by can_concrete before")
                         }
                     }
                 }
@@ -1215,12 +1214,12 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     quote! {
                         #name: self.#name.value.map(|vec| {
                             vec.into_iter().filter_map(|p| p.to_concrete()).collect()
-                        }).unwrap()
+                        }).expect("was checked by can_concrete before")
                     }
                 } else {
                     // For regular nested fields, convert Partial to Concrete
                     quote! {
-                        #name: self.#name.value.and_then(|p| p.to_concrete()).unwrap()
+                        #name: self.#name.value.and_then(|p| p.to_concrete()).expect("was checked by can_concrete before")
                     }
                 }
             } else if is_enum_tagged_field(f) {
@@ -1240,12 +1239,12 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 } else {
                     quote! {
-                        #name: self.#name.value.and_then(|p| p.to_concrete()).unwrap()
+                        #name: self.#name.value.and_then(|p| p.to_concrete()).expect("was checked by can_concrete before")
                     }
                 }
             } else {
                 quote! {
-                    #name: self.#name.unwrap()
+                    #name: self.#name.expect("was checked by can_concrete before")
                 }
             }
         })
@@ -1306,7 +1305,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Conditionally generate VerifyFromToml impl
     let generate_verify_impl = if generate_verify {
         quote! {
-            impl #impl_generics VerifyFromToml<()> for #partial_name #ty_generics #where_clause {
+            impl #impl_generics VerifyFromToml for #partial_name #ty_generics #where_clause {
                 fn verify(self, _helper: &mut TomlHelper<'_>) -> Self {
                     self
                 }
@@ -1360,7 +1359,7 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
 
                         if partial.can_concrete()  {
                             TomlValue {
-                                    value: Some(partial), 
+                                    value: Some(partial),
                                     state: TomlValueState::Ok {
                                         span: table.span().unwrap_or(parent_span).clone(),
                                     }
