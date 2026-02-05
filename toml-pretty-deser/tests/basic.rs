@@ -824,7 +824,7 @@ fn test_upper_lower_mode() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::UpperLower);
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::UpperLower, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -842,7 +842,7 @@ fn test_any_case_mode_snake() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -860,7 +860,7 @@ fn test_any_case_mode_camel() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -878,7 +878,7 @@ fn test_any_case_mode_kebab() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -896,7 +896,7 @@ fn test_any_case_mode_upper_camel() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -914,7 +914,7 @@ fn test_any_case_mode_shouty() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -932,7 +932,7 @@ fn test_any_case_mode_train() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -951,7 +951,7 @@ fn test_any_case_mode_unknown_key() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(
@@ -972,7 +972,7 @@ fn test_alias_with_any_case_mode() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialAliasedOutput, AliasedOutput>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialAliasedOutput, AliasedOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -1020,7 +1020,7 @@ fn test_nested_with_any_case_mode() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterAliased, OuterAliased>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialOuterAliased, OuterAliased>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -1046,7 +1046,7 @@ fn test_complex_mixed_case() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -1067,7 +1067,7 @@ fn test_complex_mixed_case_key_reused() {
     ";
 
     let result: Result<_, _> =
-        deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase);
+        deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
     //dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, output)) = result {
         assert!(output.api_key.as_ref().is_none());
@@ -1125,7 +1125,7 @@ fn test_inline_tables() {
     let result: Result<_, _> = deserialize_with_mode::<
         PartialArrayOfInlineTables,
         ArrayOfInlineTables,
-    >(toml, FieldMatchMode::Exact);
+    >(toml, FieldMatchMode::Exact, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -1145,6 +1145,7 @@ fn test_inline_tables() {
     }
 }
 
+#[allow(dead_code)]
 #[make_partial]
 struct ShowOffTable {
     #[nested]

@@ -36,8 +36,11 @@ fn test_either_one_happy_a() {
         n = -5
         o = 1
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -61,8 +64,11 @@ fn test_either_one_happy_a_case_insensitive() {
         n = -5
         o = 1
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::UpperLower);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::UpperLower,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -86,8 +92,11 @@ fn test_either_one_happy_a_alias() {
         n = -5
         o = 1
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::UpperLower);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::UpperLower,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -112,8 +121,11 @@ fn test_either_one_happy_b() {
         t = 0
     }
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -138,8 +150,11 @@ fn test_either_one_unknown_kind() {
         t = 0
     }
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _output)) = result {
         assert_eq!(errors.len(), 1);
@@ -161,8 +176,11 @@ fn test_either_one_missing_kind_tag() {
         n = 3
         o = 7
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert_eq!(errors.len(), 1);
@@ -187,8 +205,11 @@ fn test_either_one_wrong_tag_type() {
         n = -1
         o = 2
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(errors.iter().any(|e| (e.inner.spans[0].msg
@@ -223,8 +244,11 @@ fn test_either_one_missing_variant_field() {
         n = -5
         # o missing
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(
@@ -247,8 +271,11 @@ fn test_either_one_unknown_key_in_variant() {
         x = 9
     }
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(
@@ -271,8 +298,11 @@ fn test_either_one_fields_mismatch_variant() {
         t = 2
     }
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         // Expect at least one unknown key (s or t) and one missing key (n or o)
@@ -308,8 +338,11 @@ fn test_either_one_tag_key_is_case_flexible_in_anycase_mode() {
         t = 11
     }
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::AnyCase);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -330,8 +363,11 @@ fn test_either_one_missing_choice_field() {
     let toml = "
         # missing choice entirely
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(
@@ -353,8 +389,11 @@ fn test_either_one_wrong_field_type_in_variant() {
         t = 3
     }
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(
@@ -377,8 +416,11 @@ fn test_either_one_both_kind_and_type_present() {
         n = -5
         o = 1
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterEither, OuterEither>(toml, FieldMatchMode::Exact);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, output)) = result {
         assert!(
@@ -415,6 +457,7 @@ fn test_maybe_either_one_happy_a() {
     let result: Result<_, _> = deserialize_with_mode::<PartialOuterMaybeEither, OuterMaybeEither>(
         toml,
         FieldMatchMode::Exact,
+        VecMode::Strict,
     );
     dbg!(&result);
     assert!(result.is_ok());
@@ -456,6 +499,7 @@ fn test_many_either_one_happy() {
     let result: Result<_, _> = deserialize_with_mode::<PartialOuterManyTagged, OuterManyTagged>(
         toml,
         FieldMatchMode::Exact,
+        VecMode::Strict,
     );
     dbg!(&result);
     assert!(result.is_ok());
@@ -482,6 +526,7 @@ fn test_many_either_empty() {
     let result: Result<_, _> = deserialize_with_mode::<PartialOuterManyTagged, OuterManyTagged>(
         toml,
         FieldMatchMode::Exact,
+        VecMode::SingleOk,
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, output)) = result {
@@ -499,7 +544,6 @@ fn test_many_either_empty() {
 #[make_partial]
 #[derive(Debug)]
 struct OuterManyTaggedAllowOne {
-    #[tpd_allow_single]
     choices: Vec<EitherOne>,
 }
 
@@ -514,7 +558,7 @@ fn test_many_either_one_allow_one_happy() {
     let result: Result<_, _> = deserialize_with_mode::<
         PartialOuterManyTaggedAllowOne,
         OuterManyTaggedAllowOne,
-    >(toml, FieldMatchMode::Exact);
+    >(toml, FieldMatchMode::Exact, VecMode::SingleOk);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -538,7 +582,7 @@ fn test_many_either_one_allow_one_happy_inline() {
     let result: Result<_, _> = deserialize_with_mode::<
         PartialOuterManyTaggedAllowOne,
         OuterManyTaggedAllowOne,
-    >(toml, FieldMatchMode::Exact);
+    >(toml, FieldMatchMode::Exact, VecMode::SingleOk);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {

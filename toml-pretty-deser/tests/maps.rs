@@ -56,6 +56,8 @@ struct Mapped {
     opt_mapped_either: Option<IndexMap<String, EitherOne>>,
     #[nested]
     opt_mapped_struct: Option<IndexMap<String, Inner>>,
+
+    opt_mapped_vec_u8: Option<IndexMap<String, Vec<u8>>>,
 }
 
 #[test]
@@ -91,9 +93,13 @@ fn test_mapped_happy() {
             b = { kind = 'KindB', s = 300, t = 400 }
         [opt_mapped_struct]
             a = { n = 50 }
+        [opt_mapped_vec_u8]
+            a = [100,200,255]
+    
 
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
+    dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
         assert_eq!(output.mapped_u8.get("a"), Some(&1));
@@ -153,9 +159,113 @@ fn test_mapped_happy() {
         assert_eq!(output.mapped_vec_struct.get("a").unwrap().len(), 2);
         assert_eq!(output.mapped_vec_struct.get("a").unwrap()[0].n, 5);
         assert_eq!(output.mapped_vec_struct.get("a").unwrap()[1].n, 6);
+        assert_eq!(output.opt_mapped_vec_u8.as_ref().unwrap().get("a").unwrap(), &vec![100,200,255]);
     }
 }
 
+
+#[test]
+fn test_mapped_happy_allow_single() {
+    let toml = "
+        [mapped_u8] 
+            a = 1
+            b = 2
+        [mapped_enum]
+            a = 'AlphaBeta'
+            b = 'GammaDelta'
+        [mapped_either]
+            a = { kind = 'KindA', n = 10, o = 20 }
+            b = { kind = 'KindB', s = 30, t = 40 }
+        [mapped_struct]
+            a = { n = 5 }
+        [mapped_vec_string]
+            a = 'hello'
+        [mapped_vec_enum]
+                a = 'AlphaBeta'
+        [mapped_vec_either]
+            a = { kind = 'KindA', n = 1, o = 2 }
+        [mapped_vec_struct]
+            a = { n = 5 }
+        [opt_mapped_u8]
+            a = 10
+            b = 20
+        [opt_mapped_enum]
+            a = 'AlphaBeta'
+            b = 'GammaDelta'
+        [opt_mapped_either]
+            a = { kind = 'KindA', n = 100, o = 200 }
+            b = { kind = 'KindB', s = 300, t = 400 }
+        [opt_mapped_struct]
+            a = { n = 50 }
+        [opt_mapped_vec_u8]
+            a = 100
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialMapped, Mapped>(toml,
+        FieldMatchMode::Exact, VecMode::SingleOk
+
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.mapped_u8.get("a"), Some(&1));
+        assert_eq!(output.mapped_enum.get("b"), Some(&ByString::GammaDelta));
+        assert!(matches!(
+            output.mapped_either.get("a"),
+            Some(EitherOne::KindA(inner)) if inner.n == 10 && inner.o == 20
+        ));
+        assert!(matches!(
+            output.mapped_either.get("b"),
+            Some(EitherOne::KindB(inner)) if inner.s == 30 && inner.t == 40
+        ));
+        assert!(matches!(
+            output.mapped_struct.get("a"),
+            Some(inner) if inner.n == 5
+        ));
+        assert_eq!(output.mapped_u8.len(), 2);
+        assert_eq!(output.mapped_enum.len(), 2);
+        assert_eq!(output.mapped_either.len(), 2);
+        assert_eq!(output.mapped_struct.len(), 1);
+
+        assert_eq!(output.opt_mapped_u8.as_ref().unwrap().get("a"), Some(&10));
+        assert_eq!(
+            output.opt_mapped_enum.as_ref().unwrap().get("b"),
+            Some(&ByString::GammaDelta)
+        );
+        assert!(matches!(
+            output.opt_mapped_either.as_ref().unwrap().get("a"),
+            Some(EitherOne::KindA(inner)) if inner.n == 100 && inner.o == 200
+        ));
+        assert!(matches!(
+            output.opt_mapped_either.as_ref().unwrap().get("b"),
+            Some(EitherOne::KindB(inner)) if inner.s == 300 && inner.t == 400
+        ));
+        assert!(matches!(
+            output.opt_mapped_struct.as_ref().unwrap().get("a"),
+            Some(inner) if inner.n == 50
+        ));
+        assert_eq!(output.opt_mapped_u8.as_ref().unwrap().len(), 2);
+        assert_eq!(output.opt_mapped_enum.as_ref().unwrap().len(), 2);
+        assert_eq!(output.opt_mapped_either.as_ref().unwrap().len(), 2);
+        assert_eq!(output.opt_mapped_struct.as_ref().unwrap().len(), 1);
+
+        assert_eq!(
+            output.mapped_vec_string.get("a").unwrap(),
+            &vec!["hello".to_string()]
+        );
+        assert_eq!(
+            output.mapped_vec_enum.get("a").unwrap(),
+            &vec![ByString::AlphaBeta]
+        );
+        assert_eq!(output.mapped_vec_either.get("a").unwrap().len(), 1);
+        assert!(matches!(
+            &output.mapped_vec_either.get("a").unwrap()[0],
+            EitherOne::KindA(inner) if inner.n == 1 && inner.o == 2
+        ));
+        assert_eq!(output.mapped_vec_struct.get("a").unwrap().len(), 1);
+        assert_eq!(output.mapped_vec_struct.get("a").unwrap()[0].n, 5);
+        assert_eq!(output.opt_mapped_vec_u8.as_ref().unwrap().get("a").unwrap(), &vec![100]);
+    }
+}
 #[test]
 fn test_mapped_happy_inline() {
     let toml = "
@@ -908,7 +1018,6 @@ fn test_map_validate_elements() {
 #[make_partial]
 #[derive(Debug)]
 struct BarcodesMapVec {
-    #[tpd_allow_single]
     barcodes: IndexMap<String, Vec<DNA>>,
 }
 #[test]

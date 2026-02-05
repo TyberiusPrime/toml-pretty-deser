@@ -168,10 +168,14 @@ pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
     P: FromTomlTable<T> + VerifyFromToml<()> + std::fmt::Debug,
 {
-    deserialize_with_mode(source, FieldMatchMode::default())
+    deserialize_with_mode(source, FieldMatchMode::default(), VecMode::SingleOk)
 }
 
-pub fn deserialize_with_mode<P, T>(source: &str, mode: FieldMatchMode) -> Result<T, DeserError<P>>
+pub fn deserialize_with_mode<P, T>(
+    source: &str,
+    match_mode: FieldMatchMode,
+    vec_mode: VecMode,
+) -> Result<T, DeserError<P>>
 where
     P: FromTomlTable<T> + VerifyFromToml<()> + std::fmt::Debug,
 {
@@ -179,7 +183,12 @@ where
     let source = Rc::new(RefCell::new(source.to_string()));
 
     let errors = Rc::new(RefCell::new(Vec::new()));
-    let mut helper = TomlHelper::from_table(parsed_toml.as_table(), errors.clone(), mode);
+    let col = TomlCollector {
+        errors: errors.clone(),
+        match_mode,
+        vec_mode,
+    };
+    let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col);
 
     let partial = P::from_toml_table(&mut helper);
 
@@ -496,10 +505,17 @@ impl FieldInfo {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+pub enum VecMode {
+    SingleOk,
+    Strict,
+}
+
+#[derive(Clone, Debug)]
 pub struct TomlCollector {
     pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
     pub match_mode: FieldMatchMode,
+    pub vec_mode: VecMode,
 }
 
 pub struct TomlHelper<'a> {
@@ -513,23 +529,19 @@ pub struct TomlHelper<'a> {
 }
 
 impl<'a> TomlHelper<'a> {
-    pub fn from_table(
-        table: &'a dyn TableLikePlus,
-        errors: Rc<RefCell<Vec<AnnotatedError>>>,
-        match_mode: FieldMatchMode,
-    ) -> Self {
+    pub fn from_table(table: &'a dyn TableLikePlus, col: TomlCollector) -> Self {
         Self {
             table: Some(table),
             expected: vec![],
             observed: vec![],
-            col: TomlCollector { errors, match_mode },
+            col,
         }
     }
 
     /// Create a TomlHelper from a toml_edit::Item (either Table or InlineTable)
     pub fn from_item(item: &'a toml_edit::Item, col: &TomlCollector) -> Self {
         match item.as_table_like_plus() {
-            Some(table) => Self::from_table(table, col.errors.clone(), col.match_mode),
+            Some(table) => Self::from_table(table, col.clone()),
             _ => Self {
                 table: None,
                 expected: vec![],
@@ -1121,22 +1133,60 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     }
                 }
             }
-            toml_edit::Item::Value(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "array",
-                    found: value.type_name(),
+            toml_edit::Item::Value(value) => match col.vec_mode {
+                VecMode::SingleOk => {
+                    let element: TomlValue<T> =
+                        FromTomlItem::from_toml_item(&item, parent_span.clone(), col);
+                    match &element.state {
+                        TomlValueState::Ok { span } => {
+                            TomlValue::new_ok(vec![element.value.expect("unreachabel")], span.clone())
+                        }
+                        _ => {
+                            element.register_error(&col.errors);
+                            TomlValue {
+                                required: true,
+                                state: TomlValueState::Nested {},
+                                value: None,
+                            }
+                        }
+                    }
+                }
+                VecMode::Strict => TomlValue {
+                    required: true,
+                    value: None,
+                    state: TomlValueState::WrongType {
+                        span: value.span().unwrap_or(parent_span.clone()),
+                        expected: "array",
+                        found: value.type_name(),
+                    },
                 },
             },
-            toml_edit::Item::Table(value) => TomlValue {
-                required: true,
-                value: None,
-                state: TomlValueState::WrongType {
-                    span: value.span().unwrap_or(parent_span.clone()),
-                    expected: "array",
-                    found: "table",
+            toml_edit::Item::Table(value) => match col.vec_mode {
+                VecMode::SingleOk => {
+                    let element: TomlValue<T> =
+                        FromTomlItem::from_toml_item(&item, parent_span.clone(), col);
+                    match &element.state {
+                        TomlValueState::Ok { span } => {
+                            TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
+                        }
+                        _ => {
+                            element.register_error(&col.errors);
+                            TomlValue {
+                                required: true,
+                                state: TomlValueState::Nested {},
+                                value: None,
+                            }
+                        }
+                    }
+                }
+                VecMode::Strict => TomlValue {
+                    required: true,
+                    value: None,
+                    state: TomlValueState::WrongType {
+                        span: value.span().unwrap_or(parent_span.clone()),
+                        expected: "array (maybe of tables)",
+                        found: "table",
+                    },
                 },
             },
         }
@@ -1358,7 +1408,7 @@ where
 {
     match item.as_table_like_plus() {
         Some(table) => {
-            let mut helper = TomlHelper::from_table(table, col.errors.clone(), col.match_mode);
+            let mut helper = TomlHelper::from_table(table, col.clone());
             for f in fields_to_ignore {
                 helper.ignore_field(*f);
             }
@@ -1818,6 +1868,27 @@ impl<E: TaggedEnumMeta> FromOptMapVecTaggedEnum<E> for TomlValue<Option<toml_edi
 /// Trait for converting a TOML table into a IndexMap<String, T> where T is a primitive type
 pub trait AsMap<T>: Sized {
     fn as_map(self, col: &TomlCollector) -> TomlValue<IndexMap<String, T>>;
+    fn as_mapa(self, col: &TomlCollector) -> TomlValue<IndexMap<String, T>> {
+        self.as_map(col)
+    }
+    fn as_mapb(self, col: &TomlCollector) -> TomlValue<IndexMap<String, T>> {
+        self.as_map(col)
+    }
+    fn as_mapc(self, col: &TomlCollector) -> TomlValue<IndexMap<String, T>> {
+        self.as_map(col)
+    }
+    fn as_mapd(self, col: &TomlCollector) -> TomlValue<IndexMap<String, T>> {
+        self.as_map(col)
+    }
+    fn as_mape(self, col: &TomlCollector) -> TomlValue<IndexMap<String, T>> {
+        self.as_map(col)
+    }
+    fn as_mapf(self, col: &TomlCollector) -> TomlValue<IndexMap<String, T>> {
+        self.as_map(col)
+    }
+    fn as_mapg(self, col: &TomlCollector) -> TomlValue<IndexMap<String, T>> {
+        self.as_map(col)
+    }
 }
 
 /// Blanket implementation for any T that implements FromTomlItem
@@ -1991,7 +2062,7 @@ where
                                     }
                                     _ => {
                                         //if let Some(_) = nested.value.as_ref() {
-                                            nested.register_error(&col.errors);
+                                        nested.register_error(&col.errors);
                                         //}
                                         has_errors = true;
                                     }
@@ -2297,195 +2368,4 @@ pub enum TomlValueState {
     Ok {
         span: Range<usize>,
     },
-}
-
-// ================================
-// Optional IndexMap Traits and Implementations
-// These convert TomlValue<Option<Item>> to TomlValue<Option<IndexMap<String, T>>>
-// ================================
-
-/// Trait for converting an optional TOML table into Option<IndexMap<String, T>>
-pub trait AsOptMap<T>: Sized {
-    fn as_opt_map(self, col: &TomlCollector) -> TomlValue<Option<IndexMap<String, T>>>;
-}
-
-/// Trait for converting an optional TOML table into Option<IndexMap<String, P>> for nested structs
-pub trait AsOptMapNested<P, T>: Sized {
-    fn as_opt_map_nested(self, col: &TomlCollector) -> TomlValue<Option<IndexMap<String, P>>>;
-}
-
-/// Trait for converting an optional TOML table into Option<IndexMap<String, Vec<T>>>
-pub trait AsOptMapVec<T>: Sized {
-    fn as_opt_map_vec(self, col: &TomlCollector) -> TomlValue<Option<IndexMap<String, Vec<T>>>>;
-}
-
-/// Trait for converting an optional TOML table into Option<IndexMap<String, Vec<P>>> for nested structs
-pub trait AsOptMapVecNested<P>: Sized {
-    fn as_opt_map_vec_nested(
-        self,
-        col: &TomlCollector,
-    ) -> TomlValue<Option<IndexMap<String, Vec<P>>>>;
-}
-
-/// Blanket implementation for AsOptMap on Option<Item> returning Option<IndexMap<String, T>>
-impl<T: FromTomlItem> AsOptMap<T> for TomlValue<Option<toml_edit::Item>> {
-    fn as_opt_map(self, col: &TomlCollector) -> TomlValue<Option<IndexMap<String, T>>> {
-        match &self.state {
-            TomlValueState::Ok { span } => match self.value {
-                Some(Some(item)) => {
-                    let single: TomlValue<toml_edit::Item> = TomlValue {
-                        value: Some(item),
-                        required: false,
-                        state: TomlValueState::Ok { span: span.clone() },
-                    };
-                    let result: TomlValue<IndexMap<String, T>> = single.as_map(col);
-                    match result.state {
-                        TomlValueState::Ok { span } => TomlValue {
-                            value: Some(result.value),
-                            required: self.required,
-                            state: TomlValueState::Ok { span },
-                        },
-                        other => TomlValue {
-                            value: None,
-                            required: self.required,
-                            state: other,
-                        },
-                    }
-                }
-                Some(None) => TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                },
-                None => TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                },
-            },
-            TomlValueState::Missing { parent_span, .. } => TomlValue {
-                value: Some(None),
-                required: self.required,
-                state: TomlValueState::Ok {
-                    span: parent_span.clone(),
-                },
-            },
-            _ => TomlValue {
-                value: None,
-                required: self.required,
-                state: self.state.clone(),
-            },
-        }
-    }
-}
-
-/// Implementation for AsOptMapNested on Option<Item> returning Option<IndexMap<String, P>>
-impl<P, T> AsOptMapNested<P, T> for TomlValue<Option<toml_edit::Item>>
-where
-    P: FromTomlTable<T> + VerifyFromToml<()>,
-{
-    fn as_opt_map_nested(self, col: &TomlCollector) -> TomlValue<Option<IndexMap<String, P>>> {
-        match &self.state {
-            TomlValueState::Ok { span } => match self.value {
-                Some(Some(item)) => {
-                    let single: TomlValue<toml_edit::Item> = TomlValue {
-                        value: Some(item),
-                        required: false,
-                        state: TomlValueState::Ok { span: span.clone() },
-                    };
-                    let result: TomlValue<IndexMap<String, P>> = single.as_map_nested(col);
-                    match result.state {
-                        TomlValueState::Ok { span } => TomlValue {
-                            value: Some(result.value),
-                            required: self.required,
-                            state: TomlValueState::Ok { span },
-                        },
-                        other => TomlValue {
-                            value: None,
-                            required: self.required,
-                            state: other,
-                        },
-                    }
-                }
-                Some(None) => TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                },
-                None => TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                },
-            },
-            TomlValueState::Missing { .. } => {
-                unreachable!();
-                // TomlValue {
-                // value: Some(None),
-                // required: self.required,
-                // state: TomlValueState::Ok {
-                //     span: parent_span.clone(),
-                // },
-            }
-            _ => TomlValue {
-                value: None,
-                required: self.required,
-                state: self.state.clone(),
-            },
-        }
-    }
-}
-
-/// Blanket implementation for AsOptMapVec<T> where T: FromTomlItem
-impl<T: FromTomlItem> AsOptMapVec<T> for TomlValue<Option<toml_edit::Item>> {
-    fn as_opt_map_vec(self, col: &TomlCollector) -> TomlValue<Option<IndexMap<String, Vec<T>>>> {
-        match &self.state {
-            TomlValueState::Ok { span } => match self.value {
-                Some(Some(item)) => {
-                    let single: TomlValue<toml_edit::Item> = TomlValue {
-                        value: Some(item),
-                        required: false,
-                        state: TomlValueState::Ok { span: span.clone() },
-                    };
-                    let result: TomlValue<IndexMap<String, Vec<T>>> = single.as_map(col);
-                    match result.state {
-                        TomlValueState::Ok { span } => TomlValue {
-                            value: Some(result.value),
-                            required: self.required,
-                            state: TomlValueState::Ok { span },
-                        },
-                        other => TomlValue {
-                            value: None,
-                            required: self.required,
-                            state: other,
-                        },
-                    }
-                }
-                Some(None) => TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                },
-                None => TomlValue {
-                    value: Some(None),
-                    required: self.required,
-                    state: TomlValueState::Ok { span: span.clone() },
-                },
-            },
-            TomlValueState::Missing { .. } => {
-                unreachable!();
-                // TomlValue {
-                //                 value: Some(None),
-                //                 required: self.required,
-                //                 state: TomlValueState::Ok {
-                //                     span: parent_span.clone(),
-                //                 },
-            }
-            _ => TomlValue {
-                value: None,
-                required: self.required,
-                state: self.state.clone(),
-            },
-        }
-    }
 }

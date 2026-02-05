@@ -132,10 +132,8 @@ fn test_enum_missing_required() {
 #[make_partial]
 #[derive(Debug)]
 struct EnumSingleAllowed {
-    #[tpd_allow_single]
     vec_enum: Vec<Example>,
 
-    #[tpd_allow_single]
     opt_vec_enum: Option<Vec<Example>>,
 }
 

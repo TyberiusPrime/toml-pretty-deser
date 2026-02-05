@@ -55,7 +55,6 @@ fn test_vec_validate_elements() {
 #[make_partial]
 #[derive(Debug)]
 struct BarcodesValidatedSingle {
-    #[tpd_allow_single]
     barcodes: Vec<DNA>,
 }
 
