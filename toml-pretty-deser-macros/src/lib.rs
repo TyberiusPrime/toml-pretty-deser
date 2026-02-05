@@ -21,6 +21,10 @@ use syn::{
 ///     maybe_color: Option<Color>,  // Yep!
 /// }
 /// ```
+///
+/// # Panics
+///
+/// When used on non-unit valued enums
 #[proc_macro_attribute]
 pub fn tpd_make_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
@@ -435,7 +439,12 @@ impl syn::parse::Parse for TaggedEnumArgs {
 /// - A `PartialEitherOne` enum with partial variants
 /// - Implementation of `ToConcrete<EitherOne>` for `PartialEitherOne`
 /// - Implementation of `FromTomlTable` for error collection
+///
+/// # Panics
+///
+/// when used on anything but Enums with one payload that's `#[make_partial]`ed
 #[proc_macro_attribute]
+#[allow(clippy::too_many_lines)]
 pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as TaggedEnumArgs);
     let input = parse_macro_input!(item as DeriveInput);
@@ -522,7 +531,8 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                     let partial_inner_type = format_ident!("Partial{}", inner_type_name);
                     quote_spanned! { input.ident.span() =>
                         #variant_name_str => {
-                            let result: ::toml_pretty_deser::TomlValue<#partial_inner_type> = ::toml_pretty_deser::deserialize_nested(
+                            let result: ::toml_pretty_deser::TomlValue<#partial_inner_type> = 
+                                    ::toml_pretty_deser::deserialize_nested(
                                 item,
                                 &(0..0),
                                 col,
@@ -540,7 +550,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
     let expanded = quote_spanned! { input.ident.span() =>
         #input
 
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         #generics
         enum #partial_name #ty_generics #where_clause {
             #(#partial_variants,)*
@@ -651,7 +661,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                             value: None,
                             state: TomlValueState::MultiDefined {
                                 key: tag_key.to_string(),
-                                spans: spans.to_vec(),
+                                spans: spans.clone(),
                             },
                         },
                         TomlValueState::WrongType {
@@ -770,7 +780,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                             value: None,
                             state: TomlValueState::MultiDefined {
                                 key: tag_key.to_string(),
-                                spans: spans.to_vec(),
+                                spans: spans.clone(),
                             },
                         },
                         TomlValueState::WrongType {
@@ -817,7 +827,14 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
 }
 
 /// Tag a struct for use with `deserialize`
+///
+/// # Panics 
+///
+/// * When the arguments aren't true/false or left off
+/// * when the struct has nunamed fields
+/// * when used on a non-struct
 #[proc_macro_attribute]
+#[allow(clippy::too_many_lines)]
 pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the boolean argument (default to true)
     let generate_verify = if attr.is_empty() {
@@ -907,14 +924,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let kind = analyze_indexmap_value_type(&value_ty, f);
 
                 match kind {
-                    IndexMapValueKind::Nested(inner_name) => {
-                        let partial_type = format_ident!("Partial{}", inner_name);
-                        if is_optional {
-                            quote! { #name: TomlValue<Option<indexmap::IndexMap<String, #partial_type>>> }
-                        } else {
-                            quote! { #name: TomlValue<indexmap::IndexMap<String, #partial_type>> }
-                        }
-                    }
+                    IndexMapValueKind::Nested(inner_name) |
                     IndexMapValueKind::TaggedEnum(inner_name) => {
                         let partial_type = format_ident!("Partial{}", inner_name);
                         if is_optional {
@@ -923,14 +933,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             quote! { #name: TomlValue<indexmap::IndexMap<String, #partial_type>> }
                         }
                     }
-                    IndexMapValueKind::VecNested(inner_name) => {
-                        let partial_type = format_ident!("Partial{}", inner_name);
-                        if is_optional {
-                            quote! { #name: TomlValue<Option<indexmap::IndexMap<String, Vec<#partial_type>>>> }
-                        } else {
-                            quote! { #name: TomlValue<indexmap::IndexMap<String, Vec<#partial_type>>> }
-                        }
-                    }
+                    IndexMapValueKind::VecNested(inner_name) |
                     IndexMapValueKind::VecTaggedEnum(inner_name) => {
                         let partial_type = format_ident!("Partial{}", inner_name);
                         if is_optional {
@@ -1228,13 +1231,13 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 if is_optional {
                     quote! {
                         #name: toml_item_as_map(
-                                helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], false),
+                                &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], false),
                                 &helper.col).into_optional()
                     }
                 } else {
                     quote! {
                         #name: toml_item_as_map(
-                                helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true),
+                                &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true),
                                 &helper.col)
                     }
                 }
@@ -1281,7 +1284,7 @@ pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #cleaned_input
 
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         struct #partial_name #generics #where_clause {
             #(#partial_fields,)*
         }

@@ -48,6 +48,6 @@ fn test_opt_validated() {
     let result: Result<_, _> = deserialize::<PartialBarcodesValidated, BarcodesValidated>(toml);
     assert!(result.is_ok());
     if let Ok(output) = result {
-        assert_eq!(output.barcode, Some(DNA("agtc".to_string())))
+        assert_eq!(output.barcode, Some(DNA("agtc".to_string())));
     }
 }

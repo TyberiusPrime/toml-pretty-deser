@@ -15,7 +15,7 @@ struct InnerB {
 }
 
 #[tpd_make_tagged_enum("kind", aliases = ["type"])]
-#[derive(Debug, Clone)] //todo: why is this clone necessary
+#[derive(Debug)] //todo: why is this clone necessary
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),

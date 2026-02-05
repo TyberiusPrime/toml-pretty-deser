@@ -1,7 +1,6 @@
+#![allow(clippy::map_unwrap_or)]
 use toml_pretty_deser::prelude::*;
 
-/// Test enum using the new #[tpd_make_enum] macro.
-/// This should work WITHOUT #[as_enum] on fields!
 #[tpd_make_enum]
 #[derive(Debug, Clone, PartialEq)]
 enum Color {
@@ -18,7 +17,6 @@ enum Size {
     Large,
 }
 
-/// A struct using tpd_make_enum enums - no #[as_enum] needed!
 #[tpd_make_partial]
 #[derive(Debug)]
 struct Config {
@@ -31,13 +29,13 @@ struct Config {
 
 #[test]
 fn test_tpd_make_enum_happy_path() {
-    let toml = r#"
+    let toml = "
         color = 'Red'
         opt_color = 'Green'
         colors = ['Blue', 'Red']
         opt_colors = ['Green', 'Blue']
         size = 'Medium'
-    "#;
+    ";
 
     let result: Result<Config, _> = deserialize::<PartialConfig, Config>(toml);
     dbg!(&result);
@@ -53,13 +51,13 @@ fn test_tpd_make_enum_happy_path() {
 
 #[test]
 fn test_tpd_make_enum_optional_missing() {
-    let toml = r#"
+    let toml = "
         color = 'Blue'
         # opt_color is missing
         colors = ['Red']
         # opt_colors is missing
         size = 'Large'
-    "#;
+    ";
 
     let result: Result<Config, _> = deserialize::<PartialConfig, Config>(toml);
     dbg!(&result);
@@ -75,11 +73,11 @@ fn test_tpd_make_enum_optional_missing() {
 
 #[test]
 fn test_tpd_make_enum_invalid_variant() {
-    let toml = r#"
+    let toml = "
         color = 'Purple'
         colors = ['Red']
         size = 'Small'
-    "#;
+    ";
 
     let result: Result<Config, _> = deserialize::<PartialConfig, Config>(toml);
     dbg!(&result);
@@ -99,11 +97,11 @@ fn test_tpd_make_enum_invalid_variant() {
 
 #[test]
 fn test_tpd_make_enum_wrong_type() {
-    let toml = r#"
+    let toml = "
         color = 42
         colors = ['Red']
         size = 'Small'
-    "#;
+    ";
 
     let result: Result<Config, _> = deserialize::<PartialConfig, Config>(toml);
     dbg!(&result);
@@ -120,11 +118,11 @@ fn test_tpd_make_enum_wrong_type() {
 
 #[test]
 fn test_tpd_make_enum_missing_required() {
-    let toml = r#"
+    let toml = "
         # color is missing
         colors = ['Red']
         size = 'Small'
-    "#;
+    ";
 
     let result: Result<Config, _> = deserialize::<PartialConfig, Config>(toml);
     dbg!(&result);
@@ -144,11 +142,11 @@ fn test_tpd_make_enum_missing_required() {
 
 #[test]
 fn test_tpd_make_enum_vec_with_invalid() {
-    let toml = r#"
+    let toml = "
         color = 'Red'
         colors = ['Red', 'InvalidColor', 'Blue']
         size = 'Small'
-    "#;
+    ";
 
     let result: Result<Config, _> = deserialize::<PartialConfig, Config>(toml);
     dbg!(&result);
@@ -164,11 +162,11 @@ fn test_tpd_make_enum_vec_with_invalid() {
 /// Test that the error message includes helpful suggestions
 #[test]
 fn test_tpd_make_enum_error_suggestions() {
-    let toml = r#"
+    let toml = "
         color = 'Rd'
         colors = ['Red']
         size = 'Small'
-    "#;
+    ";
 
     let result: Result<Config, _> = deserialize::<PartialConfig, Config>(toml);
     dbg!(&result);

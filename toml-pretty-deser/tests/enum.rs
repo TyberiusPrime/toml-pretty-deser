@@ -1,3 +1,4 @@
+#![allow(clippy::struct_field_names)]
 use toml_pretty_deser::prelude::*;
 #[tpd_make_enum]
 #[derive(Debug, Clone)]
