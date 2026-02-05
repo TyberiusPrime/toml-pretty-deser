@@ -556,7 +556,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                                 item,
                                 &(0..0),
                                 col,
-                                true,
                                 fields_to_ignore,
                             );
                             result.value.map(#partial_name::#variant_name)
@@ -632,7 +631,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                     // Build the list of fields to ignore (canonical key + all aliases)
                     let mut fields_to_ignore: Vec<&str> = vec![tag_key];
                     fields_to_ignore.extend(tag_aliases.iter().copied());
-                    let required = true; //todo check
                     let span: std::ops::Range<usize> = table.span().unwrap_or(0..0);
                     match &tag_result.state {
                         TomlValueState::Ok { .. } => {
@@ -657,12 +655,10 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                                 ) {
                                     Some(partial) => TomlValue {
                                         value: Some(partial),
-                                        required,
                                         state: TomlValueState::Ok { span},
                                     },
                                     None => TomlValue {
                                         value: None,
-                                        required,
                                         state: TomlValueState::ValidationFailed {
                                             span,
                                             message: "Failed to deserialize variant".to_string(),
@@ -673,7 +669,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                             } else {
                                 TomlValue {
                                     value: None,
-                                    required,
                                     state: TomlValueState::ValidationFailed {
                                         span,
                                         message: "Unknown enum variant".to_string(),
@@ -684,7 +679,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                         }
                         TomlValueState::MultiDefined { key: _, spans } => TomlValue {
                             value: None,
-                            required,
                             state: TomlValueState::MultiDefined {
                                 key: tag_key.to_string(),
                                 spans: spans.to_vec(),
@@ -696,7 +690,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                             found,
                         } => TomlValue {
                             value: None,
-                            required,
                             state: TomlValueState::ValidationFailed {
                                 span: wrong_span.clone(),
                                 message: format!("Wrong type: {}, expected string", found),
@@ -705,7 +698,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                         },
                         TomlValueState::Missing { .. } => TomlValue {
                             value: None,
-                            required,
                             state: TomlValueState::ValidationFailed {
                                 span,
                                 message: format!("Missing required tag field: {}", tag_key),
@@ -714,7 +706,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                         },
                         _ => TomlValue {
                             value: None,
-                            required,
                             state: tag_result.state.clone(),
                         },
                     }
@@ -746,7 +737,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                     // Build the list of fields to ignore (canonical key + all aliases)
                     let mut fields_to_ignore: Vec<&str> = vec![tag_key];
                     fields_to_ignore.extend(tag_aliases.iter().copied());
-                    let required = true; //todo check
                     let span: std::ops::Range<usize> = table.span().unwrap_or(0..0);
                     match &tag_result.state {
                         TomlValueState::Ok { .. } => {
@@ -773,13 +763,11 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                                         if partial.can_concrete() {
                                             TomlValue {
                                                 value: Some(partial.to_concrete().expect("to_concrete failed but can_concrete passed. Bug")),
-                                                required,
                                                 state: TomlValueState::Ok { span},
                                             }
                                         } else {
                                             TomlValue {
                                                 value: None,
-                                                required,
                                                 state: TomlValueState::ValidationFailed {
                                                     span,
                                                     message: "Failed to deserialize variant".to_string(),
@@ -790,7 +778,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                                     }
                                     None => TomlValue {
                                         value: None,
-                                        required,
                                         state: TomlValueState::ValidationFailed {
                                             span,
                                             message: "Failed to deserialize variant".to_string(),
@@ -801,7 +788,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                             } else {
                                 TomlValue {
                                     value: None,
-                                    required,
                                     state: TomlValueState::ValidationFailed {
                                         span,
                                         message: "Unknown enum variant".to_string(),
@@ -812,7 +798,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                         }
                         TomlValueState::MultiDefined { key: _, spans } => TomlValue {
                             value: None,
-                            required,
                             state: TomlValueState::MultiDefined {
                                 key: tag_key.to_string(),
                                 spans: spans.to_vec(),
@@ -824,7 +809,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                             found,
                         } => TomlValue {
                             value: None,
-                            required,
                             state: TomlValueState::ValidationFailed {
                                 span: wrong_span.clone(),
                                 message: format!("Wrong type: {}, expected string", found),
@@ -833,7 +817,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                         },
                         TomlValueState::Missing { .. } => TomlValue {
                             value: None,
-                            required,
                             state: TomlValueState::ValidationFailed {
                                 span,
                                 message: format!("Missing required tag field: {}", tag_key),
@@ -842,7 +825,6 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                         },
                         _ => TomlValue {
                             value: None,
-                            required,
                             state: tag_result.state.clone(),
                         },
                     }
@@ -1310,7 +1292,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             if let TomlValueState::Missing {parent_span, ..} = t.state {
                                 TomlValue{
                                     value: Some(None),
-                                    required: false,
                                     state: TomlValueState::Ok{span: parent_span},
                                 }
                             } else {
@@ -1386,7 +1367,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         if partial.can_concrete()  {
                             TomlValue {
                                     value: Some(partial), 
-                                    required: true,
                                     state: TomlValueState::Ok {
                                         span: table.span().unwrap_or(parent_span).clone(),
                                     }
@@ -1394,7 +1374,6 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         } else {
                             TomlValue {
                                     value: Some(partial),
-                                    required: true, //todo: check
                                     state: TomlValueState::Nested {
                                     },
                             }

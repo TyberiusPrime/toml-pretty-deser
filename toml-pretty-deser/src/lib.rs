@@ -718,7 +718,6 @@ impl<'a> TomlHelper<'a> {
             0 => {
                 // No match found - return a Missing state
                 let res = TomlValue {
-                    required: missing_is_error,
                     value: None,
                     state: TomlValueState::Missing {
                         key: query_key.to_string(),
@@ -753,12 +752,10 @@ impl<'a> TomlHelper<'a> {
                             FromTomlItem::from_toml_item(&item, item_span.clone(), &self.col);
                         match single.state {
                             TomlValueState::Ok { span } => TomlValue {
-                                required: true,
                                 value: single.value.map(|v| vec![v]),
                                 state: TomlValueState::Ok { span },
                             },
                             other => TomlValue {
-                                required: true,
                                 value: None,
                                 state: other,
                             },
@@ -777,7 +774,6 @@ impl<'a> TomlHelper<'a> {
                 }
 
                 TomlValue {
-                    required: true,
                     value: None,
                     state: TomlValueState::MultiDefined {
                         key: query_key.to_string(),
@@ -874,7 +870,6 @@ macro_rules! impl_from_toml_item_integer {
                         let value_i64 = *formatted.value();
                         if value_i64 < <$ty>::MIN as i64 || value_i64 > <$ty>::MAX as i64 {
                             TomlValue {
-                                required: true,
                                 value: None,
                                 state: TomlValueState::ValidationFailed {
                                     span: formatted.span().unwrap_or(parent_span.clone()),
@@ -884,7 +879,6 @@ macro_rules! impl_from_toml_item_integer {
                             }
                         } else {
                             TomlValue {
-                                required: true,
                                 value: Some(value_i64 as $ty),
                                 state: TomlValueState::Ok {
                                     span: formatted.span().unwrap_or(parent_span.clone()),
@@ -893,7 +887,6 @@ macro_rules! impl_from_toml_item_integer {
                         }
                     }
                     toml_edit::Item::Value(value) => TomlValue {
-                        required: true,
                         value: None,
                         state: TomlValueState::WrongType {
                             span: value.span().unwrap_or(parent_span.clone()),
@@ -902,7 +895,6 @@ macro_rules! impl_from_toml_item_integer {
                         },
                     },
                     toml_edit::Item::Table(value) => TomlValue {
-                        required: true,
                         value: None,
                         state: TomlValueState::WrongType {
                             span: value.span().unwrap_or(parent_span.clone()),
@@ -911,7 +903,6 @@ macro_rules! impl_from_toml_item_integer {
                         },
                     },
                     toml_edit::Item::ArrayOfTables(value) => TomlValue {
-                        required: true,
                         value: None,
                         state: TomlValueState::WrongType {
                             span: value.span().unwrap_or(parent_span.clone()),
@@ -946,7 +937,6 @@ macro_rules! impl_from_toml_item_value {
                     toml_edit::Item::Value(toml_edit::Value::$variant(formatted)) => {
                         let value = formatted.value();
                         TomlValue {
-                            required: true,
                             value: Some(value.clone()),
                             state: TomlValueState::Ok {
                                 span: formatted.span().unwrap_or(parent_span.clone()),
@@ -954,7 +944,6 @@ macro_rules! impl_from_toml_item_value {
                         }
                     }
                     toml_edit::Item::Value(value) => TomlValue {
-                        required: true,
                         value: None,
                         state: TomlValueState::WrongType {
                             span: value.span().unwrap_or(parent_span.clone()),
@@ -963,7 +952,6 @@ macro_rules! impl_from_toml_item_value {
                         },
                     },
                     toml_edit::Item::Table(value) => TomlValue {
-                        required: true,
                         value: None,
                         state: TomlValueState::WrongType {
                             span: value.span().unwrap_or(parent_span.clone()),
@@ -972,7 +960,6 @@ macro_rules! impl_from_toml_item_value {
                         },
                     },
                     toml_edit::Item::ArrayOfTables(value) => TomlValue {
-                        required: true,
                         value: None,
                         state: TomlValueState::WrongType {
                             span: value.span().unwrap_or(parent_span.clone()),
@@ -1001,7 +988,6 @@ impl FromTomlItem for toml_edit::Item {
             toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
 
             _ => TomlValue {
-                required: true,
                 value: Some(item.clone()),
                 state: TomlValueState::Ok {
                     span: item.span().unwrap_or(parent_span.clone()),
@@ -1018,22 +1004,18 @@ impl<T: FromTomlItem> FromTomlItem for Option<T> {
         parent_span: Range<usize>,
         col: &TomlCollector,
     ) -> TomlValue<Self> {
-        let mut res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, col);
-        res.required = false;
+        let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, col);
         match res.state {
             TomlValueState::Ok { span } => TomlValue {
-                required: false,
                 value: Some(res.value),
                 state: TomlValueState::Ok { span },
             },
             TomlValueState::Missing { .. } => TomlValue {
-                required: false,
                 value: Some(None),
                 state: TomlValueState::Ok { span: 0..0 },
             },
             _ => TomlValue {
                 value: Some(res.value),
-                required: false,
                 state: res.state,
             },
         }
@@ -1075,7 +1057,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
 
                 if has_error {
                     TomlValue {
-                        required: true,
                         value: None,
                         state: TomlValueState::ValidationFailed {
                             span: array.span().unwrap_or(parent_span.clone()),
@@ -1085,7 +1066,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     }
                 } else {
                     TomlValue {
-                        required: true,
                         value: Some(values),
                         state: TomlValueState::Ok {
                             span: array.span().unwrap_or(parent_span.clone()),
@@ -1119,13 +1099,11 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
 
                 if has_error {
                     TomlValue {
-                        required: true,
                         value: None,
                         state: TomlValueState::Nested {},
                     }
                 } else {
                     TomlValue {
-                        required: true,
                         value: Some(values),
                         state: TomlValueState::Ok {
                             span: array.span().unwrap_or(parent_span.clone()),
@@ -1145,7 +1123,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                         _ => {
                             element.register_error(&col.errors);
                             TomlValue {
-                                required: true,
                                 state: TomlValueState::Nested {},
                                 value: None,
                             }
@@ -1153,7 +1130,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     }
                 }
                 VecMode::Strict => TomlValue {
-                    required: true,
                     value: None,
                     state: TomlValueState::WrongType {
                         span: value.span().unwrap_or(parent_span.clone()),
@@ -1174,7 +1150,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                         _ => {
                             element.register_error(&col.errors);
                             TomlValue {
-                                required: true,
                                 state: TomlValueState::Nested {},
                                 value: None,
                             }
@@ -1182,7 +1157,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     }
                 }
                 VecMode::Strict => TomlValue {
-                    required: true,
                     value: None,
                     state: TomlValueState::WrongType {
                         span: value.span().unwrap_or(parent_span.clone()),
@@ -1199,7 +1173,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
 pub struct TomlValue<T> {
     pub value: Option<T>,
     pub state: TomlValueState,
-    pub required: bool,
 }
 
 impl<T> Default for TomlValue<T> {
@@ -1207,7 +1180,6 @@ impl<T> Default for TomlValue<T> {
         TomlValue {
             value: None,
             state: TomlValueState::NotSet,
-            required: false,
         }
     }
 }
@@ -1216,7 +1188,6 @@ impl<T> TomlValue<T> {
     pub fn new_ok(value: T, span: Range<usize>) -> Self {
         TomlValue {
             value: Some(value),
-            required: true,
             state: TomlValueState::Ok { span },
         }
     }
@@ -1224,7 +1195,6 @@ impl<T> TomlValue<T> {
     pub fn new_empty_missing(parent_span: Range<usize>) -> Self {
         TomlValue {
             value: None,
-            required: true,
             state: TomlValueState::Missing {
                 key: "".to_string(),
                 parent_span,
@@ -1238,7 +1208,6 @@ impl<T> TomlValue<T> {
     ) -> Self {
         TomlValue {
             value: None,
-            required: true,
             state: TomlValueState::ValidationFailed {
                 span,
                 message,
@@ -1254,7 +1223,6 @@ impl<T> TomlValue<T> {
     ) -> Self {
         TomlValue {
             value: None,
-            required: true,
             state: TomlValueState::WrongType {
                 span: item.span().unwrap_or(parent_span),
                 expected,
@@ -1277,7 +1245,6 @@ impl<T> TomlValue<T> {
     pub fn into_optional(self) -> TomlValue<Option<T>> {
         match self.state {
             TomlValueState::Ok { span } => TomlValue {
-                required: false,
                 value: Some(self.value),
                 state: TomlValueState::Ok { span },
             },
@@ -1285,13 +1252,11 @@ impl<T> TomlValue<T> {
                 key: _,
                 parent_span,
             } => TomlValue {
-                required: false,
                 value: Some(None),
                 state: TomlValueState::Ok { span: parent_span },
             },
             _ => TomlValue {
                 value: None,
-                required: false,
                 state: self.state,
             },
         }
@@ -1316,13 +1281,11 @@ impl<T> TomlValue<T> {
             TomlValueState::NotSet => {}
             TomlValueState::Nested => {} //ignored, we expect the errors below to have been added
             TomlValueState::Missing { key, parent_span } => {
-                if self.required {
                     errors.borrow_mut().push(AnnotatedError::placed(
                         parent_span.clone(),
                         &format!("Missing required key: '{key}'."),
                         "This key is required but was not found in the TOML document.",
                     ));
-                }
             }
             TomlValueState::MultiDefined { key, spans } => {
                 let mut err = AnnotatedError::placed(
@@ -1371,7 +1334,6 @@ impl<T> TomlValue<T> {
                 Err(msg) => {
                     let res = TomlValue {
                         value: None,
-                        required: self.required,
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
                             message: msg,
@@ -1390,7 +1352,6 @@ impl<T> TomlValue<T> {
         match &self.state {
             TomlValueState::Missing { .. } => TomlValue {
                 value: Some(default),
-                required: false,
                 state: TomlValueState::Ok { span: 0..0 },
             },
             _ => self,
@@ -1402,7 +1363,6 @@ pub fn deserialize_nested<P, T>(
     item: &toml_edit::Item,
     span: &Range<usize>,
     col: &TomlCollector,
-    required: bool,
     fields_to_ignore: &[&str],
 ) -> TomlValue<P>
 where
@@ -1420,13 +1380,11 @@ where
             if partial.can_concrete() {
                 TomlValue {
                     value: Some(partial),
-                    required,
                     state: TomlValueState::Ok { span: span.clone() },
                 }
             } else {
                 TomlValue {
                     value: Some(partial),
-                    required,
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Nested struct has errors".to_string(),
@@ -1437,7 +1395,6 @@ where
         }
         None => TomlValue {
             value: None,
-            required,
             state: TomlValueState::WrongType {
                 span: span.clone(),
                 expected: "table or inline table",
@@ -1483,7 +1440,6 @@ pub fn toml_item_as_map<T: FromTomlItem>(
                         if has_errors {
                             TomlValue {
                                 value: Some(map),
-                                required: toml_item.required,
                                 state: TomlValueState::ValidationFailed {
                                     span: span.clone(),
                                     message: "Map contains invalid values".to_string(),
@@ -1493,14 +1449,12 @@ pub fn toml_item_as_map<T: FromTomlItem>(
                         } else {
                             TomlValue {
                                 value: Some(map),
-                                required: toml_item.required,
                                 state: TomlValueState::Ok { span: span.clone() },
                             }
                         }
                     }
                     None => TomlValue {
                         value: None,
-                        required: toml_item.required,
                         state: TomlValueState::WrongType {
                             span: span.clone(),
                             expected: "table|inline_table",
@@ -1511,7 +1465,6 @@ pub fn toml_item_as_map<T: FromTomlItem>(
             } else {
                 TomlValue {
                     value: None,
-                    required: toml_item.required,
                     state: TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: "Cannot convert empty value to map".to_string(),
@@ -1522,7 +1475,6 @@ pub fn toml_item_as_map<T: FromTomlItem>(
         }
         _ => TomlValue {
             value: None,
-            required: toml_item.required,
             state: toml_item.state.clone(),
         },
     }
