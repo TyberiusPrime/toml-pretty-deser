@@ -14,7 +14,7 @@ struct InnerB {
     t: u32,
 }
 
-#[tdp_make_tagged_enum("kind", aliases = ["type"])]
+#[tpd_make_tagged_enum("kind", aliases = ["type"])]
 #[derive(Debug, Clone)] //todo: why is this clone necessary
 enum EitherOne {
     KindA(InnerA),

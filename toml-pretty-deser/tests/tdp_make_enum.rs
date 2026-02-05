@@ -1,8 +1,8 @@
 use toml_pretty_deser::prelude::*;
 
-/// Test enum using the new #[tdp_make_enum] macro.
+/// Test enum using the new #[tpd_make_enum] macro.
 /// This should work WITHOUT #[as_enum] on fields!
-#[tdp_make_enum]
+#[tpd_make_enum]
 #[derive(Debug, Clone, PartialEq)]
 enum Color {
     Red,
@@ -10,7 +10,7 @@ enum Color {
     Blue,
 }
 
-#[tdp_make_enum]
+#[tpd_make_enum]
 #[derive(Debug, Clone, PartialEq)]
 enum Size {
     Small,
@@ -18,7 +18,7 @@ enum Size {
     Large,
 }
 
-/// A struct using tdp_make_enum enums - no #[as_enum] needed!
+/// A struct using tpd_make_enum enums - no #[as_enum] needed!
 #[make_partial]
 #[derive(Debug)]
 struct Config {
@@ -30,7 +30,7 @@ struct Config {
 }
 
 #[test]
-fn test_tdp_make_enum_happy_path() {
+fn test_tpd_make_enum_happy_path() {
     let toml = r#"
         color = 'Red'
         opt_color = 'Green'
@@ -52,7 +52,7 @@ fn test_tdp_make_enum_happy_path() {
 }
 
 #[test]
-fn test_tdp_make_enum_optional_missing() {
+fn test_tpd_make_enum_optional_missing() {
     let toml = r#"
         color = 'Blue'
         # opt_color is missing
@@ -74,7 +74,7 @@ fn test_tdp_make_enum_optional_missing() {
 }
 
 #[test]
-fn test_tdp_make_enum_invalid_variant() {
+fn test_tpd_make_enum_invalid_variant() {
     let toml = r#"
         color = 'Purple'
         colors = ['Red']
@@ -98,7 +98,7 @@ fn test_tdp_make_enum_invalid_variant() {
 }
 
 #[test]
-fn test_tdp_make_enum_wrong_type() {
+fn test_tpd_make_enum_wrong_type() {
     let toml = r#"
         color = 42
         colors = ['Red']
@@ -119,7 +119,7 @@ fn test_tdp_make_enum_wrong_type() {
 }
 
 #[test]
-fn test_tdp_make_enum_missing_required() {
+fn test_tpd_make_enum_missing_required() {
     let toml = r#"
         # color is missing
         colors = ['Red']
@@ -143,7 +143,7 @@ fn test_tdp_make_enum_missing_required() {
 }
 
 #[test]
-fn test_tdp_make_enum_vec_with_invalid() {
+fn test_tpd_make_enum_vec_with_invalid() {
     let toml = r#"
         color = 'Red'
         colors = ['Red', 'InvalidColor', 'Blue']
@@ -169,7 +169,7 @@ fn test_tdp_make_enum_vec_with_invalid() {
 
 /// Test that the error message includes helpful suggestions
 #[test]
-fn test_tdp_make_enum_error_suggestions() {
+fn test_tpd_make_enum_error_suggestions() {
     let toml = r#"
         color = 'Rd'
         colors = ['Red']

@@ -14,7 +14,7 @@ struct Output {
     opt_a_string: Option<String>,
     opt_a_bool: Option<bool>,
     verified_i16: i16,
-    #[tdp_default_in_verify]
+    #[tpd_default_in_verify]
     defaulted_i16: i16,
 }
 
@@ -763,9 +763,9 @@ fn test_two_errors_pretty() {
 #[derive(Debug)]
 #[make_partial]
 struct AliasedOutput {
-    #[alias("alsoAName")]
+    #[tpd_alias("alsoAName")]
     my_name: String,
-    #[alias("myValue")]
+    #[tpd_alias("myValue")]
     my_value: i32,
     regular_field: String,
 }
@@ -986,7 +986,7 @@ fn test_alias_with_any_case_mode() {
 #[derive(Debug)]
 #[make_partial]
 struct AliasedNested {
-    #[alias("some_other_name")]
+    #[tpd_alias("some_other_name")]
     nested_name: String,
 }
 

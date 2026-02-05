@@ -7,7 +7,7 @@ use syn::{
 
 /// # Example
 /// ```ignore
-/// #[tdp_make_enum]
+/// #[tpd_make_enum]
 /// #[derive(Debug, Clone)]
 /// enum Color {
 ///     Red,
@@ -24,7 +24,7 @@ use syn::{
 /// ```
 #[proc_macro_error]
 #[proc_macro_attribute]
-pub fn tdp_make_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn tpd_make_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     let enum_name = &input.ident;
     let generics = &input.generics;
@@ -32,7 +32,7 @@ pub fn tdp_make_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let variants = match &input.data {
         Data::Enum(data) => &data.variants,
-        _ => panic!("tdp_make_enum can only be applied to enums"),
+        _ => panic!("tpd_make_enum can only be applied to enums"),
     };
 
     // Validate that all variants are unit variants (no fields)
@@ -40,7 +40,7 @@ pub fn tdp_make_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
         match &v.fields {
             Fields::Unit => {}
             _ => panic!(
-                "tdp_make_enum only supports unit variants (no fields). Variant '{}' has fields.",
+                "tpd_make_enum only supports unit variants (no fields). Variant '{}' has fields.",
                 v.ident
             ),
         }
@@ -119,7 +119,7 @@ fn is_defaulted_field(field: &syn::Field) -> bool {
     field
         .attrs
         .iter()
-        .any(|attr| attr.path().is_ident("tdp_default_in_verify"))
+        .any(|attr| attr.path().is_ident("tpd_default_in_verify"))
 }
 
 
@@ -128,7 +128,7 @@ fn extract_aliases(field: &syn::Field) -> Vec<String> {
     let mut aliases = Vec::new();
 
     for attr in &field.attrs {
-        if attr.path().is_ident("alias") {
+        if attr.path().is_ident("tpd_alias") {
             // Parse the alias attribute
             // Expected format: #[alias(name1)] or #[alias(name1, name2)]
             // Also accepts string literals for reserved keywords: #[alias("type")]
@@ -403,7 +403,7 @@ fn analyze_indexmap_value_type(value_ty: &Type, field: &syn::Field) -> IndexMapV
     IndexMapValueKind::Primitive
 }
 
-/// Arguments for the tdp_make_tagged_enum attribute
+/// Arguments for the td_pmake_tagged_enum attribute
 struct TaggedEnumArgs {
     tag_key: String,
     aliases: Vec<String>,
@@ -451,7 +451,7 @@ impl syn::parse::Parse for TaggedEnumArgs {
 /// # Example
 ///
 /// ```rust,ignore
-/// #[tdp_make_tagged_enum("kind", aliases = ["type"])]
+/// #[tpd_make_tagged_enum("kind", aliases = ["type"])]
 /// #[derive(Debug)]
 /// enum EitherOne {
 ///     KindA(InnerA),
@@ -466,7 +466,7 @@ impl syn::parse::Parse for TaggedEnumArgs {
 /// - Implementation of `FromTomlTable` for error collection
 #[proc_macro_error]
 #[proc_macro_attribute]
-pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as TaggedEnumArgs);
     let input = parse_macro_input!(item as DeriveInput);
     let enum_name = &input.ident;
@@ -479,7 +479,7 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
 
     let variants = match &input.data {
         Data::Enum(data) => &data.variants,
-        _ => panic!("tdp_make_tagged_enum only supports enums"),
+        _ => panic!("tpd_make_tagged_enum only supports enums"),
     };
 
     // Generate partial enum variants
@@ -496,7 +496,7 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                         #variant_name(#partial_inner_type)
                     }
                 }
-                _ => panic!("tdp_make_tagged_enum only supports single unnamed field variants"),
+                _ => panic!("tpd_make_tagged_enum only supports single unnamed field variants"),
             }
         })
         .collect();
@@ -907,8 +907,8 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                 field.attrs.retain(|attr| {
                     !attr.path().is_ident("nested")
                         && !attr.path().is_ident("enum_tagged")
-                        && !attr.path().is_ident("alias")
-                        && !attr.path().is_ident("tdp_default_in_verify")
+                        && !attr.path().is_ident("tpd_alias")
+                        && !attr.path().is_ident("tpd_default_in_verify")
                 });
             }
         }

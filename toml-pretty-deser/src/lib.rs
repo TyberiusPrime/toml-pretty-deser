@@ -5,7 +5,7 @@ use toml_edit::{Document, TomlError};
 pub mod prelude;
 mod tablelike;
 pub use tablelike::{AsTableLike, TableLikePlus};
-pub use toml_pretty_deser_macros::{make_partial, tdp_make_enum, tdp_make_tagged_enum};
+pub use toml_pretty_deser_macros::{make_partial, tpd_make_enum, tpd_make_tagged_enum};
 
 //needed to get the names from enums, implemented by tpd_make_enum
 pub trait StringNamedEnum: Sized + Clone {
@@ -14,7 +14,7 @@ pub trait StringNamedEnum: Sized + Clone {
 }
 
 /// Trait for tagged enums that carry their tag key and aliases.
-/// This is automatically implemented by `#[tdp_make_tagged_enum("tag_key")]`.
+/// This is automatically implemented by `#[tpd_make_tagged_enum("tag_key")]`.
 pub trait TaggedEnumMeta: Sized {
     /// The tag key used to identify the variant (e.g., "kind" or "type")
     const TAG_KEY: &'static str;
@@ -259,7 +259,7 @@ fn format_quoted_list(items: &[&str]) -> String {
 }
 
 // /// Public helper for enum deserialization error messages.
-// /// Used by the `#[tdp_make_enum]` macro to generate helpful error messages
+// /// Used by the `#[tpd_make_enum]` macro to generate helpful error messages
 // /// when an invalid enum variant is encountered.
 pub fn suggest_enum_alternatives<E: StringNamedEnum>(current: &str) -> String {
     suggest_alternatives(current, E::all_variant_names())

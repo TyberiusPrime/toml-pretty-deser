@@ -1,5 +1,5 @@
 use toml_pretty_deser::prelude::*;
-#[tdp_make_enum]
+#[tpd_make_enum]
 #[derive(Debug, Clone)]
 enum Example {
     One,
@@ -10,13 +10,13 @@ enum Example {
 #[make_partial]
 #[derive(Debug)]
 struct EnumOutput {
-    #[alias(other_an_enum)]
+    #[tpd_alias(other_an_enum)]
     an_enum: Example,
-    #[alias(other_opt_enum)]
+    #[tpd_alias(other_opt_enum)]
     opt_enum: Option<Example>,
-    #[alias(other_vec_enum)]
+    #[tpd_alias(other_vec_enum)]
     vec_enum: Vec<Example>,
-    #[alias(other_opt_vec_enum)]
+    #[tpd_alias(other_opt_vec_enum)]
     opt_vec_enum: Option<Vec<Example>>,
 }
 

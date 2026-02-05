@@ -15,14 +15,14 @@ struct InnerB {
     t: u32,
 }
 
-#[tdp_make_tagged_enum("kind")] // creates PartialEitherOne with TaggedEnumMeta
+#[tpd_make_tagged_enum("kind")] // creates PartialEitherOne with TaggedEnumMeta
 #[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
 }
 
-#[tdp_make_enum]
+#[tpd_make_enum]
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ByString {
     AlphaBeta,
