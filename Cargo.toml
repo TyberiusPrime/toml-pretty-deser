@@ -3,7 +3,7 @@ members = ["toml-pretty-deser", "toml-pretty-deser-macros"]
 resolver = "2"
 
 [workspace.package]
-  version = "0.1.0"
+  version = "0.1.1"
   edition = "2024"
   authors = ["Florian Finkernagel <finkernagel@imt.uni-marburg.de>"]
   description = "TOML deserilization with pretty error messages"
