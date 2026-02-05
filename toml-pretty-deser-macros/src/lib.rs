@@ -1289,16 +1289,16 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 if is_optional {
                     quote! {
-                        #name: helper
-                                .get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], false)
-                                .as_mapa(&helper.col).into_optional()
+                        #name: toml_item_as_map(
+                                helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], false),
+                                &helper.col).into_optional()
                     }
                 } else {
-                        quote! {
-                            #name: helper
-                                .get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true)
-                                .as_mapd(&helper.col)
-                        }
+                    quote! {
+                        #name: toml_item_as_map(
+                                helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true),
+                                &helper.col)
+                    }
                 }
             }  else {
                 // For regular fields, use aliases if present
