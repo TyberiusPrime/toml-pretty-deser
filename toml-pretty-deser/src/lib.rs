@@ -32,10 +32,9 @@ pub trait TaggedEnumMeta: Sized {
 }
 
 /// Controls how field names are matched against TOML keys
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldMatchMode {
     /// Exact match only (field name must match exactly)
-    #[default]
     Exact,
     /// Case insensitive match (case insensitive exact match only)
     UpperLower,
@@ -119,7 +118,7 @@ pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
     P: FromTomlTable<T> + VerifyFromToml<()> + std::fmt::Debug,
 {
-    deserialize_with_mode(source, FieldMatchMode::default(), VecMode::SingleOk)
+    deserialize_with_mode(source, FieldMatchMode::Exact, VecMode::Strict)
 }
 
 pub fn deserialize_with_mode<P, T>(
@@ -592,26 +591,15 @@ impl<'a> TomlHelper<'a> {
         match found_keys.len() {
             0 => {
                 // No match found
-                let mut res: TomlValue<T> =  //needs flexibility for required/non required
-                    FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span.clone(), &self.col);
-                match res.state {
-                    TomlValueState::Missing { ref mut key, .. } => {
-                        if key.is_empty() {
-                            *key = query_key.to_string().clone();
-                        }
-                        if missing_is_error {
-                            res.register_error(&self.col.errors);
-                        }
-                    }
-                    TomlValueState::Ok { ref span } => {
-                        if res.value.is_none() {
-                            res = TomlValue::new_empty_missing(span.clone())
-                        }
-                    }
-                    _ => {
-                        dbg!(&res);
-                        unreachable!()
-                    }
+                let res = TomlValue {
+                    value: None,
+                    state: TomlValueState::Missing {
+                        key: query_key.to_string(),
+                        parent_span,
+                    },
+                };
+                if missing_is_error {
+                    res.register_error(&self.col.errors);
                 }
                 res
             }
@@ -635,11 +623,12 @@ impl<'a> TomlHelper<'a> {
                         .push(self.col.match_mode.normalize(matched_key));
                 }
 
-                let mut res: TomlValue<T> =
-                    FromTomlItem::from_toml_item(&toml_edit::Item::None, parent_span, &self.col);
-                res.state = TomlValueState::MultiDefined {
-                    key: query_key.to_string(),
-                    spans,
+                let res = TomlValue {
+                    value: None,
+                    state: TomlValueState::MultiDefined {
+                        key: query_key.to_string(),
+                        spans,
+                    },
                 };
                 res.register_error(&self.col.errors);
                 res
@@ -728,7 +717,7 @@ macro_rules! impl_from_toml_item_integer {
                 _col: &TomlCollector,
             ) -> TomlValue<Self> {
                 match item {
-                    toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
+                    toml_edit::Item::None => unreachable!(),
                     toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
                         let value_i64 = *formatted.value();
                         if value_i64 < <$ty>::MIN as i64 || value_i64 > <$ty>::MAX as i64 {
@@ -796,7 +785,7 @@ macro_rules! impl_from_toml_item_value {
                 _col: &TomlCollector,
             ) -> TomlValue<Self> {
                 match item {
-                    toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
+                    toml_edit::Item::None => unreachable!(),
                     toml_edit::Item::Value(toml_edit::Value::$variant(formatted)) => {
                         let value = formatted.value();
                         TomlValue {
@@ -841,14 +830,14 @@ impl_from_toml_item_value!(String, "String", String);
 impl_from_toml_item_value!(f64, "Float", Float);
 
 impl FromTomlItem for toml_edit::Item {
+    #[mutants::skip] //unreachable
     fn from_toml_item(
         item: &toml_edit::Item,
         parent_span: Range<usize>,
         _col: &TomlCollector,
     ) -> TomlValue<Self> {
         match item {
-            toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
-
+            toml_edit::Item::None => unreachable!(),
             _ => TomlValue {
                 value: Some(item.clone()),
                 state: TomlValueState::Ok {
@@ -866,9 +855,11 @@ impl<T: FromTomlItem> FromTomlItem for Option<T> {
         col: &TomlCollector,
     ) -> TomlValue<Self> {
         let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, col);
-        TomlValue {
-            value: Some(res.value),
-            state: res.state,
+        match res.state {
+            _ => TomlValue {
+                value: Some(res.value),
+                state: res.state,
+            },
         }
     }
 }
@@ -882,7 +873,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
         col: &TomlCollector,
     ) -> TomlValue<Self> {
         match item {
-            toml_edit::Item::None => TomlValue::new_empty_missing(parent_span),
+            toml_edit::Item::None => unreachable!(),
             toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
                 let mut values = Vec::with_capacity(array.len());
                 let mut has_error = false;
@@ -1024,15 +1015,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
 pub struct TomlValue<T> {
     pub value: Option<T>,
     pub state: TomlValueState,
-}
-
-impl<T> Default for TomlValue<T> {
-    fn default() -> Self {
-        TomlValue {
-            value: None,
-            state: TomlValueState::NotSet,
-        }
-    }
 }
 
 impl<T> TomlValue<T> {

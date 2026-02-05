@@ -103,9 +103,11 @@ fn test_enum_invalid_variant() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
+        );
     } else {
         panic!("Expected failure due to invalid enum variant")
     }
@@ -121,9 +123,11 @@ fn test_enum_missing_required() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'an_enum'."),);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'an_enum'."),
+        );
     } else {
         panic!("Expected failure due to missing required enum field")
     }
@@ -144,7 +148,11 @@ fn test_enum_happy_single() {
         opt_vec_enum = 'TwoThree'
     ";
 
-    let result: Result<_, _> = deserialize::<PartialEnumSingleAllowed, EnumSingleAllowed>(toml);
+    let result: Result<_, _> = deserialize_with_mode::<PartialEnumSingleAllowed, EnumSingleAllowed>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::SingleOk,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -163,7 +171,11 @@ fn test_enum_happy_single_left_off() {
         vec_enum = 'One'
     ";
 
-    let result: Result<_, _> = deserialize::<PartialEnumSingleAllowed, EnumSingleAllowed>(toml);
+    let result: Result<_, _> = deserialize_with_mode::<PartialEnumSingleAllowed, EnumSingleAllowed>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::SingleOk,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {

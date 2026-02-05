@@ -1027,7 +1027,9 @@ fn test_map_map_vec() {
             alpha = ['agtc', 'gc']
             beta = 'ccGc'
     ";
-    let result: Result<_, _> = deserialize::<PartialBarcodesMapVec, BarcodesMapVec>(toml);
+    let result: Result<_, _> = deserialize_with_mode::<PartialBarcodesMapVec, BarcodesMapVec>(toml,
+        FieldMatchMode::Exact, VecMode::SingleOk
+    );
     assert!(result.is_ok());
     if let Ok(output) = result {
         let keys: Vec<&String> = output.barcodes.keys().collect();

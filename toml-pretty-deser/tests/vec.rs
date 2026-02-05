@@ -64,7 +64,9 @@ fn test_vec_allow_single() {
         barcodes = 'agtc'
     ";
     let result: Result<_, _> =
-        deserialize::<PartialBarcodesValidatedSingle, BarcodesValidatedSingle>(toml);
+        deserialize_with_mode::<PartialBarcodesValidatedSingle, BarcodesValidatedSingle>(toml,
+        FieldMatchMode::Exact, VecMode::SingleOk
+    );
     assert!(result.is_ok());
     if let Ok(output) = result {
         assert_eq!(output.barcodes.len(), 1);
