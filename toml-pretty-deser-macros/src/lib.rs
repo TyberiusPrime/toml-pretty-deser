@@ -661,18 +661,16 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
             }
         }
 
-        impl #impl_generics ToConcrete<#enum_name #ty_generics> for #partial_name #ty_generics #where_clause {
-            fn to_concrete(self) -> Option<#enum_name #ty_generics> {
-                match self {
-                    #(#to_concrete_variants,)*
-                }
-            }
-        }
-
-        impl #impl_generics FromTomlTable for #partial_name #ty_generics #where_clause {
+        impl #impl_generics FromTomlTable<#enum_name> for #partial_name #ty_generics #where_clause {
             fn can_concrete(&self) -> bool {
                 match self {
                     #(#can_concrete_variants)*
+                }
+            }
+
+            fn to_concrete(self) -> Option<#enum_name #ty_generics> {
+                match self {
+                    #(#to_concrete_variants,)*
                 }
             }
 
@@ -694,6 +692,7 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
             fn from_toml_item(item: &toml_edit::Item, parent_span: std::ops::Range<usize>,
                 col: &TomlCollector
         ) -> TomlValue<Self> {
+                let variant_names = Self::all_variant_names();
                 match item.as_table_like_plus() {
                 Some(table) => {
                     let mut helper = TomlHelper::from_item(item, col);
@@ -710,7 +709,6 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                         TomlValueState::Ok { .. } => {
                             // Successfully found the tag value
                             let tag_str = tag_result.value.as_ref().unwrap();
-                            let variant_names = Self::all_variant_names();
                             let mut matched_variant: Option<&str> = None;
 
                             for variant_name in variant_names {
@@ -769,20 +767,20 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
                             found,
                         } => TomlValue {
                             value: None,
-                            required, 
+                            required,
                             state: TomlValueState::ValidationFailed {
                                 span: wrong_span.clone(),
                                 message: format!("Wrong type: {}, expected string", found),
-                                help: Some(suggest_alternatives("", Self::all_variant_names())),
+                                help: Some(suggest_alternatives("", variant_names)),
                             },
                         },
                         TomlValueState::Missing { .. } => TomlValue {
                             value: None,
-                            required, 
+                            required,
                             state: TomlValueState::ValidationFailed {
                                 span,
                                 message: format!("Missing required tag field: {}", tag_key),
-                                help: Some(suggest_alternatives("", Self::all_variant_names())),
+                                help: Some(suggest_alternatives("", variant_names)),
                             },
                         },
                         _ => TomlValue {
@@ -808,7 +806,127 @@ pub fn tdp_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
             fn from_toml_item(item: &toml_edit::Item, parent_span: std::ops::Range<usize>,
                 col: &TomlCollector
         ) -> TomlValue<Self> {
-                panic!("B")
+                let variant_names = #partial_name::all_variant_names();
+                match item.as_table_like_plus() {
+                Some(table) => {
+                    let mut helper = TomlHelper::from_item(item, col);
+                    let tag_key = #tag_key;
+                    let tag_aliases = &[#(#tag_aliases),*];
+                    let tag_result: TomlValue<String> =
+                            helper.get_with_aliases(tag_key, tag_aliases);
+                    // Build the list of fields to ignore (canonical key + all aliases)
+                    let mut fields_to_ignore: Vec<&str> = vec![tag_key];
+                    fields_to_ignore.extend(tag_aliases.iter().copied());
+                    let required = true; //todo check
+                    let span: std::ops::Range<usize> = table.span().unwrap_or(0..0);
+                    match &tag_result.state {
+                        TomlValueState::Ok { .. } => {
+                            // Successfully found the tag value
+                            let tag_str = tag_result.value.as_ref().unwrap();
+                            let mut matched_variant: Option<&str> = None;
+
+                            for variant_name in variant_names {
+                                if col.match_mode.matches(variant_name, tag_str) {
+                                    matched_variant = Some(variant_name);
+                                    break;
+                                }
+                            }
+
+                            if let Some(variant_name) = matched_variant {
+                                // Deserialize the specific variant
+                                match #partial_name::deserialize_variant(
+                                    variant_name,
+                                    item,
+                                    col,
+                                    &fields_to_ignore,
+                                ) {
+                                    Some(partial) => {
+                                        if partial.can_concrete() {
+                                            TomlValue {
+                                                value: Some(partial.to_concrete().expect("to_concrete failed but can_concrete passed. Bug")),
+                                                required,
+                                                state: TomlValueState::Ok { span},
+                                            }
+                                        } else {
+                                            TomlValue {
+                                                value: None,
+                                                required,
+                                                state: TomlValueState::ValidationFailed {
+                                                    span,
+                                                    message: "Failed to deserialize variant".to_string(),
+                                                    help: None,
+                                                }
+                                            }
+                                        }
+                                    }
+                                    None => TomlValue {
+                                        value: None,
+                                        required,
+                                        state: TomlValueState::ValidationFailed {
+                                            span,
+                                            message: "Failed to deserialize variant".to_string(),
+                                            help: None,
+                                        },
+                                    },
+                                }
+                            } else {
+                                TomlValue {
+                                    value: None,
+                                    required,
+                                    state: TomlValueState::ValidationFailed {
+                                        span,
+                                        message: "Unknown enum variant".to_string(),
+                                        help: Some(suggest_alternatives(tag_str, variant_names)),
+                                    },
+                                }
+                            }
+                        }
+                        TomlValueState::MultiDefined { key: _, spans } => TomlValue {
+                            value: None,
+                            required,
+                            state: TomlValueState::MultiDefined {
+                                key: tag_key.to_string(),
+                                spans: spans.to_vec(),
+                            },
+                        },
+                        TomlValueState::WrongType {
+                            span: wrong_span,
+                            expected: _,
+                            found,
+                        } => TomlValue {
+                            value: None,
+                            required,
+                            state: TomlValueState::ValidationFailed {
+                                span: wrong_span.clone(),
+                                message: format!("Wrong type: {}, expected string", found),
+                                help: Some(suggest_alternatives("", variant_names)),
+                            },
+                        },
+                        TomlValueState::Missing { .. } => TomlValue {
+                            value: None,
+                            required,
+                            state: TomlValueState::ValidationFailed {
+                                span,
+                                message: format!("Missing required tag field: {}", tag_key),
+                                help: Some(suggest_alternatives("", variant_names)),
+                            },
+                        },
+                        _ => TomlValue {
+                            value: None,
+                            required,
+                            state: tag_result.state.clone(),
+                        },
+                    }
+
+                },
+                None => {
+                    if let toml_edit::Item::None = item {
+                        TomlValue::new_empty_missing(parent_span)
+                    } else {
+                        TomlValue::new_wrong_type(item, parent_span, "table | inline_table")
+                    }
+                }
+            }
             }
         }
 
@@ -1585,24 +1703,21 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             #(#partial_fields,)*
         }
 
-        impl #impl_generics ToConcrete<#struct_name #ty_generics> for #partial_name #ty_generics #where_clause {
-
-            fn to_concrete(self) -> Option<#struct_name #ty_generics> {
-                Some(#struct_name {
-                    #(#to_concrete_fields,)*
-                })
-            }
-        }
-
         // impl #impl_generics PartialEq for #partial_name #ty_generics #where_clause {
         //     fn eq(&self, other: &Self) -> bool {
         //         true
         //     }
         // }
 
-        impl #impl_generics FromTomlTable for #partial_name #ty_generics #where_clause {
+        impl #impl_generics FromTomlTable<#struct_name> for #partial_name #ty_generics #where_clause {
             fn can_concrete(&self) -> bool {
                 #(#can_concrete_fields)&&*
+            }
+
+            fn to_concrete(self) -> Option<#struct_name #ty_generics> {
+                Some(#struct_name {
+                    #(#to_concrete_fields,)*
+                })
             }
 
             fn collect_errors(&self,

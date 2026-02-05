@@ -168,14 +168,14 @@ mod tests {
 
 pub fn deserialize<P, T>(source: &str) -> Result<T, DeserError<P>>
 where
-    P: FromTomlTable + VerifyFromToml<()> + ToConcrete<T>,
+    P: FromTomlTable<T> + VerifyFromToml<()>,
 {
     deserialize_with_mode(source, FieldMatchMode::default())
 }
 
 pub fn deserialize_with_mode<P, T>(source: &str, mode: FieldMatchMode) -> Result<T, DeserError<P>>
 where
-    P: FromTomlTable + VerifyFromToml<()> + ToConcrete<T>,
+    P: FromTomlTable<T> + VerifyFromToml<()>,
 {
     let parsed_toml = source.parse::<Document<String>>()?;
     let source = Rc::new(RefCell::new(source.to_string()));
@@ -270,12 +270,13 @@ impl<P> From<TomlError> for DeserError<P> {
     }
 }
 
-pub trait FromTomlTable {
+pub trait FromTomlTable<T> {
     fn can_concrete(&self) -> bool;
     fn collect_errors(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>);
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized;
+    fn to_concrete(self) -> Option<T>;
 }
 
 pub trait VerifyFromToml<T> {
@@ -285,10 +286,6 @@ pub trait VerifyFromToml<T> {
     {
         self
     }
-}
-
-pub trait ToConcrete<T> {
-    fn to_concrete(self) -> Option<T>;
 }
 
 #[derive(Debug, Clone)]
@@ -1326,7 +1323,7 @@ impl<T> TomlValue<T> {
     }
 }
 
-pub fn deserialize_nested<P>(
+pub fn deserialize_nested<P, T>(
     item: &toml_edit::Item,
     span: &Range<usize>,
     col: &TomlCollector,
@@ -1334,7 +1331,7 @@ pub fn deserialize_nested<P>(
     fields_to_ignore: &[&str],
 ) -> TomlValue<P>
 where
-    P: FromTomlTable + VerifyFromToml<()>,
+    P: FromTomlTable<T> + VerifyFromToml<()>,
 {
     match item.as_table_like_plus() {
         Some(table) => {
@@ -2341,13 +2338,13 @@ impl<T: FromTomlItem> AsMap<Option<T>> for TomlValue<Option<toml_edit::Item>> {
 }
 
 /// Trait for converting a TOML table into a IndexMap<String, P> where P is a nested struct
-pub trait AsMapNested<P>: Sized {
+pub trait AsMapNested<P, T>: Sized {
     fn as_map_nested(self, col: &TomlCollector) -> TomlValue<IndexMap<String, P>>;
 }
 
-impl<P> AsMapNested<P> for TomlValue<toml_edit::Item>
+impl<P, T> AsMapNested<P, T> for TomlValue<toml_edit::Item>
 where
-    P: FromTomlTable + VerifyFromToml<()>,
+    P: FromTomlTable<T> + VerifyFromToml<()>,
 {
     fn as_map_nested(self, col: &TomlCollector) -> TomlValue<IndexMap<String, P>> {
         match &self.state {
@@ -2623,13 +2620,13 @@ impl<T: FromTomlItem> AsMapVecAllowSingle<T> for TomlValue<toml_edit::Item> {
 }
 
 /// Trait for converting a TOML table into a IndexMap<String, Vec<P>> where P is a nested struct
-pub trait AsMapVecNested<P>: Sized {
+pub trait AsMapVecNested<P, T>: Sized {
     fn as_map_vec_nested(self, col: &TomlCollector) -> TomlValue<IndexMap<String, Vec<P>>>;
 }
 
-impl<P> AsMapVecNested<P> for TomlValue<toml_edit::Item>
+impl<P, T> AsMapVecNested<P, T> for TomlValue<toml_edit::Item>
 where
-    P: FromTomlTable + VerifyFromToml<()>,
+    P: FromTomlTable<T> + VerifyFromToml<()>,
 {
     fn as_map_vec_nested(self, col: &TomlCollector) -> TomlValue<IndexMap<String, Vec<P>>> {
         match &self.state {
@@ -2774,7 +2771,7 @@ pub trait AsOptMap<T>: Sized {
 }
 
 /// Trait for converting an optional TOML table into Option<IndexMap<String, P>> for nested structs
-pub trait AsOptMapNested<P>: Sized {
+pub trait AsOptMapNested<P, T>: Sized {
     fn as_opt_map_nested(self, col: &TomlCollector) -> TomlValue<Option<IndexMap<String, P>>>;
 }
 
@@ -2844,9 +2841,9 @@ impl<T: FromTomlItem> AsOptMap<T> for TomlValue<Option<toml_edit::Item>> {
 }
 
 /// Implementation for AsOptMapNested on Option<Item> returning Option<IndexMap<String, P>>
-impl<P> AsOptMapNested<P> for TomlValue<Option<toml_edit::Item>>
+impl<P, T> AsOptMapNested<P, T> for TomlValue<Option<toml_edit::Item>>
 where
-    P: FromTomlTable + VerifyFromToml<()>,
+    P: FromTomlTable<T> + VerifyFromToml<()>,
 {
     fn as_opt_map_nested(self, col: &TomlCollector) -> TomlValue<Option<IndexMap<String, P>>> {
         match &self.state {
