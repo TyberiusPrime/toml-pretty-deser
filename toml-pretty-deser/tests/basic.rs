@@ -24,7 +24,10 @@ impl VerifyFromToml<()> for PartialOutput {
             if *v > 5 {
                 Ok(())
             } else {
-                Err("Too small".to_string())
+                Err((
+                    "Too small".to_string(),
+                    Some("Try a value larger than 5.".to_string()),
+                ))
             }
         });
         self.defaulted_i16 = self.defaulted_i16.or_default(42);
@@ -161,6 +164,10 @@ fn test_verify_failure() {
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].inner.spans[0].msg, "Too small");
+        assert_eq!(
+            errors[0].inner.help,
+            Some("Try a value larger than 5.".to_string())
+        );
     } else {
         panic!("wrong result")
     }
@@ -473,10 +480,7 @@ fn test_nested_lower_failure() {
             output.opt_nested.state,
             TomlValueState::Nested { .. }
         ));
-        assert!(matches!(
-            output.nested.state,
-            TomlValueState::Nested { .. }
-        ));
+        assert!(matches!(output.nested.state, TomlValueState::Nested { .. }));
         assert!(matches!(
             output.inline_nested.state,
             TomlValueState::Nested { .. }
@@ -823,8 +827,11 @@ fn test_upper_lower_mode() {
         Another_Field = 123
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::UpperLower, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialCaseOutput, CaseOutput>(
+        toml,
+        FieldMatchMode::UpperLower,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -841,8 +848,11 @@ fn test_any_case_mode_snake() {
         another_field = 456
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialCaseOutput, CaseOutput>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -859,8 +869,11 @@ fn test_any_case_mode_camel() {
         anotherField = 789
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialCaseOutput, CaseOutput>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -877,8 +890,11 @@ fn test_any_case_mode_kebab() {
         another-field = 101
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialCaseOutput, CaseOutput>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -895,8 +911,11 @@ fn test_any_case_mode_upper_camel() {
         AnotherField = 202
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialCaseOutput, CaseOutput>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -913,8 +932,11 @@ fn test_any_case_mode_shouty() {
         ANOTHER_FIELD = 303
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialCaseOutput, CaseOutput>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -931,8 +953,11 @@ fn test_any_case_mode_train() {
         Another-Field = 404
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialCaseOutput, CaseOutput>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -950,8 +975,11 @@ fn test_any_case_mode_unknown_key() {
         unknown_field = 'this should error'
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialCaseOutput, CaseOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialCaseOutput, CaseOutput>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         assert!(
@@ -971,8 +999,11 @@ fn test_alias_with_any_case_mode() {
         regularField = 'case variant'
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialAliasedOutput, AliasedOutput>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialAliasedOutput, AliasedOutput>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -1019,8 +1050,11 @@ fn test_nested_with_any_case_mode() {
         NestedName = 'case variant in nested'
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterAliased, OuterAliased>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterAliased, OuterAliased>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -1045,8 +1079,11 @@ fn test_complex_mixed_case() {
         getHTTPResponse = 42
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialMixedCase, MixedCase>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -1066,8 +1103,11 @@ fn test_complex_mixed_case_key_reused() {
         getHTTPResponse = 42
     ";
 
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialMixedCase, MixedCase>(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    let result: Result<_, _> = deserialize_with_mode::<PartialMixedCase, MixedCase>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
     //dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, output)) = result {
         assert!(output.api_key.as_ref().is_none());
@@ -1153,8 +1193,7 @@ struct ShowOffTable {
 }
 
 #[test]
-fn showoff()
-{
+fn showoff() {
     let toml = "
     [something]
         name = 'hello'
@@ -1162,8 +1201,9 @@ fn showoff()
     let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         //println!("{}", errors[0].pretty("example-table.toml"));
-        assert_eq!(errors[0].pretty("example-table.toml"),
-"  ╭─example-table.toml
+        assert_eq!(
+            errors[0].pretty("example-table.toml"),
+            "  ╭─example-table.toml
   ┆
 
 2 │     [something]
@@ -1172,21 +1212,23 @@ fn showoff()
   ┆          ╰────── Missing required key: 'value'.
 ──╯
 Hint: This key is required but was not found in the TOML document.
-"); 
+"
+        );
     } else {
         unreachable!("");
     }
 
-let toml = "
+    let toml = "
     something = {
         name = 'hello',
     }
     ";
     let result = deserialize::<PartialShowOffTable, ShowOffTable>(toml);
-     if let Err(DeserError::DeserFailure(errors, _)) = result {
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
         println!("{}", errors[0].pretty("example-table.toml"));
-        assert_eq!(errors[0].pretty("example-table.toml"),
-"  ╭─example-table.toml
+        assert_eq!(
+            errors[0].pretty("example-table.toml"),
+            "  ╭─example-table.toml
   ┆
 
 2 │       something = {
@@ -1200,7 +1242,8 @@ let toml = "
   ┆ ╰─────┴─ Missing required key: 'value'.
 ──╯
 Hint: This key is required but was not found in the TOML document.
-"); 
+"
+        );
     } else {
         unreachable!("");
     }

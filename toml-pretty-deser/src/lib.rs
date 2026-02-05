@@ -977,7 +977,6 @@ impl_from_toml_item_value!(bool, "bool", Boolean);
 impl_from_toml_item_value!(String, "String", String);
 impl_from_toml_item_value!(f64, "Float", Float);
 
-// Implementation for raw toml_edit::Item - used for nested struct deserialization
 impl FromTomlItem for toml_edit::Item {
     fn from_toml_item(
         item: &toml_edit::Item,
@@ -997,7 +996,6 @@ impl FromTomlItem for toml_edit::Item {
     }
 }
 
-// Blanket implementation for Option<T> where T: FromTomlItem
 impl<T: FromTomlItem> FromTomlItem for Option<T> {
     fn from_toml_item(
         item: &toml_edit::Item,
@@ -1326,18 +1324,18 @@ impl<T> TomlValue<T> {
 
     pub fn verify<F>(self, helper: &mut TomlHelper, verification_func: F) -> TomlValue<T>
     where
-        F: FnOnce(&T) -> Result<(), String>,
+        F: FnOnce(&T) -> Result<(), (String, Option<String>)>,
     {
         match &self.state {
             TomlValueState::Ok { span } => match verification_func(self.value.as_ref().unwrap()) {
                 Ok(()) => self,
-                Err(msg) => {
+                Err((msg, help)) => {
                     let res = TomlValue {
                         value: None,
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
                             message: msg,
-                            help: None, //todo
+                            help: help, //todo
                         },
                     };
                     res.register_error(&helper.col.errors);
