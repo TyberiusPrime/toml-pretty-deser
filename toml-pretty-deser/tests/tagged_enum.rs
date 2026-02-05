@@ -191,7 +191,7 @@ fn test_either_one_missing_kind_tag() {
         assert_eq!(
             errors[0].inner.help,
             Some("Available are: 'KindA' or 'KindB'".to_string())
-        )
+        );
     } else {
         panic!("expected Missing required tag field: kind");
     }
@@ -428,8 +428,7 @@ fn test_either_one_both_kind_and_type_present() {
                 |e| e.inner.spans[0].msg.contains("Multiple tag fields defined")
                     || e.inner.spans[0].msg.contains("Key/alias conflict")
             ),
-            "expected error about multiple tag fields, got: {:?}",
-            errors
+            "expected error about multiple tag fields, got: {errors:?}",
         );
         assert!(matches!(
             output.choice.state,

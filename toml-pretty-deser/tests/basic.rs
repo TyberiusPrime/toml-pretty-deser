@@ -36,11 +36,12 @@ impl VerifyFromToml for PartialOutput {
 }
 
 #[test]
+#[allow(clippy::float_cmp)]
 fn test_happy_path() {
     let toml = "
             a_u8 = 255
             a_i64 = -123
-            a_f64 = 3.14
+            a_f64 = 6.724
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -60,9 +61,9 @@ fn test_happy_path() {
     if let Ok(output) = result {
         assert_eq!(output.a_u8, 255);
         assert_eq!(output.a_i64, -123);
-        assert_eq!(output.a_f64, 3.14);
+        assert_eq!(output.a_f64, 6.724);
         assert_eq!(output.a_string, "Hello, World!");
-        assert_eq!(output.a_bool, true);
+        assert!(output.a_bool);
         assert_eq!(output.opt_a_u8, Some(128));
         assert_eq!(output.opt_a_i64, Some(-456));
         assert_eq!(output.opt_a_f64, Some(2.71));
@@ -78,7 +79,7 @@ fn test_missing() {
     let toml = "
             # a_u8 = 255
             a_i64 = -123
-            a_f64 = 3.14
+            a_f64 = 6.724
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -112,7 +113,7 @@ fn test_optional_missing() {
     let toml = "
             a_u8 = 255
             a_i64 = -123
-            a_f64 = 3.14
+            a_f64 = 6.724
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -145,7 +146,7 @@ fn test_verify_failure() {
     let toml = "
             a_u8 = 255
             a_i64 = -123
-            a_f64 = 3.14
+            a_f64 = 6.724
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -178,7 +179,7 @@ fn test_wrong_type() {
     let toml = "
             a_u8 = 'not a number'
             a_i64 = -123
-            a_f64 = 3.14
+            a_f64 = 6.724
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -207,7 +208,7 @@ fn test_range_validation() {
     let toml = "
             a_u8 = 300
             a_i64 = -123
-            a_f64 = 3.14
+            a_f64 = 6.724
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -474,19 +475,13 @@ fn test_nested_lower_failure() {
             2
         );
 
-        assert!(matches!(
-            output.opt_nested.state,
-            TomlValueState::Nested { .. }
-        ));
-        assert!(matches!(output.nested.state, TomlValueState::Nested { .. }));
+        assert!(matches!(output.opt_nested.state, TomlValueState::Nested ));
+        assert!(matches!(output.nested.state, TomlValueState::Nested ));
         assert!(matches!(
             output.inline_nested.state,
-            TomlValueState::Nested { .. }
+            TomlValueState::Nested
         ));
-        assert!(matches!(
-            output.vec_nested.state,
-            TomlValueState::Nested { .. }
-        ));
+        assert!(matches!(output.vec_nested.state, TomlValueState::Nested ));
     } else {
         panic!();
     }
@@ -645,7 +640,7 @@ fn test_two_level_nested_inline_table_failure() {
 
         assert!(matches!(
             output.level1.value.as_ref().unwrap().opt_level2.state,
-            TomlValueState::Nested { .. }
+            TomlValueState::Nested
         ));
         assert!(
             output
@@ -790,7 +785,7 @@ fn test_alias_exact_mode_failure() {
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         // Should have errors about missing my_name and unknown myname
-        assert!(errors.len() >= 1);
+        assert!(!errors.is_empty());
     }
 }
 
@@ -1218,7 +1213,7 @@ impl VerifyFromToml for PartialShowOffTwoValueErrors {
                     (self.b.span(), "See a".to_string()),
                     (self.c.span(), "See c".to_string()),
                 ];
-                helper.add_err_by_spans(spans, "For example, set a = 33, b=66, c=0")
+                helper.add_err_by_spans(spans, "For example, set a = 33, b=66, c=0");
             }
         }
         self

@@ -1,3 +1,4 @@
+#![allow(clippy::struct_field_names)]
 use indexmap::IndexMap;
 use toml_pretty_deser::prelude::*;
 
@@ -267,6 +268,7 @@ fn test_mapped_happy_allow_single() {
     }
 }
 #[test]
+#[allow(clippy::too_many_lines)]
 fn test_mapped_happy_inline() {
     let toml = "
         mapped_u8 = {
@@ -636,7 +638,7 @@ fn test_mapped_vec_string_wrong_element_type() {
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors.len() >= 1);
+        assert!(!errors.is_empty());
     }
 }
 
@@ -663,7 +665,7 @@ fn test_mapped_vec_either_wrong_element_type() {
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors.len() >= 1);
+        assert!(!errors.is_empty());
     }
 }
 
@@ -826,7 +828,7 @@ fn test_mapped_struct_wrong_field_type() {
             a = [{ n = 5 }]
     ";
     let result: Result<_, _> = deserialize::<PartialMapped, Mapped>(toml);
-    assert!(!result.is_ok());
+    assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
     } else {
@@ -928,12 +930,13 @@ fn test_map_order_retained() {
         .iter()
         .map(ToString::to_string)
         .collect();
-        let actual: Vec<String> = keys.iter().map(|x| x.to_string()).collect();
+        let actual: Vec<String> = keys.iter().map(ToString::to_string).collect();
         assert_eq!(actual, should);
     }
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::upper_case_acronyms)]
 struct DNA(String);
 
 #[tpd_make_partial]
@@ -985,7 +988,7 @@ fn test_map_validate_elements() {
     if let Ok(output) = result {
         let keys: Vec<&String> = output.barcodes.keys().collect();
         let should: Vec<String> = ["alpha", "beta"].iter().map(ToString::to_string).collect();
-        let actual: Vec<String> = keys.iter().map(|x| x.to_string()).collect();
+        let actual: Vec<String> = keys.iter().map(ToString::to_string).collect();
         assert_eq!(actual, should);
         let actual: Vec<DNA> = output.barcodes.values().cloned().collect();
         let should = vec![DNA("agtc".to_string()), DNA("ccGc".to_string())];
@@ -1012,7 +1015,7 @@ fn test_map_map_vec() {
     if let Ok(output) = result {
         let keys: Vec<&String> = output.barcodes.keys().collect();
         let should: Vec<String> = ["alpha", "beta"].iter().map(ToString::to_string).collect();
-        let actual: Vec<String> = keys.iter().map(|x| x.to_string()).collect();
+        let actual: Vec<String> = keys.iter().map(ToString::to_string).collect();
         assert_eq!(actual, should);
         let actual: Vec<Vec<DNA>> = output.barcodes.values().cloned().collect();
         let should = vec![

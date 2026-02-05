@@ -528,7 +528,7 @@ impl<P> DeserError<P> {
                 let total = items.len();
                 for (ii, item) in items.iter().enumerate() {
                     let ii = ii + 1;
-                    let _ = write!(out, "Error {ii}/{total}\n");
+                    let _ = writeln!(out, "Error {ii}/{total}");
                     out.push_str(&item.pretty(toml_filename));
                     out.push('\n');
                 }
@@ -635,14 +635,12 @@ impl AnnotatedErrorExt for AnnotatedError {
 fn pretty_error_message(
     source_name: &str,
     source: &str,
-    spans: &Vec<SpannedMessage>,
+    spans: &[SpannedMessage],
     help: Option<&String>,
 ) -> String {
     use bstr::{BStr, ByteSlice};
     use codesnake::{Block, CodeWidth, Label, LineIndex};
     use std::fmt::Write;
-
-    let source = source;
 
     if spans.is_empty() {
         format!(
@@ -651,7 +649,7 @@ fn pretty_error_message(
         )
     } else {
         let idx = LineIndex::new(source);
-        let mut spans = spans.clone();
+        let mut spans = spans.to_vec();
         spans.sort_by_key(|span| span.span.start);
 
         let mut previous_newline =

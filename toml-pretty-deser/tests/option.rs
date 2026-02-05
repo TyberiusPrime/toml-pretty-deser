@@ -1,11 +1,12 @@
 use toml_pretty_deser::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::upper_case_acronyms)]
 struct DNA(String);
 
 impl PartialEq<&str> for DNA {
     fn eq(&self, other: &&str) -> bool {
-        &self.0 == *other
+        self.0 == *other
     }
 }
 
