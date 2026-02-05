@@ -429,6 +429,7 @@ Partial:
     }
 }
 
+///Nice 'Did you mean one of these: 'A','B' or 'C' suggestions.
 pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> String {
     if current.is_empty() {
         let mut sorted: Vec<&str> = available.iter().map(AsRef::as_ref).collect::<Vec<&str>>();
@@ -473,6 +474,7 @@ fn format_quoted_list(items: &[&str]) -> String {
     }
 }
 
+#[doc(hidden)]
 pub fn suggest_enum_alternatives<E: StringNamedEnum>(current: &str) -> String {
     suggest_alternatives(current, E::all_variant_names())
 }
@@ -1591,6 +1593,8 @@ where
 // IndexMap / Map Support
 // ================================
 
+///Internally called by the macros
+#[doc(hidden)]
 pub fn toml_item_as_map<T: FromTomlItem>(
     toml_item: TomlValue<toml_edit::Item>,
     col: &TomlCollector,

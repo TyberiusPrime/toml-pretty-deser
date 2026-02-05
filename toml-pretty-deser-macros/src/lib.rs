@@ -1,11 +1,10 @@
 use proc_macro::TokenStream;
-use proc_macro_error::proc_macro_error;
 use quote::{format_ident, quote, quote_spanned};
 use syn::{
     Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath, parse_macro_input,
 };
 
-/// # Example
+/// # Tag an enum for use with `deserialize`
 /// ```ignore
 /// #[tpd_make_enum]
 /// #[derive(Debug, Clone)]
@@ -22,7 +21,6 @@ use syn::{
 ///     maybe_color: Option<Color>,  // Yep!
 /// }
 /// ```
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn tpd_make_enum(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
@@ -445,7 +443,7 @@ impl syn::parse::Parse for TaggedEnumArgs {
     }
 }
 
-/// Attribute macro for creating tagged enums that carry their tag metadata.
+/// Tag tagged enums for use with `deserialize`
 ///
 /// # Example
 ///
@@ -462,7 +460,6 @@ impl syn::parse::Parse for TaggedEnumArgs {
 /// - A `PartialEitherOne` enum with partial variants
 /// - Implementation of `ToConcrete<EitherOne>` for `PartialEitherOne`
 /// - Implementation of `FromTomlTable` for error collection
-#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as TaggedEnumArgs);
@@ -844,7 +841,7 @@ pub fn tpd_make_tagged_enum(attr: TokenStream, item: TokenStream) -> TokenStream
     TokenStream::from(expanded)
 }
 
-#[proc_macro_error]
+/// Tag a struct for use with `deserialize`
 #[proc_macro_attribute]
 pub fn tpd_make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the boolean argument (default to true)
