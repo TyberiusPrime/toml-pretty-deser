@@ -207,10 +207,14 @@ where
             .to_concrete()
             .expect("can_concrete() returned true; qed"))
     } else {
-        Err(DeserError::StillIncomplete(
-            helper.into_inner(&source),
-            partial,
-        ))
+        panic!(
+            "The Partial was still incomplete, but no error was logged.
+Do you have a #[tpd_default_in_verify] field that you're not setting?
+
+Partial: 
+{partial:#?}
+"
+        );
     }
 }
 
@@ -269,7 +273,6 @@ pub fn suggest_enum_alternatives<E: StringNamedEnum>(current: &str) -> String {
 pub enum DeserError<P> {
     ParsingFailure(TomlError),
     DeserFailure(Vec<HydratedAnnotatedError>, P),
-    StillIncomplete(Vec<HydratedAnnotatedError>, P),
 }
 
 impl<P> From<TomlError> for DeserError<P> {
@@ -1279,11 +1282,11 @@ impl<T> TomlValue<T> {
             TomlValueState::NotSet => {}
             TomlValueState::Nested => {} //ignored, we expect the errors below to have been added
             TomlValueState::Missing { key, parent_span } => {
-                    errors.borrow_mut().push(AnnotatedError::placed(
-                        parent_span.clone(),
-                        &format!("Missing required key: '{key}'."),
-                        "This key is required but was not found in the TOML document.",
-                    ));
+                errors.borrow_mut().push(AnnotatedError::placed(
+                    parent_span.clone(),
+                    &format!("Missing required key: '{key}'."),
+                    "This key is required but was not found in the TOML document.",
+                ));
             }
             TomlValueState::MultiDefined { key, spans } => {
                 let mut err = AnnotatedError::placed(
