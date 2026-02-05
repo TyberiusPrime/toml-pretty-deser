@@ -461,7 +461,6 @@ impl syn::parse::Parse for TaggedEnumArgs {
 ///
 /// This generates:
 /// - A `PartialEitherOne` enum with partial variants
-/// - Implementation of `TaggedEnumMeta` with TAG_KEY and TAG_ALIASES
 /// - Implementation of `ToConcrete<EitherOne>` for `PartialEitherOne`
 /// - Implementation of `FromTomlTable` for error collection
 #[proc_macro_error]

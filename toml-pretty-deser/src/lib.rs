@@ -31,55 +31,6 @@ pub trait TaggedEnumMeta: Sized {
     ) -> Option<Self>;
 }
 
-/// Extension trait for deserializing tagged enums from TOML items.
-/// This uses the `TaggedEnumMeta` trait to get tag key and aliases.
-pub trait FromTaggedEnum<E: TaggedEnumMeta>: Sized {
-    /// Deserialize a tagged enum from a TOML item
-    fn from_tagged_enum(self, col: &TomlCollector) -> TomlValue<E>;
-}
-
-/// Extension trait for deserializing Vec of tagged enums from TOML items.
-pub trait FromVecTaggedEnum<E: TaggedEnumMeta>: Sized {
-    /// Deserialize a Vec of tagged enums from a TOML array
-    fn from_vec_tagged_enum(self, col: &TomlCollector) -> TomlValue<Vec<E>>;
-}
-
-/// Extension trait for deserializing Vec of tagged enums with single-value support.
-pub trait FromVecTaggedEnumAllowSingle<E: TaggedEnumMeta>: Sized {
-    /// Deserialize a Vec of tagged enums, allowing a single value
-    fn from_vec_tagged_enum_allow_single(self, col: &TomlCollector) -> TomlValue<Vec<E>>;
-}
-
-/// Extension trait for deserializing IndexMap of tagged enums.
-pub trait FromMapTaggedEnum<E: TaggedEnumMeta>: Sized {
-    /// Deserialize an IndexMap of tagged enums (using internal tagging)
-    fn from_map_tagged_enum(self, col: &TomlCollector) -> TomlValue<IndexMap<String, E>>;
-}
-
-/// Extension trait for deserializing IndexMap of Vec of tagged enums.
-pub trait FromMapVecTaggedEnum<E: TaggedEnumMeta>: Sized {
-    /// Deserialize an IndexMap of Vec of tagged enums (using internal tagging)
-    fn from_map_vec_tagged_enum(self, col: &TomlCollector) -> TomlValue<IndexMap<String, Vec<E>>>;
-}
-
-/// Extension trait for deserializing optional IndexMap of tagged enums.
-pub trait FromOptMapTaggedEnum<E: TaggedEnumMeta>: Sized {
-    /// Deserialize an optional IndexMap of tagged enums (using internal tagging)
-    fn from_opt_map_tagged_enum(
-        self,
-        col: &TomlCollector,
-    ) -> TomlValue<Option<IndexMap<String, E>>>;
-}
-
-/// Extension trait for deserializing optional IndexMap of Vec of tagged enums.
-pub trait FromOptMapVecTaggedEnum<E: TaggedEnumMeta>: Sized {
-    /// Deserialize an optional IndexMap of Vec of tagged enums (using internal tagging)
-    fn from_opt_map_vec_tagged_enum(
-        self,
-        col: &TomlCollector,
-    ) -> TomlValue<Option<IndexMap<String, Vec<E>>>>;
-}
-
 /// Controls how field names are matched against TOML keys
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FieldMatchMode {
