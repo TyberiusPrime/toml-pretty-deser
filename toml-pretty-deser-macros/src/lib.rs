@@ -1509,34 +1509,34 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                     match kind {
                         IndexMapValueKind::Primitive => {
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMap::as_opt_map(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                #name: ::toml_pretty_deser::AsOptMap::as_opt_map(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
                             }
                         }
                         IndexMapValueKind::Nested(_) => {
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMapNested::as_opt_map_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                #name: ::toml_pretty_deser::AsOptMapNested::as_opt_map_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
                             }
                         }
                         IndexMapValueKind::TaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::FromOptMapTaggedEnum::<#partial_type>::from_opt_map_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                #name: ::toml_pretty_deser::FromOptMapTaggedEnum::<#partial_type>::from_opt_map_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
                             }
                         }
                         IndexMapValueKind::VecPrimitive => {
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMapVec::as_opt_map_vec(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                #name: ::toml_pretty_deser::AsOptMapVec::as_opt_map_vec(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
                             }
                         }
                         IndexMapValueKind::VecNested(_) => {
                             quote! {
-                                #name: ::toml_pretty_deser::AsOptMapVecNested::as_opt_map_vec_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                #name: ::toml_pretty_deser::AsOptMapVecNested::as_opt_map_vec_nested(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
                             }
                         }
                         IndexMapValueKind::VecTaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::FromOptMapVecTaggedEnum::<#partial_type>::from_opt_map_vec_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                #name: ::toml_pretty_deser::FromOptMapVecTaggedEnum::<#partial_type>::from_opt_map_vec_tagged_enum(helper.get_with_aliases::<Option<::toml_edit::Item>>(#name_str, &[#(#aliases),*]), &helper.col)
                             }
                         }
                     }
@@ -1545,30 +1545,30 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                         IndexMapValueKind::Primitive => {
                             // as_map for primitives
                             quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map(&helper.errors, helper.match_mode)
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map(&helper.col)
                             }
                         }
                         IndexMapValueKind::Nested(_inner_name) => {
                             // Note: The type is inferred from the return type, no turbofish needed
                             quote! {
-                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map_nested(&helper.errors, helper.match_mode)
+                                #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map_nested(&helper.col)
                             }
                         }
                         IndexMapValueKind::TaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::FromMapTaggedEnum::<#partial_type>::from_map_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                #name: ::toml_pretty_deser::FromMapTaggedEnum::<#partial_type>::from_map_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.col)
                             }
                         }
                         IndexMapValueKind::VecPrimitive => {
                             // as_map_vec for Vec of primitives, or as_map_vec_allow_single if #[tpd_allow_single]
                             if is_allow_single_field(f) {
                                 quote! {
-                                    #name: ::toml_pretty_deser::AsMapVecAllowSingle::as_map_vec_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                    #name: ::toml_pretty_deser::AsMapVecAllowSingle::as_map_vec_allow_single(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.col)
                                 }
                             } else {
                                 quote! {
-                                    #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map_vec(&helper.errors, helper.match_mode)
+                                    #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]).as_map_vec(&helper.col)
                                 }
                             }
                         }
@@ -1576,13 +1576,13 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
                             // Note: The type is inferred from the return type, no turbofish needed
                             quote! {
                                 #name: helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*])
-                                    .as_map_vec_nested(&helper.errors, helper.match_mode)
+                                    .as_map_vec_nested(&helper.col)
                             }
                         }
                         IndexMapValueKind::VecTaggedEnum(inner_name) => {
                             let partial_type = format_ident!("Partial{}", inner_name);
                             quote! {
-                                #name: ::toml_pretty_deser::FromMapVecTaggedEnum::<#partial_type>::from_map_vec_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.errors, helper.match_mode)
+                                #name: ::toml_pretty_deser::FromMapVecTaggedEnum::<#partial_type>::from_map_vec_tagged_enum(helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]), &helper.col)
                             }
                         }
                     }
@@ -1590,7 +1590,8 @@ pub fn make_partial(attr: TokenStream, item: TokenStream) -> TokenStream {
             //} else if false && is_nested_field(f) {
                 // For nested fields, we need to pass mode to as_nested
                 // quote! {
-                //     #name: helper.get_with_aliases(#name_str, &[#(#aliases),*]).as_nested(&helper.errors, helper.match_mode)
+                //     #name: helper.get_with_aliases(#name_str,
+                //     &[#(#aliases),*]).as_nested(&helper.col)
                 // }
             // } else if false &&is_enum_tagged_field(f) {
             //     // For enum_tagged fields, use FromTaggedEnum which gets tag info from TaggedEnumMeta

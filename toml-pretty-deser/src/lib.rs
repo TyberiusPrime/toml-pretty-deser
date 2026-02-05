@@ -511,7 +511,7 @@ pub struct TomlHelper<'a> {
     /// Normalized names that were actually observed (matched against table keys)
     observed: Vec<String>,
     /// Original field names that were allowed to the keys observed
-    col: TomlCollector,
+    pub col: TomlCollector,
 }
 
 impl<'a> TomlHelper<'a> {
