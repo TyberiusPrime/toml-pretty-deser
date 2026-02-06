@@ -1481,6 +1481,7 @@ mod handlers {
     pub fn handle_struct(input: DeriveInput, generate_verify: bool) -> TokenStream {
         let struct_name = &input.ident;
         let partial_name = format_ident!("Partial{}", struct_name);
+        let vis = &input.vis;
         let generics = &input.generics;
         let (_impl_generics, _ty_generics, where_clause) = generics.split_for_impl();
 
@@ -1531,7 +1532,7 @@ mod handlers {
 
             #[derive(Debug)]
             #generics
-            struct #partial_name #generics #where_clause {
+            #vis struct #partial_name #generics #where_clause {
                 #(#partial_fields,)*
             }
 
@@ -1552,6 +1553,7 @@ mod handlers {
     ) -> TokenStream {
         let enum_name = &input.ident;
         let partial_name = format_ident!("Partial{}", enum_name);
+        let vis = &input.vis;
         let generics = &input.generics;
         let (_impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
@@ -1595,7 +1597,7 @@ mod handlers {
 
             #[derive(Debug)]
             #generics
-            enum #partial_name #ty_generics #where_clause {
+            #vis enum #partial_name #ty_generics #where_clause {
                 #(#partial_variants,)*
             }
 
