@@ -187,6 +187,13 @@
 //!}
 //! ```
 //!
+//!## Default values
+//!
+//! To use default-ing values (which only default if ommitted, not if mis-specified),
+//! add #[tdp_default_in_verify] to the field in your struct.
+//! Then write your own `VerifyFromToml` implementation that uses
+//! [`TomlValue.or_default`] or ['TomlValue.or_default_with`]
+//! 
 //!
 //!## Aliases
 //!
@@ -1463,10 +1470,12 @@ impl<T> TomlValue<T> {
 
     pub fn span(&self) -> Range<usize> {
         match &self.state {
-            TomlValueState::Ok { span } |
-            TomlValueState::Missing { parent_span: span, .. } |
-            TomlValueState::WrongType { span, .. } |
-            TomlValueState::ValidationFailed { span, .. } => span.clone(),
+            TomlValueState::Ok { span }
+            | TomlValueState::Missing {
+                parent_span: span, ..
+            }
+            | TomlValueState::WrongType { span, .. }
+            | TomlValueState::ValidationFailed { span, .. } => span.clone(),
             TomlValueState::NotSet | TomlValueState::Nested => 0..0,
             TomlValueState::MultiDefined { spans, .. } => spans[0].clone(), //just return the first one
         }
@@ -1483,9 +1492,7 @@ impl<T> TomlValue<T> {
 
     pub fn register_error(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
         match &self.state {
-            TomlValueState::NotSet |
-            TomlValueState::Ok { .. } |
-            TomlValueState::Nested => {} //ignored, we expect the errors below to have been added
+            TomlValueState::NotSet | TomlValueState::Ok { .. } | TomlValueState::Nested => {} //ignored, we expect the errors below to have been added
             TomlValueState::Missing { key, parent_span } => {
                 errors.borrow_mut().push(AnnotatedError::placed(
                     parent_span.clone(),
@@ -1564,6 +1571,17 @@ impl<T> TomlValue<T> {
         match &self.state {
             TomlValueState::Missing { .. } => Self {
                 value: Some(default),
+                state: TomlValueState::Ok { span: 0..0 },
+            },
+            _ => self,
+        }
+    }
+    #[must_use]
+    pub fn or_default_with<F>(self, default_func: F) -> Self 
+        where F: FnOnce() -> T {
+        match &self.state {
+            TomlValueState::Missing { .. } => Self {
+                value: Some(default_func()),
                 state: TomlValueState::Ok { span: 0..0 },
             },
             _ => self,

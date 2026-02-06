@@ -475,13 +475,10 @@ fn test_nested_lower_failure() {
             2
         );
 
-        assert!(matches!(output.opt_nested.state, TomlValueState::Nested ));
-        assert!(matches!(output.nested.state, TomlValueState::Nested ));
-        assert!(matches!(
-            output.inline_nested.state,
-            TomlValueState::Nested
-        ));
-        assert!(matches!(output.vec_nested.state, TomlValueState::Nested ));
+        assert!(matches!(output.opt_nested.state, TomlValueState::Nested));
+        assert!(matches!(output.nested.state, TomlValueState::Nested));
+        assert!(matches!(output.inline_nested.state, TomlValueState::Nested));
+        assert!(matches!(output.vec_nested.state, TomlValueState::Nested));
     } else {
         panic!();
     }
@@ -1246,5 +1243,60 @@ fn test_parsing_error() {
     assert!(result.is_err());
     if let Err(e) = result {
         insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+#[tpd(partial = false)]
+#[allow(dead_code)]
+#[derive(Debug)]
+struct DefaultConfig {
+    #[tpd_default_in_verify]
+    defaulted_i16: i16,
+}
+
+impl VerifyFromToml for PartialDefaultConfig {
+    fn verify(self, _helper: &mut TomlHelper<'_>) -> Self {
+        //not defaulting!
+        self
+    }
+}
+#[test]
+#[should_panic = "The Partial was still incomplete, but no error was logged."]
+fn test_default_but_not_set_in_verify() {
+    let toml = "
+    
+";
+    let result = deserialize::<PartialDefaultConfig, DefaultConfig>(toml);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+#[tpd(partial = false)]
+#[allow(dead_code)]
+#[derive(Debug)]
+struct DefaultConfigDefaultWith {
+    #[tpd_default_in_verify]
+    defaulted_i16: i16,
+}
+
+impl VerifyFromToml for PartialDefaultConfigDefaultWith{
+    fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self {
+        //not defaulting!
+        self.defaulted_i16 = self.defaulted_i16.or_default_with(|| 43);
+        self
+    }
+}
+
+#[test]
+fn test_default_with() {
+    let toml = "
+    
+";
+    let result = deserialize::<PartialDefaultConfigDefaultWith, DefaultConfigDefaultWith>(toml);
+    assert!(result.is_ok());
+    if let Ok(config) = result {
+        assert!(config.defaulted_i16 == 43);
     }
 }
