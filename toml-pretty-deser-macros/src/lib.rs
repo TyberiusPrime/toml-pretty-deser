@@ -9,6 +9,7 @@ use syn::{
 /// Automatically detects the type and generates appropriate code:
 ///
 /// - **Structs with named fields**: Generates a `Partial{Struct}` struct with deserialization support
+/// - **Tuple structs (newtype)**: Implements `FromTomlItem` that delegates to the inner type
 /// - **Unit enums**: Implements `StringNamedEnum` and `FromTomlItem` for enum variants
 /// - **Tagged enums**: Generates `Partial{Enum}` with `TaggedEnumMeta` implementation
 ///
@@ -26,6 +27,14 @@ use syn::{
 ///     #[tpd_nested]
 ///     nested: InnerStruct,
 /// }
+/// ```
+///
+/// ## Tuple Structs (Newtype)
+///
+/// ```ignore
+/// #[tpd]
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct MyUnit(String);
 /// ```
 ///
 /// ## Unit Enums
@@ -69,7 +78,13 @@ pub fn tpd(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
                 handlers::handle_struct(input, args.partial.unwrap_or(true))
             }
-            _ => panic!("#[tpd] only supports structs with named fields"),
+            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                if args.tag.is_some() {
+                    panic!("tag argument is only valid for tagged enums");
+                }
+                handlers::handle_tuple_struct(input)
+            }
+            _ => panic!("#[tpd] only supports structs with named fields or single-field tuple structs"),
         },
         Data::Enum(data) => {
             let has_tag = args.tag.is_some();
@@ -1139,6 +1154,34 @@ mod codegen {
         }
     }
 
+    pub fn gen_from_toml_item_for_tuple_struct(
+        struct_name: &syn::Ident,
+        inner_type: &Type,
+        generics: &syn::Generics,
+    ) -> TokenStream2 {
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+        quote_spanned! { struct_name.span() =>
+            impl #impl_generics FromTomlItem for #struct_name #ty_generics #where_clause {
+                fn from_toml_item(item: &toml_edit::Item, parent_span: std::ops::Range<usize>,
+                    col: &TomlCollector
+                ) -> TomlValue<Self> {
+                    let inner_value: TomlValue<#inner_type> = FromTomlItem::from_toml_item(item, parent_span, col);
+                    match inner_value.value {
+                        Some(inner) => TomlValue {
+                            value: Some(#struct_name(inner)),
+                            state: inner_value.state,
+                        },
+                        None => TomlValue {
+                            value: None,
+                            state: inner_value.state,
+                        },
+                    }
+                }
+            }
+        }
+    }
+
     pub fn gen_from_toml_item_for_concrete_enum(
         enum_name: &syn::Ident,
         partial_name: &syn::Ident,
@@ -1308,6 +1351,32 @@ mod handlers {
             #input
 
             #string_named_enum_impl
+            #from_toml_item_impl
+        };
+
+        TokenStream::from(expanded)
+    }
+
+    pub fn handle_tuple_struct(input: DeriveInput) -> TokenStream {
+        let struct_name = &input.ident;
+        let generics = &input.generics;
+
+        let inner_type = match &input.data {
+            Data::Struct(data) => match &data.fields {
+                Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                    &fields.unnamed.first().unwrap().ty
+                }
+                _ => panic!("tuple struct only supports structs with a single unnamed field"),
+            },
+            _ => panic!("tuple struct only supports structs"),
+        };
+
+        let from_toml_item_impl =
+            gen_from_toml_item_for_tuple_struct(struct_name, inner_type, generics);
+
+        let expanded = quote! {
+            #input
+
             #from_toml_item_impl
         };
 
