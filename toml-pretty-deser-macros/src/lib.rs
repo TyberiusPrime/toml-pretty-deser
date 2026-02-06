@@ -190,6 +190,7 @@ fn clean_struct_input(input: &mut DeriveInput) {
                 !attr.path().is_ident("tpd_nested")
                     && !attr.path().is_ident("tpd_alias")
                     && !attr.path().is_ident("tpd_default_in_verify")
+                    && !attr.path().is_ident("tpd_default")
                     && !attr.path().is_ident("tpd_skip")
                     && !attr.path().is_ident("tpd_adapt_in_verify")
             });
@@ -208,11 +209,18 @@ mod type_analysis {
             .any(|attr| attr.path().is_ident("tpd_nested"))
     }
 
-    pub fn is_defaulted_field(field: &syn::Field) -> bool {
+    pub fn is_defaulted_in_verify_field(field: &syn::Field) -> bool {
         field
             .attrs
             .iter()
             .any(|attr| attr.path().is_ident("tpd_default_in_verify"))
+    }
+
+    pub fn is_defaulted_field(field: &syn::Field) -> bool {
+        field
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("tpd_default"))
     }
 
     pub fn is_skipped_field(field: &syn::Field) -> bool {
@@ -617,6 +625,11 @@ mod codegen {
                     quote! {
                         true
                     }
+                } else if is_defaulted_field(f) {
+                    // tpd_default fields always pass can_concrete (will use Default::default() if missing)
+                    quote! {
+                        true
+                    }
                 } else if is_adapt_in_verify_field(f) {
                     // adapt_in_verify fields must be set by user in verify()
                     quote! {
@@ -703,6 +716,11 @@ mod codegen {
                 if is_skipped_field(f) {
                     quote! {
                         #name: <#ty as ::std::default::Default>::default()
+                    }
+                } else if is_defaulted_field(f) {
+                    // tpd_default fields use Default::default() if missing
+                    quote! {
+                        #name: self.#name.value.unwrap_or_default()
                     }
                 } else if is_adapt_in_verify_field(f) {
                     // adapt_in_verify fields are extracted like regular fields
@@ -823,7 +841,7 @@ mod codegen {
                         }
                     }
                 } else {
-                    let missing_is_error = !is_defaulted_field(f);
+                    let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
                     quote! {
                         #name: helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error)
                     }
