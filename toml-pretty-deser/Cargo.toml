@@ -19,10 +19,11 @@ memchr = "2.7.6"
 num-traits = "0.2.19"
 strsim = "0.11.1"
 toml_edit = "0.24.0"
-toml-pretty-deser-macros = { path = "../toml-pretty-deser-macros", version="0.1.1" }
+toml-pretty-deser-macros = { path = "../toml-pretty-deser-macros", version="0.2.0" }
 mutants = "0.0.4"
 indexmap = "2.13.0"
 
 [dev-dependencies]
 cargo-insta = "1.46.3"
 insta = { version = "1.46.3", features = ["yaml"] }
+trybuild = "1.0.115"

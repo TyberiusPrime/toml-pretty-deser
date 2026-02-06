@@ -175,6 +175,7 @@ fn clean_struct_input(input: &mut DeriveInput) {
                 !attr.path().is_ident("tpd_nested")
                     && !attr.path().is_ident("tpd_alias")
                     && !attr.path().is_ident("tpd_default_in_verify")
+                    && !attr.path().is_ident("tpd_skip")
             });
         }
     }
@@ -196,6 +197,13 @@ mod type_analysis {
             .attrs
             .iter()
             .any(|attr| attr.path().is_ident("tpd_default_in_verify"))
+    }
+
+    pub fn is_skipped_field(field: &syn::Field) -> bool {
+        field
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("tpd_skip"))
     }
 
     pub fn extract_aliases(field: &syn::Field) -> Vec<String> {
@@ -499,6 +507,7 @@ mod codegen {
     ) -> Vec<TokenStream2> {
         fields
             .iter()
+            .filter(|f| !is_skipped_field(f))
             .map(|f| {
                 let name = &f.ident;
                 let ty = &f.ty;
@@ -576,11 +585,16 @@ mod codegen {
 
         let can_concrete_fields: Vec<_> = fields
             .iter()
+            .filter(|f| !is_skipped_field(f))
             .map(|f| {
                 let name = &f.ident;
                 let ty = &f.ty;
 
-                if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
+                if is_skipped_field(f) {
+                    quote! {
+                        true
+                    }
+                } else if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
                     let value_ty = if is_optional {
                         extract_option_indexmap_value_type(ty).expect("can't fail")
@@ -658,7 +672,11 @@ mod codegen {
                 let name = &f.ident;
                 let ty = &f.ty;
 
-                if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
+                if is_skipped_field(f) {
+                    quote! {
+                        #name: <#ty as ::std::default::Default>::default()
+                    }
+                } else if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
                     let value_ty = if is_optional {
                         extract_option_indexmap_value_type(ty).unwrap()
@@ -734,6 +752,7 @@ mod codegen {
 
         let from_toml_table_fields: Vec<_> = fields
             .iter()
+            .filter(|f| !is_skipped_field(f))
             .map(|f| {
                 let name = &f.ident;
                 let name_str = name.as_ref().unwrap().to_string();

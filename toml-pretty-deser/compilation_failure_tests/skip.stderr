@@ -1,0 +1,7 @@
+error[E0609]: no field `skipped` on type `PartialSkipped`
+  --> compilation_failure_tests/skip.rs:17:28
+   |
+17 |         assert_eq!(partial.skipped.value, None);
+   |                            ^^^^^^^ unknown field
+   |
+   = note: available field is: `a_u8`
