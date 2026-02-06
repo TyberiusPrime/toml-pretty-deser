@@ -1155,7 +1155,75 @@ impl_from_toml_item_integer!(i16, "i16");
 impl_from_toml_item_integer!(i32, "i32");
 impl_from_toml_item_integer!(u32, "u32");
 impl_from_toml_item_integer!(i64, "i64");
-//impl_from_toml_item_integer!(u64, "u64");
+
+// u64 and usize need special handling because TOML only supports i64.
+// The valid range is 0..i64::MAX (0..2^63-1), not the full u64 range.
+macro_rules! impl_from_toml_item_unsigned_large {
+    ($ty:ty, $name:expr) => {
+        impl FromTomlItem for $ty {
+            fn from_toml_item(
+                item: &toml_edit::Item,
+                parent_span: Range<usize>,
+                _col: &TomlCollector,
+            ) -> TomlValue<Self> {
+                match item {
+                    toml_edit::Item::None => unreachable!(),
+                    toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
+                        let value_i64 = *formatted.value();
+                        // TOML only supports i64, so valid range for unsigned is 0..=i64::MAX
+                        if value_i64 < 0 {
+                            TomlValue {
+                                value: None,
+                                state: TomlValueState::ValidationFailed {
+                                    span: formatted.span().unwrap_or(parent_span.clone()),
+                                    message: "Integer out of range.".to_string(),
+                                    help: Some(format!(
+                                        "Accepted: 0..{} (TOML only supports i64)",
+                                        i64::MAX
+                                    )),
+                                },
+                            }
+                        } else {
+                            TomlValue {
+                                value: Some(value_i64 as $ty),
+                                state: TomlValueState::Ok {
+                                    span: formatted.span().unwrap_or(parent_span.clone()),
+                                },
+                            }
+                        }
+                    }
+                    toml_edit::Item::Value(value) => TomlValue {
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: $name,
+                            found: value.type_name(),
+                        },
+                    },
+                    toml_edit::Item::Table(value) => TomlValue {
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: $name,
+                            found: "table",
+                        },
+                    },
+                    toml_edit::Item::ArrayOfTables(value) => TomlValue {
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: value.span().unwrap_or(parent_span.clone()),
+                            expected: $name,
+                            found: "array of tables",
+                        },
+                    },
+                }
+            }
+        }
+    };
+}
+
+impl_from_toml_item_unsigned_large!(u64, "u64");
+impl_from_toml_item_unsigned_large!(usize, "usize");
 
 macro_rules! impl_from_toml_item_value {
     ($ty:ty, $name:expr, $variant:ident) => {

@@ -6,6 +6,8 @@ struct Output {
     a_u8: u8,
     a_i64: i64,
     a_f64: f64,
+    a_usize: usize,
+    a_u64: u64,
     a_string: String,
     a_bool: bool,
     opt_a_u8: Option<u8>,
@@ -42,6 +44,8 @@ fn test_happy_path() {
             a_u8 = 255
             a_i64 = -123
             a_f64 = 6.724
+            a_usize = 123
+            a_u64 = 3823174987
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -62,6 +66,8 @@ fn test_happy_path() {
         assert_eq!(output.a_u8, 255);
         assert_eq!(output.a_i64, -123);
         assert_eq!(output.a_f64, 6.724);
+        assert_eq!(output.a_usize, 123);
+        assert_eq!(output.a_u64, 3823174987);
         assert_eq!(output.a_string, "Hello, World!");
         assert!(output.a_bool);
         assert_eq!(output.opt_a_u8, Some(128));
@@ -80,6 +86,9 @@ fn test_missing() {
             # a_u8 = 255
             a_i64 = -123
             a_f64 = 6.724
+
+            a_usize = 123
+            a_u64 = 3823174987
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -114,6 +123,8 @@ fn test_optional_missing() {
             a_u8 = 255
             a_i64 = -123
             a_f64 = 6.724
+            a_usize = 123
+            a_u64 = 3823174987
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -147,6 +158,8 @@ fn test_verify_failure() {
             a_u8 = 255
             a_i64 = -123
             a_f64 = 6.724
+            a_usize = 123
+            a_u64 = 3823174987
             a_string = 'Hello, World!'
             a_bool = true
 
@@ -191,6 +204,8 @@ fn test_wrong_type() {
 
             verified_i16 = 10
             defaulted_i16 = 100
+            a_usize = 123
+            a_u64 = 3823174987
         ";
 
     let result: Result<_, _> = deserialize::<PartialOutput, Output>(toml);
@@ -220,6 +235,9 @@ fn test_range_validation() {
 
             verified_i16 = 10
             defaulted_i16 = 100
+
+            a_usize = 123
+            a_u64 = 3823174987
         ";
 
     let result: Result<_, _> = deserialize::<PartialOutput, Output>(toml);
