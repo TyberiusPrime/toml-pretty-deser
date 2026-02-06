@@ -2,11 +2,9 @@
 ///
 /// Rexports everything the deserialization needs
 pub use crate::{
-    AnnotatedError, AsTableLikePlus, DeserError, FieldMatchMode,
-    FromTomlItem, FromTomlTable, TaggedEnumMeta, TomlCollector, TomlHelper, TomlValue,
-    TomlValueState, VecMode, VerifyFromToml, deserialize, deserialize_with_mode, tpd_make_partial,
-    suggest_alternatives, tpd_make_enum, tpd_make_tagged_enum,
-toml_item_as_map,
+    deserialize, deserialize_with_mode, suggest_alternatives, tdp, toml_item_as_map,
+    AnnotatedError, AsTableLikePlus, DeserError, FieldMatchMode, FromTomlItem, FromTomlTable,
+    TaggedEnumMeta, TomlCollector, TomlHelper, TomlValue, TomlValueState, VecMode, VerifyFromToml,
 };
 pub use std::cell::RefCell;
 pub use std::rc::Rc;

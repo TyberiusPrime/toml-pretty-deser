@@ -1,7 +1,7 @@
 #![allow(clippy::map_unwrap_or)]
 use toml_pretty_deser::prelude::*;
 
-#[tpd_make_enum]
+#[tdp]
 #[derive(Debug, Clone, PartialEq)]
 enum Color {
     Red,
@@ -9,7 +9,7 @@ enum Color {
     Blue,
 }
 
-#[tpd_make_enum]
+#[tdp]
 #[derive(Debug, Clone, PartialEq)]
 enum Size {
     Small,
@@ -17,7 +17,7 @@ enum Size {
     Large,
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct Config {
     color: Color,

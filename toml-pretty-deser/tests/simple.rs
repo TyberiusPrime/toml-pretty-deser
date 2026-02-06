@@ -1,6 +1,6 @@
 use toml_pretty_deser::prelude::*;
 
-#[tpd_make_partial(true)]
+#[tdp]
 #[derive(Debug)]
 struct Output {
     a_u8: u8,

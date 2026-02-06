@@ -10,16 +10,17 @@ This crate provides procedural macros that work with the `toml-pretty-deser` lib
 
 ## Features
 
-- **`#[tpd_make_partial]`** — Tag structs for deserialization with partial results and validation
-- **`#[tpd_make_enum]`** — Enable unit enums for use in configs
-- **`#[tpd_make_tagged_enum("key")]`** — Support tagged enums (sum types) with a discriminator key
+- **`#[tdp]`** — Unified macro that automatically detects and handles:
+  - Structs with named fields (generates Partial structs for deserialization)
+  - Unit enums (enables use in configs)
+  - Tagged enums with a discriminator key
 
 ## Example
 
 ```rust
-use toml_pretty_deser_macros::{tpd_make_enum, tpd_make_partial};
+use toml_pretty_deser_macros::tdp;
 
-#[tpd_make_enum]
+#[tdp]
 #[derive(Debug, Clone)]
 enum Color {
     Red,
@@ -27,13 +28,34 @@ enum Color {
     Blue,
 }
 
-#[tpd_make_partial]
+#[tdp]
 struct Config {
     color: Color,
     name: String,
 }
 ```
 
+### Tagged Enums
+
+```rust
+#[tdp(tag = "kind", aliases = ["type"])]
+#[derive(Debug)]
+enum EitherOne {
+    KindA(InnerA),
+    KindB(InnerB),
+}
+```
+
+### Structs Without Verification
+
+```rust
+#[tdp(partial = false)]
+struct Config {
+    name: String,
+    count: u32,
+}
+```
+
 ## License
 
-See the main [toml-pretty-deser](https://github.com/anomalyco/toml-pretty-deser) repository for license information.
+See main [toml-pretty-deser](https://github.com/anomalyco/toml-pretty-deser) repository for license information.

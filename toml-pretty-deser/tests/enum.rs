@@ -1,6 +1,6 @@
 #![allow(clippy::struct_field_names)]
 use toml_pretty_deser::prelude::*;
-#[tpd_make_enum]
+#[tdp]
 #[derive(Debug, Clone)]
 enum Example {
     One,
@@ -8,7 +8,7 @@ enum Example {
     Four,
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct EnumOutput {
     #[tpd_alias(other_an_enum)]
@@ -134,7 +134,7 @@ fn test_enum_missing_required() {
     }
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct EnumSingleAllowed {
     vec_enum: Vec<Example>,

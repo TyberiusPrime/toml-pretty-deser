@@ -1,6 +1,6 @@
 use toml_pretty_deser::prelude::*;
 
-#[tpd_make_partial(false)]
+#[tdp(partial = false)]
 #[derive(Debug)]
 struct Output {
     a_u8: u8,
@@ -233,7 +233,7 @@ fn test_range_validation() {
 }
 
 // Test struct with arrays and nested structs
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct ComplexOutput {
     items: Vec<String>,
@@ -316,14 +316,14 @@ fn test_array_wrong_element_type() {
 
 // Test nested struct
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct Nested {
     name: String,
     value: i32,
 }
 
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct Outer {
     #[nested]
     nested: Nested,
@@ -489,13 +489,13 @@ fn test_nested_lower_failure() {
 
 // Test two-level nested structs
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct Level2 {
     data: String,
 }
 
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct Level1 {
     name: String,
     #[nested]
@@ -505,7 +505,7 @@ struct Level1 {
 }
 
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct Root {
     #[nested]
     level1: Level1,
@@ -743,7 +743,7 @@ fn test_two_errors_pretty() {
 
 // Test struct with aliases
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct AliasedOutput {
     #[tpd_alias("alsoAName")]
     my_name: String,
@@ -791,7 +791,7 @@ fn test_alias_exact_mode_failure() {
 
 // Test struct for case-insensitive matching
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct CaseOutput {
     my_field: String,
     another_field: i32,
@@ -993,14 +993,14 @@ fn test_alias_with_any_case_mode() {
 
 // Test nested struct with aliases and case variants
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct AliasedNested {
     #[tpd_alias("some_other_name")]
     nested_name: String,
 }
 
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct OuterAliased {
     #[nested]
     nested: AliasedNested,
@@ -1042,7 +1042,7 @@ fn test_nested_with_any_case_mode() {
 
 // Test complex case with mixed conventions
 #[derive(Debug)]
-#[tpd_make_partial]
+#[tdp]
 struct MixedCase {
     api_key: String,
     html_parser: String,
@@ -1097,7 +1097,7 @@ fn test_complex_mixed_case_key_reused() {
     }
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct NestedWithVec {
     name: String,
@@ -1105,7 +1105,7 @@ struct NestedWithVec {
     entries: Vec<String>,
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct ArrayOfInlineTables {
     #[nested]
@@ -1153,7 +1153,7 @@ fn test_inline_tables() {
 }
 
 #[allow(dead_code)]
-#[tpd_make_partial]
+#[tdp]
 struct ShowOffTable {
     #[nested]
     something: Nested,
@@ -1187,7 +1187,7 @@ fn showoff() {
 }
 
 #[allow(dead_code)]
-#[tpd_make_partial(false)]
+#[tdp(partial = false)]
 struct ShowOffTwoValueErrors {
     a: i64,
     b: i64,

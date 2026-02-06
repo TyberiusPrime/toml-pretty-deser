@@ -1,27 +1,27 @@
 use toml_pretty_deser::prelude::*;
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug, Clone)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug, Clone)]
 struct InnerB {
     s: u32,
     t: u32,
 }
 
-#[tpd_make_tagged_enum("kind", aliases = ["type"])]
+#[tdp(tag = "kind", aliases = ["type"])]
 #[derive(Debug)] //todo: why is this clone necessary
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct OuterEither {
     #[nested]
@@ -251,11 +251,9 @@ fn test_either_one_missing_variant_field() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
     } else {
         panic!("expected missing required key for variant field");
     }
@@ -278,11 +276,9 @@ fn test_either_one_unknown_key_in_variant() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Unknown key.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Unknown key."));
     } else {
         panic!("expected unknown key error inside variant");
     }
@@ -313,16 +309,12 @@ fn test_either_one_fields_mismatch_variant() {
                 .count()
                 == 2
         );
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
-        );
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'."));
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
     } else {
         panic!("expected errors due to field/variant mismatch");
     }
@@ -370,11 +362,9 @@ fn test_either_one_missing_choice_field() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'."));
     } else {
         panic!("expected missing required key.");
     }
@@ -396,11 +386,9 @@ fn test_either_one_wrong_field_type_in_variant() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
     } else {
         panic!("expected wrong type error in variant field");
     }
@@ -439,7 +427,7 @@ fn test_either_one_both_kind_and_type_present() {
     }
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct OuterMaybeEither {
     choice: Option<EitherOne>,
@@ -472,7 +460,7 @@ fn test_maybe_either_one_happy_a() {
         }
     }
 }
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct OuterManyTagged {
     choices: Vec<EitherOne>,
@@ -540,7 +528,7 @@ fn test_many_either_empty() {
     }
 }
 
-#[tpd_make_partial]
+#[tdp]
 #[derive(Debug)]
 struct OuterManyTaggedAllowOne {
     choices: Vec<EitherOne>,
