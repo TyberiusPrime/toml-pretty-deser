@@ -191,6 +191,7 @@ fn clean_struct_input(input: &mut DeriveInput) {
                     && !attr.path().is_ident("tpd_alias")
                     && !attr.path().is_ident("tpd_default_in_verify")
                     && !attr.path().is_ident("tpd_skip")
+                    && !attr.path().is_ident("tpd_adapt_in_verify")
             });
         }
     }
@@ -219,6 +220,13 @@ mod type_analysis {
             .attrs
             .iter()
             .any(|attr| attr.path().is_ident("tpd_skip"))
+    }
+
+    pub fn is_adapt_in_verify_field(field: &syn::Field) -> bool {
+        field
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("tpd_adapt_in_verify"))
     }
 
     pub fn extract_aliases(field: &syn::Field) -> Vec<String> {
@@ -609,6 +617,11 @@ mod codegen {
                     quote! {
                         true
                     }
+                } else if is_adapt_in_verify_field(f) {
+                    // adapt_in_verify fields must be set by user in verify()
+                    quote! {
+                        self.#name.has_value()
+                    }
                 } else if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
                     let value_ty = if is_optional {
@@ -691,6 +704,11 @@ mod codegen {
                     quote! {
                         #name: <#ty as ::std::default::Default>::default()
                     }
+                } else if is_adapt_in_verify_field(f) {
+                    // adapt_in_verify fields are extracted like regular fields
+                    quote! {
+                        #name: self.#name.expect("was checked by can_concrete before")
+                    }
                 } else if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
                     let value_ty = if is_optional {
@@ -767,7 +785,7 @@ mod codegen {
 
         let from_toml_table_fields: Vec<_> = fields
             .iter()
-            .filter(|f| !is_skipped_field(f))
+            .filter(|f| !is_skipped_field(f) && !is_adapt_in_verify_field(f))
             .map(|f| {
                 let name = &f.ident;
                 let name_str = name.as_ref().unwrap().to_string();
@@ -813,6 +831,21 @@ mod codegen {
             })
             .collect();
 
+        // adapt_in_verify fields are initialized with NotSet state
+        let adapt_in_verify_fields: Vec<_> = fields
+            .iter()
+            .filter(|f| is_adapt_in_verify_field(f))
+            .map(|f| {
+                let name = &f.ident;
+                quote! {
+                    #name: TomlValue {
+                        value: None,
+                        state: TomlValueState::NotSet,
+                    }
+                }
+            })
+            .collect();
+
         quote! {
             impl #impl_generics FromTomlTable<#struct_name> for #partial_name #ty_generics #where_clause {
                 fn can_concrete(&self) -> bool {
@@ -828,6 +861,7 @@ mod codegen {
                 fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self {
                     #partial_name {
                         #(#from_toml_table_fields,)*
+                        #(#adapt_in_verify_fields,)*
                     }
                 }
             }
@@ -889,8 +923,12 @@ mod codegen {
         partial_name: &syn::Ident,
         generics: &syn::Generics,
         generate_verify: bool,
+        has_adapt_in_verify_fields: bool,
     ) -> TokenStream2 {
-        if generate_verify {
+        // Don't generate default VerifyFromToml if:
+        // - User specified partial = false
+        // - Struct has adapt_in_verify fields (user MUST implement verify())
+        if generate_verify && !has_adapt_in_verify_fields {
             let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
             quote! {
@@ -902,6 +940,45 @@ mod codegen {
             }
         } else {
             quote! {}
+        }
+    }
+
+    pub fn gen_adapt_in_verify_getters(
+        partial_name: &syn::Ident,
+        fields: &syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
+        generics: &syn::Generics,
+    ) -> TokenStream2 {
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+        let getters: Vec<_> = fields
+            .iter()
+            .filter(|f| is_adapt_in_verify_field(f))
+            .map(|f| {
+                let name = f.ident.as_ref().unwrap();
+                let getter_name = format_ident!("tpd_get_{}", name);
+                let name_str = name.to_string();
+                let aliases = extract_aliases(f);
+
+                quote! {
+                    pub fn #getter_name<T: FromTomlItem + std::fmt::Debug>(
+                        &self,
+                        helper: &mut TomlHelper<'_>,
+                        missing_is_error: bool,
+                    ) -> TomlValue<T> {
+                        helper.get_with_aliases(#name_str, &[#(#aliases),*], missing_is_error)
+                    }
+                }
+            })
+            .collect();
+
+        if getters.is_empty() {
+            quote! {}
+        } else {
+            quote! {
+                impl #impl_generics #partial_name #ty_generics #where_clause {
+                    #(#getters)*
+                }
+            }
         }
     }
 
@@ -1425,8 +1502,11 @@ mod handlers {
         let from_toml_table_complete_impl =
             gen_from_toml_table_complete_impl(struct_name, &partial_name, fields, generics);
         let from_toml_item_impl = gen_from_toml_item_for_struct(&partial_name, generate_verify);
+        let has_adapt_in_verify_fields = fields.iter().any(is_adapt_in_verify_field);
         let verify_from_toml_impl =
-            gen_verify_from_toml_if_needed(&partial_name, generics, generate_verify);
+            gen_verify_from_toml_if_needed(&partial_name, generics, generate_verify, has_adapt_in_verify_fields);
+        let adapt_in_verify_getters =
+            gen_adapt_in_verify_getters(&partial_name, fields, generics);
 
         let expanded = quote! {
             #cleaned_input
@@ -1440,6 +1520,7 @@ mod handlers {
             #from_toml_table_complete_impl
             #from_toml_item_impl
             #verify_from_toml_impl
+            #adapt_in_verify_getters
         };
 
         TokenStream::from(expanded)
