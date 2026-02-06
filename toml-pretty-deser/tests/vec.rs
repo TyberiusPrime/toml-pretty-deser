@@ -9,7 +9,7 @@ impl PartialEq<&str> for DNA {
     }
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct BarcodesValidated {
     barcodes: Vec<DNA>,
@@ -53,7 +53,7 @@ fn test_vec_validate_elements() {
     }
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct BarcodesValidatedSingle {
     barcodes: Vec<DNA>,

@@ -53,7 +53,7 @@
 //!
 //! ```rust
 //! use toml_pretty_deser::prelude::*;
-//! #[tdp(false)]
+//! #[tpd(false)]
 //! struct ShowOffTwoValueErrors {
 //!     a: i64,
 //!     b: i64,
@@ -113,7 +113,7 @@
 //!
 //! ## How this works:
 //!
-//! `#[tdp]` writes a `PartialT` for every struct T you apply it on,
+//! `#[tpd]` writes a `PartialT` for every struct T you apply it on,
 //! and implementations to go from `toml_edit` types to your `PartialT`, as well
 //! as a conversion to turn complete `PartialT` back into T.
 //!
@@ -140,7 +140,7 @@
 //!
 //! ### No custom validation
 //!
-//! Use `tdp(true)` or plain `tdp`.
+//! Use `tpd(true)` or plain `tpd`.
 //!
 //! `VerifyFromToml for PartialT` will be produced by the macro.
 //!
@@ -155,31 +155,31 @@
 //!
 //!
 //! For simple string-typed Enums without an inner payload, tag the enum declaration with
-//! [`toml_pretty_deser_macros::tdp`].
+//! [`toml_pretty_deser_macros::tpd`].
 //!
 //! For deserializing tagged Enums with a struct payload,
-//! use [`toml_pretty_deser_macros::tdp`] on the enum declaration,
+//! use [`toml_pretty_deser_macros::tpd`] on the enum declaration,
 //! and pass in the tag key name (and it's aliases).
 //!
 //! Example:
 //!
 //! ```rust
 //! use toml_pretty_deser::prelude::*;
-//! #[tdp]
+//! #[tpd]
 //! #[derive(Debug)]
 //! struct InnerA {
 //!     n: i32,
 //!     o: u32,
 //! }
 //!
-//! #[tdp]
+//! #[tpd]
 //! #[derive(Debug)]
 //! struct InnerB {
 //!     s: u32,
 //!     t: u32,
 //! }
 //!
-//! #[tdp(tag = "kind", aliases = ["type"])]
+//! #[tpd(tag = "kind", aliases = ["type"])]
 //! #[derive(Debug)]
 //! enum EitherOne {
 //!     KindA(InnerA),
@@ -251,18 +251,18 @@ use toml_edit::{Document, TomlError};
 pub mod prelude;
 mod tablelike;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
-pub use toml_pretty_deser_macros::tdp;
+pub use toml_pretty_deser_macros::tpd;
 
 /// Get enum variant names.
 ///
-/// Implemented by [`toml_pretty_deser_macros::tdp`]
+/// Implemented by [`toml_pretty_deser_macros::tpd`]
 pub trait StringNamedEnum: Sized + Clone {
     fn all_variant_names() -> &'static [&'static str];
     fn from_str(s: &str) -> Option<Self>;
 }
 
 /// Trait for tagged enums that carry their tag key and aliases.
-/// This is automatically implemented by `#[tdp("tag_key")]`.
+/// This is automatically implemented by `#[tpd("tag_key")]`.
 #[doc(hidden)]
 pub trait TaggedEnumMeta: Sized {
     /// The tag key used to identify the variant (e.g., "kind" or "type")
@@ -386,7 +386,7 @@ where
 /// `Err((Vec<[HydratedAnnotatedError]>, PartialT))`
 ///
 ///
-/// `P` is the `PartialT` written by #[`tdp`} on your struct `T`
+/// `P` is the `PartialT` written by #[`tpd`} on your struct `T`
 /// See main documentation page.
 ///
 ///  # Errors
@@ -542,7 +542,7 @@ impl<P> DeserError<P> {
 
 /// Deser complex values from TOML tables.
 ///
-/// All known implementations get created by [`toml_pretty_deser_macros::tdp`]
+/// All known implementations get created by [`toml_pretty_deser_macros::tpd`]
 ///
 /// You shouldn't need to implement this, use `FromTomlItem` instead.
 ///

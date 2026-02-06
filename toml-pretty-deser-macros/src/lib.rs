@@ -17,13 +17,13 @@ use syn::{
 /// ## Structs
 ///
 /// ```ignore
-/// #[tdp]                                          // With VerifyFromToml impl
-/// #[tdp(partial = false)]                         // Without VerifyFromToml impl
+/// #[tpd]                                          // With VerifyFromToml impl
+/// #[tpd(partial = false)]                         // Without VerifyFromToml impl
 /// #[derive(Debug)]
 /// struct Config {
 ///     name: String,
 ///     count: u32,
-///     #[nested]
+///     #[tpd_nested]
 ///     nested: InnerStruct,
 /// }
 /// ```
@@ -31,7 +31,7 @@ use syn::{
 /// ## Unit Enums
 ///
 /// ```ignore
-/// #[tdp]
+/// #[tpd]
 /// #[derive(Debug, Clone)]
 /// enum Color {
 ///     Red,
@@ -43,8 +43,8 @@ use syn::{
 /// ## Tagged Enums
 ///
 /// ```ignore
-/// #[tdp(tag = "kind")]                            // Basic tagged enum
-/// #[tdp(tag = "kind", aliases = ["type"])]        // With tag aliases
+/// #[tpd(tag = "kind")]                            // Basic tagged enum
+/// #[tpd(tag = "kind", aliases = ["type"])]        // With tag aliases
 /// #[derive(Debug)]
 /// enum EitherOne {
 ///     KindA(InnerA),
@@ -52,11 +52,11 @@ use syn::{
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn tdp(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn tpd(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = if attr.is_empty() {
-        TdpArgs::default()
+        TpdArgs::default()
     } else {
-        parse_macro_input!(attr as TdpArgs)
+        parse_macro_input!(attr as TpdArgs)
     };
 
     let input = parse_macro_input!(item as DeriveInput);
@@ -69,7 +69,7 @@ pub fn tdp(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
                 handlers::handle_struct(input, args.partial.unwrap_or(true))
             }
-            _ => panic!("#[tdp] only supports structs with named fields"),
+            _ => panic!("#[tpd] only supports structs with named fields"),
         },
         Data::Enum(data) => {
             let has_tag = args.tag.is_some();
@@ -91,11 +91,11 @@ pub fn tdp(attr: TokenStream, item: TokenStream) -> TokenStream {
                 (false, true, _) => handlers::handle_unit_enum(input),
                 (false, false, true) => {
                     panic!(
-                        "For tagged enums, you must specify tag = \"key\". Example: #[tdp(tag = \"kind\")]"
+                        "For tagged enums, you must specify tag = \"key\". Example: #[tpd(tag = \"kind\")]"
                     );
                 }
                 _ => panic!(
-                    "#[tdp] only supports:\n\
+                    "#[tpd] only supports:\n\
                      - Structs with named fields\n\
                      - Unit enums (all variants without fields)\n\
                      - Tagged enums (all variants with single unnamed field) - requires tag argument\n\n\
@@ -103,21 +103,21 @@ pub fn tdp(attr: TokenStream, item: TokenStream) -> TokenStream {
                 ),
             }
         }
-        Data::Union(_) => panic!("#[tdp] does not support unions"),
+        Data::Union(_) => panic!("#[tpd] does not support unions"),
     }
 }
 
-/// Arguments for the `#[tdp]` attribute
+/// Arguments for the `#[tpd]` attribute
 #[derive(Default)]
-struct TdpArgs {
+struct TpdArgs {
     partial: Option<bool>,
     tag: Option<String>,
     aliases: Vec<String>,
 }
 
-impl syn::parse::Parse for TdpArgs {
+impl syn::parse::Parse for TpdArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let mut args = TdpArgs::default();
+        let mut args = TpdArgs::default();
 
         while !input.is_empty() {
             let ident: syn::Ident = input.parse()?;
@@ -172,7 +172,7 @@ fn clean_struct_input(input: &mut DeriveInput) {
     {
         for field in &mut fields.named {
             field.attrs.retain(|attr| {
-                !attr.path().is_ident("nested")
+                !attr.path().is_ident("tpd_nested")
                     && !attr.path().is_ident("tpd_alias")
                     && !attr.path().is_ident("tpd_default_in_verify")
             });
@@ -188,7 +188,7 @@ mod type_analysis {
         field
             .attrs
             .iter()
-            .any(|attr| attr.path().is_ident("nested"))
+            .any(|attr| attr.path().is_ident("tpd_nested"))
     }
 
     pub fn is_defaulted_field(field: &syn::Field) -> bool {

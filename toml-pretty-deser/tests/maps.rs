@@ -2,57 +2,57 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::prelude::*;
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct InnerB {
     s: u32,
     t: u32,
 }
 
-#[tdp(tag = "kind")] // creates PartialEitherOne with TaggedEnumMeta
+#[tpd(tag = "kind")] // creates PartialEitherOne with TaggedEnumMeta
 #[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ByString {
     AlphaBeta,
     GammaDelta,
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug, Clone)]
 struct Inner {
     n: u8,
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct Mapped {
     mapped_u8: IndexMap<String, u8>,
     mapped_enum: IndexMap<String, ByString>,
     mapped_either: IndexMap<String, EitherOne>,
-    #[nested]
+    #[tpd_nested]
     mapped_struct: IndexMap<String, Inner>,
     mapped_vec_string: IndexMap<String, Vec<String>>,
     mapped_vec_enum: IndexMap<String, Vec<ByString>>,
     mapped_vec_either: IndexMap<String, Vec<EitherOne>>,
-    #[nested]
+    #[tpd_nested]
     mapped_vec_struct: IndexMap<String, Vec<Inner>>,
     opt_mapped_u8: Option<IndexMap<String, u8>>,
     opt_mapped_enum: Option<IndexMap<String, ByString>>,
     opt_mapped_either: Option<IndexMap<String, EitherOne>>,
-    #[nested]
+    #[tpd_nested]
     opt_mapped_struct: Option<IndexMap<String, Inner>>,
 
     opt_mapped_vec_u8: Option<IndexMap<String, Vec<u8>>>,
@@ -882,7 +882,7 @@ fn test_mapped_optional_struct_missing_field() {
     }
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct Barcodes {
     barcodes: IndexMap<String, String>,
@@ -920,7 +920,7 @@ fn test_map_order_retained() {
 #[allow(clippy::upper_case_acronyms)]
 struct DNA(String);
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct BarcodesValidated {
     barcodes: IndexMap<String, DNA>,
@@ -977,7 +977,7 @@ fn test_map_validate_elements() {
     }
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct BarcodesMapVec {
     barcodes: IndexMap<String, Vec<DNA>>,

@@ -1,30 +1,30 @@
 use toml_pretty_deser::prelude::*;
 
-#[tdp]
+#[tpd]
 #[derive(Debug, Clone)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug, Clone)]
 struct InnerB {
     s: u32,
     t: u32,
 }
 
-#[tdp(tag = "kind", aliases = ["type"])]
+#[tpd(tag = "kind", aliases = ["type"])]
 #[derive(Debug)] //todo: why is this clone necessary
 enum EitherOne {
     KindA(InnerA),
     KindB(InnerB),
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct OuterEither {
-    #[nested]
+    #[tpd_nested]
     choice: EitherOne,
 }
 
@@ -427,7 +427,7 @@ fn test_either_one_both_kind_and_type_present() {
     }
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct OuterMaybeEither {
     choice: Option<EitherOne>,
@@ -460,7 +460,7 @@ fn test_maybe_either_one_happy_a() {
         }
     }
 }
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct OuterManyTagged {
     choices: Vec<EitherOne>,
@@ -528,7 +528,7 @@ fn test_many_either_empty() {
     }
 }
 
-#[tdp]
+#[tpd]
 #[derive(Debug)]
 struct OuterManyTaggedAllowOne {
     choices: Vec<EitherOne>,
