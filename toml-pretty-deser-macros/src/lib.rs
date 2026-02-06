@@ -73,11 +73,14 @@ pub fn tdp(attr: TokenStream, item: TokenStream) -> TokenStream {
         },
         Data::Enum(data) => {
             let has_tag = args.tag.is_some();
-            let all_unit = data.variants.iter().all(|v| matches!(v.fields, Fields::Unit));
-        let all_single_unnamed = data
-            .variants
-            .iter()
-            .all(|v| matches!(&v.fields, Fields::Unnamed(f) if f.unnamed.len() == 1));
+            let all_unit = data
+                .variants
+                .iter()
+                .all(|v| matches!(v.fields, Fields::Unit));
+            let all_single_unnamed = data
+                .variants
+                .iter()
+                .all(|v| matches!(&v.fields, Fields::Unnamed(f) if f.unnamed.len() == 1));
 
             match (has_tag, all_unit, all_single_unnamed) {
                 (true, false, true) => handlers::handle_tagged_enum(
@@ -87,7 +90,9 @@ pub fn tdp(attr: TokenStream, item: TokenStream) -> TokenStream {
                 ),
                 (false, true, _) => handlers::handle_unit_enum(input),
                 (false, false, true) => {
-                    panic!("For tagged enums, you must specify tag = \"key\". Example: #[tdp(tag = \"kind\")]");
+                    panic!(
+                        "For tagged enums, you must specify tag = \"key\". Example: #[tdp(tag = \"kind\")]"
+                    );
                 }
                 _ => panic!(
                     "#[tdp] only supports:\n\
@@ -147,7 +152,7 @@ impl syn::parse::Parse for TdpArgs {
                             "unknown argument `{}`, expected: partial, tag, or aliases",
                             ident
                         ),
-                    ))
+                    ));
                 }
             }
 
@@ -168,7 +173,6 @@ fn clean_struct_input(input: &mut DeriveInput) {
         for field in &mut fields.named {
             field.attrs.retain(|attr| {
                 !attr.path().is_ident("nested")
-                    && !attr.path().is_ident("enum_tagged")
                     && !attr.path().is_ident("tpd_alias")
                     && !attr.path().is_ident("tpd_default_in_verify")
             });
@@ -192,13 +196,6 @@ mod type_analysis {
             .attrs
             .iter()
             .any(|attr| attr.path().is_ident("tpd_default_in_verify"))
-    }
-
-    pub fn is_enum_tagged_field(field: &syn::Field) -> bool {
-        field
-            .attrs
-            .iter()
-            .any(|attr| attr.path().is_ident("enum_tagged"))
     }
 
     pub fn extract_aliases(field: &syn::Field) -> Vec<String> {
@@ -262,12 +259,12 @@ mod type_analysis {
     pub fn extract_option_inner_type(ty: &Type) -> Option<syn::Ident> {
         match ty {
             Type::Path(TypePath { path, .. }) => {
-            if let Some(segment) = path.segments.last()
-                && segment.ident == "Option"
-                && let PathArguments::AngleBracketed(args) = &segment.arguments
-                && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
-            {
-                return extract_type_name(&inner_ty);
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return extract_type_name(&inner_ty);
                 }
                 None
             }
@@ -291,12 +288,12 @@ mod type_analysis {
     pub fn extract_vec_inner_type(ty: &Type) -> Option<syn::Ident> {
         match ty {
             Type::Path(TypePath { path, .. }) => {
-            if let Some(segment) = path.segments.last()
-                && segment.ident == "Vec"
-                && let PathArguments::AngleBracketed(args) = &segment.arguments
-                && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
-            {
-                return extract_type_name(&inner_ty);
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Vec"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return extract_type_name(&inner_ty);
                 }
                 None
             }
@@ -320,12 +317,12 @@ mod type_analysis {
     pub fn is_option_indexmap_type(ty: &Type) -> bool {
         match ty {
             Type::Path(TypePath { path, .. }) => {
-            if let Some(segment) = path.segments.last()
-                && segment.ident == "Option"
-                && let PathArguments::AngleBracketed(args) = &segment.arguments
-                && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
-            {
-                return is_indexmap_type(&inner_ty);
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return is_indexmap_type(&inner_ty);
                 }
                 false
             }
@@ -355,12 +352,12 @@ mod type_analysis {
     pub fn extract_option_indexmap_value_type(ty: &Type) -> Option<Type> {
         match ty {
             Type::Path(TypePath { path, .. }) => {
-            if let Some(segment) = path.segments.last()
-                && segment.ident == "Option"
-                && let PathArguments::AngleBracketed(args) = &segment.arguments
-                && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
-            {
-                return extract_indexmap_value_type(&inner_ty);
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return extract_indexmap_value_type(&inner_ty);
                 }
                 None
             }
@@ -393,19 +390,14 @@ mod type_analysis {
 
     pub fn analyze_indexmap_value_type(value_ty: &Type, field: &syn::Field) -> IndexMapValueKind {
         let is_nested = is_nested_field(field);
-        let is_enum_tagged = is_enum_tagged_field(field);
 
         if let Some(vec_inner) = extract_vec_inner_full_type(value_ty) {
-            if (is_nested | is_enum_tagged)
-                && let Some(ident) = extract_type_name(&vec_inner)
-            {
+            if (is_nested) && let Some(ident) = extract_type_name(&vec_inner) {
                 return IndexMapValueKind::VecNested(ident);
             }
         }
 
-        if (is_nested | is_enum_tagged)
-            && let Some(ident) = extract_type_name(value_ty)
-        {
+        if (is_nested) && let Some(ident) = extract_type_name(value_ty) {
             return IndexMapValueKind::Nested(ident);
         }
 
@@ -424,8 +416,8 @@ mod type_analysis {
 /// Module for code generation functions
 mod codegen {
     use super::*;
-    use proc_macro2::TokenStream as TokenStream2;
     use crate::type_analysis::*;
+    use proc_macro2::TokenStream as TokenStream2;
     use syn::spanned::Spanned;
 
     pub fn gen_string_named_enum_impl(
@@ -565,26 +557,6 @@ mod codegen {
                             #name: TomlValue<#partial_type>
                         }
                     }
-                } else if is_enum_tagged_field(f) {
-                    if is_option_type(ty) {
-                        let inner_type_name = extract_option_inner_type(ty).expect("can't fail");
-                        let partial_type = format_ident!("Partial{}", inner_type_name);
-                        quote! {
-                            #name: TomlValue<Option<#partial_type>>
-                        }
-                    } else if is_vec_type(ty) {
-                        let inner_type_name = extract_vec_inner_type(ty).expect("can't fail");
-                        let partial_type = format_ident!("Partial{}", inner_type_name);
-                        quote! {
-                            #name: TomlValue<Vec<#partial_type>>
-                        }
-                    } else {
-                        let type_name = extract_type_name(ty).expect("can't fail");
-                        let partial_type = format_ident!("Partial{}", type_name);
-                        quote! {
-                            #name: TomlValue<#partial_type>
-                        }
-                    }
                 } else {
                     quote! {
                         #name: TomlValue<#ty>
@@ -592,234 +564,6 @@ mod codegen {
                 }
             })
             .collect()
-    }
-
-    pub fn gen_can_concrete_impl(
-        struct_name: &syn::Ident,
-        partial_name: &syn::Ident,
-        fields: &syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
-        generics: &syn::Generics,
-    ) -> TokenStream2 {
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-        let can_concrete_fields: Vec<_> = fields
-            .iter()
-            .map(|f| {
-                let name = &f.ident;
-                let ty = &f.ty;
-
-                if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
-                    let is_optional = is_option_indexmap_type(ty);
-                    let value_ty = if is_optional {
-                        extract_option_indexmap_value_type(ty).expect("can't fail")
-                    } else {
-                        extract_indexmap_value_type(ty).expect("can't fail")
-                    };
-                    let kind = analyze_indexmap_value_type(&value_ty, f);
-
-                    match kind {
-                        IndexMapValueKind::Nested(_) => {
-                            if is_optional {
-                                quote! {
-                                    self.#name.value.as_ref().map(|opt| {
-                                        opt.as_ref().map(|map| map.values().all(|p| p.can_concrete())).unwrap_or(true)
-                                    }).unwrap_or(false)
-                                }
-                            } else {
-                                quote! {
-                                    self.#name.value.as_ref().map(|map| {
-                                        map.values().all(|p| p.can_concrete())
-                                    }).unwrap_or(false)
-                                }
-                            }
-                        }
-                        IndexMapValueKind::VecNested(_) => {
-                            if is_optional {
-                                quote! {
-                                    self.#name.value.as_ref().map(|opt| {
-                                        opt.as_ref().map(|map| map.values().all(|vec| vec.iter().all(|p| p.can_concrete()))).unwrap_or(true)
-                                    }).unwrap_or(false)
-                                }
-                            } else {
-                                quote! {
-                                    self.#name.value.as_ref().map(|map| {
-                                        map.values().all(|vec| vec.iter().all(|p| p.can_concrete()))
-                                    }).unwrap_or(false)
-                                }
-                            }
-                        }
-                        IndexMapValueKind::Primitive => {
-                            quote! {
-                                self.#name.has_value()
-                            }
-                        }
-                    }
-                } else if is_nested_field(f) {
-                    if is_option_type(&f.ty) {
-                        quote! {
-                            self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
-                            }).unwrap_or(false)
-                        }
-                    } else if is_vec_type(&f.ty) {
-                        quote! {
-                            self.#name.value.as_ref().map(|vec| {
-                                vec.iter().all(|p| p.can_concrete())
-                            }).unwrap_or(false)
-                        }
-                    } else {
-                        quote! {
-                            self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
-                        }
-                    }
-                } else if is_enum_tagged_field(f) {
-                    if is_option_type(&f.ty) {
-                        quote! {
-                            self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
-                            }).unwrap_or(false)
-                        }
-                    } else if is_vec_type(&f.ty) {
-                        quote! {
-                            self.#name.value.as_ref().map(|vec| {
-                                vec.iter().all(|p| p.can_concrete())
-                            }).unwrap_or(false)
-                        }
-                    } else {
-                        quote! {
-                            self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
-                        }
-                    }
-                } else {
-                    quote! {
-                        self.#name.has_value()
-                    }
-                }
-            })
-            .collect();
-
-        quote! {
-            impl #impl_generics FromTomlTable<#struct_name> for #partial_name #ty_generics #where_clause {
-                fn can_concrete(&self) -> bool {
-                    #(#can_concrete_fields)&&*
-                }
-            }
-        }
-    }
-
-    pub fn gen_to_concrete_impl(
-        struct_name: &syn::Ident,
-        partial_name: &syn::Ident,
-        fields: &syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
-        generics: &syn::Generics,
-    ) -> TokenStream2 {
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-        let to_concrete_fields: Vec<_> = fields
-            .iter()
-            .map(|f| {
-                let name = &f.ident;
-                let ty = &f.ty;
-
-                if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
-                    let is_optional = is_option_indexmap_type(ty);
-                    let value_ty = if is_optional {
-                        extract_option_indexmap_value_type(ty).unwrap()
-                    } else {
-                        extract_indexmap_value_type(ty).unwrap()
-                    };
-                    let kind = analyze_indexmap_value_type(&value_ty, f);
-
-                    match kind {
-                        IndexMapValueKind::Nested(_) => {
-                            if is_optional {
-                                quote! {
-                                    #name: self.#name.value.flatten().map(|map| {
-                                        map.into_iter().filter_map(|(k, p)| p.to_concrete().map(|v| (k, v))).collect()
-                                    })
-                                }
-                            } else {
-                                quote! {
-                                    #name: self.#name.value.map(|map| {
-                                        map.into_iter().filter_map(|(k, p)| p.to_concrete().map(|v| (k, v))).collect()
-                                    }).expect("was checked by can_concrete before")
-                                }
-                            }
-                        }
-                        IndexMapValueKind::VecNested(_) => {
-                            if is_optional {
-                                quote! {
-                                    #name: self.#name.value.flatten().map(|map| {
-                                        map.into_iter().map(|(k, vec)| {
-                                            (k, vec.into_iter().filter_map(|p| p.to_concrete()).collect())
-                                        }).collect()
-                                    })
-                                }
-                            } else {
-                                quote! {
-                                    #name: self.#name.value.map(|map| {
-                                        map.into_iter().map(|(k, vec)| {
-                                            (k, vec.into_iter().filter_map(|p| p.to_concrete()).collect())
-                                        }).collect()
-                                    }).expect("was checked by can_concrete before")
-                                }
-                            }
-                        }
-                        IndexMapValueKind::Primitive => {
-                            quote! {
-                                #name: self.#name.expect("was checked by can_concrete before")
-                            }
-                        }
-                    }
-                } else if is_nested_field(f) {
-                    if is_option_type(&f.ty) {
-                        quote! {
-                            #name: self.#name.value.flatten().and_then(|p| p.to_concrete())
-                        }
-                    } else if is_vec_type(&f.ty) {
-                        quote! {
-                            #name: self.#name.value.map(|vec| {
-                                vec.into_iter().filter_map(|p| p.to_concrete()).collect()
-                            }).expect("was checked by can_concrete before")
-                        }
-                    } else {
-                        quote! {
-                            #name: self.#name.value.and_then(|p| p.to_concrete()).expect("was checked by can_concrete before")
-                        }
-                    }
-                } else if is_enum_tagged_field(f) {
-                    if is_option_type(&f.ty) {
-                        quote! {
-                            #name: self.#name.value.flatten().and_then(|p| p.to_concrete())
-                        }
-                    } else if is_vec_type(&f.ty) {
-                        quote! {
-                            #name: self.#name.value.map(|vec| {
-                                vec.into_iter().filter_map(|p| p.to_concrete()).collect()
-                            }).unwrap_or_default()
-                        }
-                    } else {
-                        quote! {
-                            #name: self.#name.value.and_then(|p| p.to_concrete()).expect("was checked by can_concrete before")
-                        }
-                    }
-                } else {
-                    quote! {
-                        #name: self.#name.expect("was checked by can_concrete before")
-                    }
-                }
-            })
-            .collect();
-
-        quote! {
-            impl #impl_generics FromTomlTable<#struct_name> for #partial_name #ty_generics #where_clause {
-                fn to_concrete(self) -> Option<#struct_name #ty_generics> {
-                    Some(#struct_name {
-                        #(#to_concrete_fields,)*
-                    })
-                }
-            }
-        }
     }
 
     pub fn gen_from_toml_table_complete_impl(
@@ -900,24 +644,6 @@ mod codegen {
                             self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
                         }
                     }
-                } else if is_enum_tagged_field(f) {
-                    if is_option_type(&f.ty) {
-                        quote! {
-                            self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
-                            }).unwrap_or(false)
-                        }
-                    } else if is_vec_type(&f.ty) {
-                        quote! {
-                            self.#name.value.as_ref().map(|vec| {
-                                vec.iter().all(|p| p.can_concrete())
-                            }).unwrap_or(false)
-                        }
-                    } else {
-                        quote! {
-                            self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
-                        }
-                    }
                 } else {
                     quote! {
                         self.#name.has_value()
@@ -992,22 +718,6 @@ mod codegen {
                             #name: self.#name.value.map(|vec| {
                                 vec.into_iter().filter_map(|p| p.to_concrete()).collect()
                             }).expect("was checked by can_concrete before")
-                        }
-                    } else {
-                        quote! {
-                            #name: self.#name.value.and_then(|p| p.to_concrete()).expect("was checked by can_concrete before")
-                        }
-                    }
-                } else if is_enum_tagged_field(f) {
-                    if is_option_type(&f.ty) {
-                        quote! {
-                            #name: self.#name.value.flatten().and_then(|p| p.to_concrete())
-                        }
-                    } else if is_vec_type(&f.ty) {
-                        quote! {
-                            #name: self.#name.value.map(|vec| {
-                                vec.into_iter().filter_map(|p| p.to_concrete()).collect()
-                            }).unwrap_or_default()
                         }
                     } else {
                         quote! {
@@ -1090,72 +800,6 @@ mod codegen {
         }
     }
 
-    pub fn gen_from_toml_table_impl(
-        struct_name: &syn::Ident,
-        partial_name: &syn::Ident,
-        fields: &syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
-        generics: &syn::Generics,
-    ) -> TokenStream2 {
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-        let from_toml_table_fields: Vec<_> = fields
-            .iter()
-            .map(|f| {
-                let name = &f.ident;
-                let name_str = name.as_ref().unwrap().to_string();
-                let aliases = extract_aliases(f);
-                let ty = &f.ty;
-
-                if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
-                    let is_optional = is_option_indexmap_type(ty);
-
-                    if is_optional {
-                        quote! {
-                            #name: toml_item_as_map(
-                                    &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], false),
-                                    &helper.col).into_optional()
-                        }
-                    } else {
-                        quote! {
-                            #name: toml_item_as_map(
-                                    &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true),
-                                    &helper.col)
-                        }
-                    }
-                } else if is_option_type(ty) {
-                    quote! {
-                        #name: {
-                            let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
-                            if let TomlValueState::Missing {parent_span, ..} = t.state {
-                                TomlValue{
-                                    value: Some(None),
-                                    state: TomlValueState::Ok{span: parent_span},
-                                }
-                            } else {
-                                t
-                            }
-                        }
-                    }
-                } else {
-                    let missing_is_error = !is_defaulted_field(f);
-                    quote! {
-                        #name: helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error)
-                    }
-                }
-            })
-            .collect();
-
-        quote! {
-            impl #impl_generics FromTomlTable<#struct_name> for #partial_name #ty_generics #where_clause {
-                fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self {
-                    #partial_name {
-                        #(#from_toml_table_fields,)*
-                    }
-                }
-            }
-        }
-    }
-
     pub fn gen_from_toml_item_for_struct(
         partial_name: &syn::Ident,
         generate_verify: bool,
@@ -1227,10 +871,7 @@ mod codegen {
         }
     }
 
-    pub fn gen_tagged_enum_variants(
-        variants: &[syn::Variant],
-        partial_name: &syn::Ident,
-    ) -> Vec<TokenStream2> {
+    pub fn gen_tagged_enum_variants(variants: &[syn::Variant]) -> Vec<TokenStream2> {
         variants
             .iter()
             .map(|v| {
@@ -1251,7 +892,6 @@ mod codegen {
     }
 
     pub fn gen_tagged_enum_meta_impl(
-        enum_name: &syn::Ident,
         partial_name: &syn::Ident,
         generics: &syn::Generics,
         variants: &[syn::Variant],
@@ -1260,10 +900,7 @@ mod codegen {
     ) -> TokenStream2 {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-        let variant_names: Vec<_> = variants
-            .iter()
-            .map(|v| v.ident.to_string())
-            .collect();
+        let variant_names: Vec<_> = variants.iter().map(|v| v.ident.to_string()).collect();
 
         let deserialize_variant_arms: Vec<_> = variants
             .iter()
@@ -1615,8 +1252,8 @@ mod codegen {
 /// Module for specialized handlers
 mod handlers {
     use super::*;
-    use crate::type_analysis::*;
     use crate::codegen::*;
+    use crate::type_analysis::*;
 
     pub fn handle_unit_enum(input: DeriveInput) -> TokenStream {
         let enum_name = &input.ident;
@@ -1638,9 +1275,15 @@ mod handlers {
         }
 
         let variants_slice: Vec<_> = variants.iter().cloned().collect();
-        let string_named_enum_impl =
-            gen_string_named_enum_impl(enum_name, &impl_generics, &ty_generics, where_clause, &variants_slice);
-        let from_toml_item_impl = gen_from_toml_item_for_unit_enum(enum_name, &impl_generics, &ty_generics, where_clause);
+        let string_named_enum_impl = gen_string_named_enum_impl(
+            enum_name,
+            &impl_generics,
+            &ty_generics,
+            where_clause,
+            &variants_slice,
+        );
+        let from_toml_item_impl =
+            gen_from_toml_item_for_unit_enum(enum_name, &impl_generics, &ty_generics, where_clause);
 
         let expanded = quote! {
             #input
@@ -1656,7 +1299,7 @@ mod handlers {
         let struct_name = &input.ident;
         let partial_name = format_ident!("Partial{}", struct_name);
         let generics = &input.generics;
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+        let (_impl_generics, _ty_generics, where_clause) = generics.split_for_impl();
 
         let fields = match &input.data {
             Data::Struct(data) => match &data.fields {
@@ -1688,27 +1331,14 @@ mod handlers {
                     panic!("nested attribute requires a simple type name");
                 }
             }
-            if is_enum_tagged_field(f) && !is_indexmap {
-                if is_option_type(ty) {
-                    assert!(
-                        extract_option_inner_type(ty).is_some(),
-                        "enum_tagged attribute on Option field requires a simple inner type name"
-                    );
-                } else if is_vec_type(ty) {
-                    assert!(
-                        extract_vec_inner_type(ty).is_some(),
-                        "enum_tagged attribute on Vec field requires a simple inner type name"
-                    );
-                } else if extract_type_name(ty).is_none() {
-                    panic!("enum_tagged attribute requires a simple type name");
-                }
-            }
         }
 
         let partial_fields = gen_partial_struct_fields(fields);
-        let from_toml_table_complete_impl = gen_from_toml_table_complete_impl(struct_name, &partial_name, fields, generics);
+        let from_toml_table_complete_impl =
+            gen_from_toml_table_complete_impl(struct_name, &partial_name, fields, generics);
         let from_toml_item_impl = gen_from_toml_item_for_struct(&partial_name, generate_verify);
-        let verify_from_toml_impl = gen_verify_from_toml_if_needed(&partial_name, generics, generate_verify);
+        let verify_from_toml_impl =
+            gen_verify_from_toml_if_needed(&partial_name, generics, generate_verify);
 
         let expanded = quote! {
             #cleaned_input
@@ -1736,7 +1366,7 @@ mod handlers {
         let enum_name = &input.ident;
         let partial_name = format_ident!("Partial{}", enum_name);
         let generics = &input.generics;
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+        let (_impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
         let variants = match &input.data {
             Data::Enum(data) => &data.variants,
@@ -1753,15 +1383,9 @@ mod handlers {
         }
 
         let variants_slice: Vec<_> = variants.iter().cloned().collect();
-        let partial_variants = gen_tagged_enum_variants(&variants_slice, &partial_name);
-        let tagged_enum_meta_impl = gen_tagged_enum_meta_impl(
-            enum_name,
-            &partial_name,
-            generics,
-            &variants_slice,
-            &tag_key,
-            &aliases,
-        );
+        let partial_variants = gen_tagged_enum_variants(&variants_slice);
+        let tagged_enum_meta_impl =
+            gen_tagged_enum_meta_impl(&partial_name, generics, &variants_slice, &tag_key, &aliases);
         let from_toml_table_impl =
             gen_tagged_enum_from_toml_table(enum_name, &partial_name, generics, &variants_slice);
         let from_toml_item_partial_impl = gen_tagged_enum_from_toml_item_for_partial(
@@ -1771,8 +1395,13 @@ mod handlers {
             &tag_key,
             &aliases,
         );
-        let from_toml_item_concrete_impl =
-            gen_from_toml_item_for_concrete_enum(enum_name, &partial_name, generics, &tag_key, &aliases);
+        let from_toml_item_concrete_impl = gen_from_toml_item_for_concrete_enum(
+            enum_name,
+            &partial_name,
+            generics,
+            &tag_key,
+            &aliases,
+        );
 
         let expanded = quote_spanned! { enum_name.span() =>
             #input

@@ -41,19 +41,16 @@ struct Inner {
 struct Mapped {
     mapped_u8: IndexMap<String, u8>,
     mapped_enum: IndexMap<String, ByString>,
-    #[enum_tagged]
     mapped_either: IndexMap<String, EitherOne>,
     #[nested]
     mapped_struct: IndexMap<String, Inner>,
     mapped_vec_string: IndexMap<String, Vec<String>>,
     mapped_vec_enum: IndexMap<String, Vec<ByString>>,
-    #[enum_tagged]
     mapped_vec_either: IndexMap<String, Vec<EitherOne>>,
     #[nested]
     mapped_vec_struct: IndexMap<String, Vec<Inner>>,
     opt_mapped_u8: Option<IndexMap<String, u8>>,
     opt_mapped_enum: Option<IndexMap<String, ByString>>,
-    #[enum_tagged]
     opt_mapped_either: Option<IndexMap<String, EitherOne>>,
     #[nested]
     opt_mapped_struct: Option<IndexMap<String, Inner>>,
