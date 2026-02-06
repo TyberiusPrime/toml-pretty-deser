@@ -193,7 +193,7 @@
 //! add #[tdp_default_in_verify] to the field in your struct.
 //! Then write your own `VerifyFromToml` implementation that uses
 //! [`TomlValue.or_default`] or ['TomlValue.or_default_with`]
-//! 
+//!
 //!
 //!## Aliases
 //!
@@ -1430,7 +1430,27 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub const fn has_value(&self) -> bool {
+    #[must_use]
+    pub fn new_nested() -> Self {
+        Self {
+            value: None,
+            state: TomlValueState::Nested {},
+        }
+    }
+
+    pub fn convert_failed_type<S>(self) -> TomlValue<S> {
+        match self.state {
+            TomlValueState::Ok { span } => {
+                panic!("called convert_failed_type on a TomlValue that is Ok. Span was: {span:?}")
+            }
+            _ => TomlValue {
+                value: None,
+                state: self.state,
+            },
+        }
+    }
+
+    pub fn has_value(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
     }
 
@@ -1577,8 +1597,10 @@ impl<T> TomlValue<T> {
         }
     }
     #[must_use]
-    pub fn or_default_with<F>(self, default_func: F) -> Self 
-        where F: FnOnce() -> T {
+    pub fn or_default_with<F>(self, default_func: F) -> Self
+    where
+        F: FnOnce() -> T,
+    {
         match &self.state {
             TomlValueState::Missing { .. } => Self {
                 value: Some(default_func()),
