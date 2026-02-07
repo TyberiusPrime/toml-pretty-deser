@@ -1,5 +1,24 @@
 use toml_pretty_deser::prelude::*;
 
+// Test module for module-qualified types in tagged enums
+mod inner_types {
+    use toml_pretty_deser::prelude::*;
+
+    #[tpd]
+    #[derive(Debug, Clone)]
+    pub struct ModuleInnerA {
+        pub x: i32,
+        pub y: u32,
+    }
+
+    #[tpd]
+    #[derive(Debug, Clone)]
+    pub struct ModuleInnerB {
+        pub p: String,
+        pub q: u32,
+    }
+}
+
 #[tpd]
 #[derive(Debug, Clone)]
 struct InnerA {
@@ -578,5 +597,78 @@ fn test_many_either_one_allow_one_happy_inline() {
             output.choices[0],
             EitherOne::KindA(InnerA { n: -5, o: 1 })
         ));
+    }
+}
+
+// Test for module-qualified types in tagged enums (module::Type)
+#[tpd(tag = "variant")]
+#[derive(Debug)]
+enum ModuleQualifiedEnum {
+    TypeA(inner_types::ModuleInnerA),
+    TypeB(inner_types::ModuleInnerB),
+}
+
+#[tpd]
+#[derive(Debug)]
+struct OuterWithModuleQualifiedEnum {
+    #[tpd_nested]
+    item: ModuleQualifiedEnum,
+}
+
+#[test]
+fn test_module_qualified_tagged_enum_type_a() {
+    let toml = "
+    [item]
+        variant = 'TypeA'
+        x = 42
+        y = 100
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterWithModuleQualifiedEnum, OuterWithModuleQualifiedEnum>(
+            toml,
+            FieldMatchMode::Exact,
+            VecMode::Strict,
+        );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.item {
+            ModuleQualifiedEnum::TypeA(inner) => {
+                assert_eq!(inner.x, 42);
+                assert_eq!(inner.y, 100);
+            }
+            ModuleQualifiedEnum::TypeB(_) => {
+                panic!("expected TypeA variant");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_module_qualified_tagged_enum_type_b() {
+    let toml = "
+    [item]
+        variant = 'TypeB'
+        p = 'hello'
+        q = 200
+    ";
+    let result: Result<_, _> =
+        deserialize_with_mode::<PartialOuterWithModuleQualifiedEnum, OuterWithModuleQualifiedEnum>(
+            toml,
+            FieldMatchMode::Exact,
+            VecMode::Strict,
+        );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.item {
+            ModuleQualifiedEnum::TypeA(_) => {
+                panic!("expected TypeB variant");
+            }
+            ModuleQualifiedEnum::TypeB(inner) => {
+                assert_eq!(inner.p, "hello");
+                assert_eq!(inner.q, 200);
+            }
+        }
     }
 }

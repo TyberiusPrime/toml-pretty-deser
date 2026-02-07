@@ -275,9 +275,102 @@ mod type_analysis {
         aliases
     }
 
+    /// Extract the final type name from a type path.
+    /// This handles both simple types like `InnerA` and qualified paths like `module::InnerA`.
+    /// Returns the last segment's identifier (e.g., `InnerA` for both cases above).
     pub fn extract_type_name(ty: &Type) -> Option<syn::Ident> {
         match ty {
-            Type::Path(TypePath { path, .. }) => path.get_ident().cloned(),
+            Type::Path(TypePath { path, .. }) => {
+                // Use last segment to handle both simple `Foo` and qualified `module::Foo` paths
+                path.segments.last().map(|seg| seg.ident.clone())
+            }
+            _ => None,
+        }
+    }
+
+    /// Generate the partial type path for a given type.
+    /// For simple types like `InnerA`, returns `PartialInnerA`.
+    /// For qualified paths like `module::InnerA`, returns `module::PartialInnerA`.
+    pub fn make_partial_type_path(ty: &Type) -> Option<proc_macro2::TokenStream> {
+        match ty {
+            Type::Path(TypePath { qself, path }) => {
+                if qself.is_some() {
+                    // Don't support qualified self types like <T as Trait>::Type
+                    return None;
+                }
+                let segments = &path.segments;
+                if segments.is_empty() {
+                    return None;
+                }
+                
+                // Get the last segment and create a Partial version
+                let last_seg = segments.last()?;
+                let partial_ident = format_ident!("Partial{}", last_seg.ident);
+                
+                // If there's only one segment, just return the partial ident
+                if segments.len() == 1 {
+                    return Some(quote! { #partial_ident });
+                }
+                
+                // Otherwise, build the full path with module prefix
+                // Take all segments except the last one as the prefix
+                let prefix_segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
+                Some(quote! { #(#prefix_segments::)* #partial_ident })
+            }
+            _ => None,
+        }
+    }
+
+    /// Extract the inner type from Option<T> and return a TokenStream for Partial{T}
+    /// Handles both `Option<Foo>` and `Option<module::Foo>`.
+    pub fn make_partial_option_inner_type(ty: &Type) -> Option<proc_macro2::TokenStream> {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return make_partial_type_path(&inner_ty);
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Extract the inner type from Vec<T> and return a TokenStream for Partial{T}
+    /// Handles both `Vec<Foo>` and `Vec<module::Foo>`.
+    pub fn make_partial_vec_inner_type(ty: &Type) -> Option<proc_macro2::TokenStream> {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Vec"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return make_partial_type_path(&inner_ty);
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Extract the inner type from Option<Vec<T>> and return a TokenStream for Partial{T}
+    /// Handles both `Option<Vec<Foo>>` and `Option<Vec<module::Foo>>`.
+    pub fn make_partial_option_vec_inner_type(ty: &Type) -> Option<proc_macro2::TokenStream> {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return make_partial_vec_inner_type(&inner_ty);
+                }
+                None
+            }
             _ => None,
         }
     }
@@ -423,21 +516,25 @@ mod type_analysis {
     #[derive(Clone)]
     pub enum IndexMapValueKind {
         Primitive,
-        Nested(syn::Ident),
-        VecNested(syn::Ident),
+        Nested(proc_macro2::TokenStream),
+        VecNested(proc_macro2::TokenStream),
     }
 
     pub fn analyze_indexmap_value_type(value_ty: &Type, field: &syn::Field) -> IndexMapValueKind {
         let is_nested = is_nested_field(field);
 
         if let Some(vec_inner) = extract_vec_inner_full_type(value_ty) {
-            if (is_nested) && let Some(ident) = extract_type_name(&vec_inner) {
-                return IndexMapValueKind::VecNested(ident);
+            if is_nested {
+                if let Some(partial_type) = make_partial_type_path(&vec_inner) {
+                    return IndexMapValueKind::VecNested(partial_type);
+                }
             }
         }
 
-        if (is_nested) && let Some(ident) = extract_type_name(value_ty) {
-            return IndexMapValueKind::Nested(ident);
+        if is_nested {
+            if let Some(partial_type) = make_partial_type_path(value_ty) {
+                return IndexMapValueKind::Nested(partial_type);
+            }
         }
 
         IndexMapValueKind::Primitive
@@ -587,16 +684,14 @@ mod codegen {
                     let kind = analyze_indexmap_value_type(&value_ty, f);
 
                     match kind {
-                        IndexMapValueKind::Nested(inner_name) => {
-                            let partial_type = format_ident!("Partial{}", inner_name);
+                        IndexMapValueKind::Nested(partial_type) => {
                             if is_optional {
                                 quote! { #name: TomlValue<Option<indexmap::IndexMap<String, #partial_type>>> }
                             } else {
                                 quote! { #name: TomlValue<indexmap::IndexMap<String, #partial_type>> }
                             }
                         }
-                        IndexMapValueKind::VecNested(inner_name) => {
-                            let partial_type = format_ident!("Partial{}", inner_name);
+                        IndexMapValueKind::VecNested(partial_type) => {
                             if is_optional {
                                 quote! { #name: TomlValue<Option<indexmap::IndexMap<String, Vec<#partial_type>>>> }
                             } else {
@@ -614,26 +709,22 @@ mod codegen {
                 } else if is_nested_field(f) {
                     if is_option_vec_type(ty) {
                         // Option<Vec<nested>>
-                        let inner_type_name = extract_option_vec_inner_type(ty).expect("can't fail");
-                        let partial_type = format_ident!("Partial{}", inner_type_name);
+                        let partial_type = make_partial_option_vec_inner_type(ty).expect("can't fail");
                         quote! {
                             #name: TomlValue<Option<Vec<#partial_type>>>
                         }
                     } else if is_option_type(ty) {
-                        let inner_type_name = extract_option_inner_type(ty).expect("can't fail");
-                        let partial_type = format_ident!("Partial{}", inner_type_name);
+                        let partial_type = make_partial_option_inner_type(ty).expect("can't fail");
                         quote! {
                             #name: TomlValue<Option<#partial_type>>
                         }
                     } else if is_vec_type(ty) {
-                        let inner_type_name = extract_vec_inner_type(ty).expect("can't fail");
-                        let partial_type = format_ident!("Partial{}", inner_type_name);
+                        let partial_type = make_partial_vec_inner_type(ty).expect("can't fail");
                         quote! {
                             #name: TomlValue<Vec<#partial_type>>
                         }
                     } else {
-                        let type_name = extract_type_name(ty).expect("can't fail");
-                        let partial_type = format_ident!("Partial{}", type_name);
+                        let partial_type = make_partial_type_path(ty).expect("can't fail");
                         quote! {
                             #name: TomlValue<#partial_type>
                         }
@@ -790,9 +881,9 @@ mod codegen {
                 } else if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
                     let value_ty = if is_optional {
-                        extract_option_indexmap_value_type(ty).unwrap()
+                        extract_option_indexmap_value_type(ty).expect("Failed to extract option type")
                     } else {
-                        extract_indexmap_value_type(ty).unwrap()
+                        extract_indexmap_value_type(ty).expect("failed to extract index map type")
                     };
                     let kind = analyze_indexmap_value_type(&value_ty, f);
 
@@ -873,7 +964,7 @@ mod codegen {
             .filter(|f| !is_skipped_field(f) && !is_adapt_in_verify_field(f))
             .map(|f| {
                 let name = &f.ident;
-                let name_str = name.as_ref().unwrap().to_string();
+                let name_str = name.as_ref().expect("failed to get field name").to_string();
                 let aliases = extract_aliases(f);
                 let ty = &f.ty;
 
@@ -1039,7 +1130,7 @@ mod codegen {
             .iter()
             .filter(|f| is_adapt_in_verify_field(f))
             .map(|f| {
-                let name = f.ident.as_ref().unwrap();
+                let name = f.ident.as_ref().expect("failed to get field name 2");
                 let getter_name = format_ident!("tpd_get_{}", name);
                 let name_str = name.to_string();
                 let aliases = extract_aliases(f);
@@ -1074,9 +1165,8 @@ mod codegen {
                 let variant_name = &v.ident;
                 match &v.fields {
                     Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
-                        let inner_ty = &fields.unnamed.first().unwrap().ty;
-                        let inner_type_name = extract_type_name(inner_ty).unwrap();
-                        let partial_inner_type = format_ident!("Partial{}", inner_type_name);
+                        let inner_ty = &fields.unnamed.first().expect("gen_tagged_enum_variants - failed to get first unmapped field").ty;
+                        let partial_inner_type = make_partial_type_path(inner_ty).expect("gen_tagged_enum_variants - failed to create partial type path for first unmapped field");
                         quote_spanned! { v.span() =>
                             #variant_name(#partial_inner_type)
                         }
@@ -1105,9 +1195,8 @@ mod codegen {
                 let variant_name_str = variant_name.to_string();
                 match &v.fields {
                     Fields::Unnamed(fields) => {
-                        let inner_ty = &fields.unnamed.first().unwrap().ty;
-                        let inner_type_name = extract_type_name(inner_ty).unwrap();
-                        let partial_inner_type = format_ident!("Partial{}", inner_type_name);
+                        let inner_ty = &fields.unnamed.first().expect("failed to get first unampped field - gen_tagged_enum_meta_impl").ty;
+                        let partial_inner_type = make_partial_type_path(inner_ty).expect("gen_tagged_enum_meta_impl - failed to create partial type path for first unnamed field");
                         quote_spanned! { v.span() =>
                             #variant_name_str => {
                                 let result: ::toml_pretty_deser::TomlValue<#partial_inner_type> =
@@ -1526,7 +1615,7 @@ mod handlers {
         let inner_type = match &input.data {
             Data::Struct(data) => match &data.fields {
                 Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
-                    &fields.unnamed.first().unwrap().ty
+                    &fields.unnamed.first().expect("handle_tuple_struct failed to get first unmapped field").ty
                 }
                 _ => panic!("tuple struct only supports structs with a single unnamed field"),
             },
