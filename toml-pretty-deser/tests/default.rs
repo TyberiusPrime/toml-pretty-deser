@@ -235,3 +235,132 @@ fn test_tpd_default_vec_when_provided() {
         assert_eq!(output.items, vec![1, 2, 3]);
     }
 }
+
+// Test tpd_default with tpd_nested - nested struct with Default
+#[tpd]
+#[derive(Debug, Default, PartialEq)]
+struct NestedConfig {
+    value: u32,
+    name: String,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct OuterWithDefaultNested {
+    required: String,
+    #[tpd_nested]
+    #[tpd_default]
+    config: NestedConfig,
+}
+
+#[test]
+fn test_tpd_default_with_nested_when_missing() {
+    let toml = r#"required = "hello""#;
+    let result = deserialize::<PartialOuterWithDefaultNested, OuterWithDefaultNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.required, "hello");
+        // Should use NestedConfig::default()
+        assert_eq!(output.config, NestedConfig::default());
+        assert_eq!(output.config.value, 0);
+        assert_eq!(output.config.name, "");
+    }
+}
+
+#[test]
+fn test_tpd_default_with_nested_when_provided() {
+    let toml = r#"
+        required = "hello"
+        [config]
+        value = 42
+        name = "provided"
+    "#;
+    let result = deserialize::<PartialOuterWithDefaultNested, OuterWithDefaultNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.required, "hello");
+        assert_eq!(output.config.value, 42);
+        assert_eq!(output.config.name, "provided");
+    }
+}
+
+#[test]
+fn test_tpd_default_with_nested_partial_provided() {
+    // Only some fields of nested struct provided - should fail (nested still needs all fields)
+    let toml = r#"
+        required = "hello"
+        [config]
+        value = 42
+    "#;
+    let result = deserialize::<PartialOuterWithDefaultNested, OuterWithDefaultNested>(toml);
+    dbg!(&result);
+    // This should fail because the nested struct is partially specified but missing 'name'
+    assert!(result.is_err());
+}
+
+// Test with non-trivial Default implementation for nested struct
+#[tpd]
+#[derive(Debug, PartialEq)]
+struct NestedWithNonTrivialDefault {
+    count: u32,
+    enabled: bool,
+}
+
+impl Default for NestedWithNonTrivialDefault {
+    fn default() -> Self {
+        Self {
+            count: 100,
+            enabled: true,
+        }
+    }
+}
+
+#[tpd]
+#[derive(Debug)]
+struct OuterWithNonTrivialDefaultNested {
+    name: String,
+    #[tpd_default]
+    #[tpd_nested]
+    settings: NestedWithNonTrivialDefault,
+}
+
+#[test]
+fn test_tpd_default_nested_with_non_trivial_default() {
+    let toml = r#"name = "test""#;
+    let result =
+        deserialize::<PartialOuterWithNonTrivialDefaultNested, OuterWithNonTrivialDefaultNested>(
+            toml,
+        );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        // Should use the non-trivial Default
+        assert_eq!(output.settings.count, 100);
+        assert!(output.settings.enabled);
+    }
+}
+
+#[test]
+fn test_tpd_default_nested_override_non_trivial_default() {
+    let toml = r#"
+        name = "test"
+        [settings]
+        count = 5
+        enabled = false
+    "#;
+    let result =
+        deserialize::<PartialOuterWithNonTrivialDefaultNested, OuterWithNonTrivialDefaultNested>(
+            toml,
+        );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        // Should use provided values, not default
+        assert_eq!(output.settings.count, 5);
+        assert!(!output.settings.enabled);
+    }
+}

@@ -625,6 +625,11 @@ mod codegen {
                     quote! {
                         true
                     }
+                } else if is_defaulted_field(f) && is_nested_field(f) {
+                    // tpd_default + tpd_nested: true if missing (will use default) or if nested can_concrete
+                    quote! {
+                        self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
+                    }
                 } else if is_defaulted_field(f) {
                     // tpd_default fields always pass can_concrete (will use Default::default() if missing)
                     quote! {
@@ -716,6 +721,13 @@ mod codegen {
                 if is_skipped_field(f) {
                     quote! {
                         #name: <#ty as ::std::default::Default>::default()
+                    }
+                } else if is_defaulted_field(f) && is_nested_field(f) {
+                    // tpd_default + tpd_nested: use T::default() when missing, otherwise convert partial to concrete
+                    quote! {
+                        #name: self.#name.value
+                            .and_then(|p| p.to_concrete())
+                            .unwrap_or_else(|| <#ty as ::std::default::Default>::default())
                     }
                 } else if is_defaulted_field(f) {
                     // tpd_default fields use Default::default() if missing
@@ -1504,7 +1516,8 @@ mod handlers {
                 if is_option_type(ty) {
                     assert!(
                         extract_option_inner_type(ty).is_some(),
-                        "nested attribute on Option field requires a simple inner type name"
+                        "nested attribute on Option field {:?} requires a simple inner type name",
+                        &f.ident
                     );
                 } else if is_vec_type(ty) {
                     assert!(
