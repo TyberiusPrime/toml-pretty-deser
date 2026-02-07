@@ -1311,6 +1311,20 @@ impl<T: FromTomlItem> FromTomlItem for Option<T> {
     }
 }
 
+impl<T: FromTomlItem> FromTomlItem for Box<T> {
+    fn from_toml_item(
+        item: &toml_edit::Item,
+        parent_span: Range<usize>,
+        col: &TomlCollector,
+    ) -> TomlValue<Self> {
+        let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, col);
+        TomlValue {
+            value: res.value.map(Box::new),
+            state: res.state,
+        }
+    }
+}
+
 // Blanket implementation for Vec<T> where T: FromTomlItem
 // This handles both regular arrays and ArrayOfTables (for Vec<toml_edit::Item> specifically)
 #[allow(clippy::too_many_lines)]
@@ -1733,10 +1747,14 @@ where
 ///Internally called by the macros
 #[doc(hidden)]
 #[must_use]
-pub fn toml_item_as_map<T: FromTomlItem>(
+pub fn toml_item_as_map<K, T>(
     toml_item: &TomlValue<toml_edit::Item>,
     col: &TomlCollector,
-) -> TomlValue<IndexMap<String, T>> {
+) -> TomlValue<IndexMap<K, T>>
+where
+    K: From<String> + std::hash::Hash + Eq,
+    T: FromTomlItem,
+{
     match &toml_item.state {
         TomlValueState::Ok { span } => {
             if let Some(ref item) = toml_item.value {
@@ -1751,7 +1769,7 @@ pub fn toml_item_as_map<T: FromTomlItem>(
                                 FromTomlItem::from_toml_item(value, item_span.clone(), col);
                             if let TomlValueState::Ok { .. } = val.state {
                                 if let Some(v) = val.value {
-                                    map.insert(key.to_string(), v);
+                                    map.insert(K::from(key.to_string()), v);
                                 }
                             } else {
                                 val.register_error(&col.errors);

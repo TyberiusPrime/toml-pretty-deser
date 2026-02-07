@@ -84,7 +84,9 @@ pub fn tpd(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
                 handlers::handle_tuple_struct(input)
             }
-            _ => panic!("#[tpd] only supports structs with named fields or single-field tuple structs"),
+            _ => panic!(
+                "#[tpd] only supports structs with named fields or single-field tuple structs"
+            ),
         },
         Data::Enum(data) => {
             let has_tag = args.tag.is_some();
@@ -302,16 +304,16 @@ mod type_analysis {
                 if segments.is_empty() {
                     return None;
                 }
-                
+
                 // Get the last segment and create a Partial version
                 let last_seg = segments.last()?;
                 let partial_ident = format_ident!("Partial{}", last_seg.ident);
-                
+
                 // If there's only one segment, just return the partial ident
                 if segments.len() == 1 {
                     return Some(quote! { #partial_ident });
                 }
-                
+
                 // Otherwise, build the full path with module prefix
                 // Take all segments except the last one as the prefix
                 let prefix_segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
@@ -375,6 +377,24 @@ mod type_analysis {
         }
     }
 
+    /// Extract the inner type from Box<T> and return a TokenStream for Partial{T}
+    /// Handles both `Box<Foo>` and `Box<module::Foo>`.
+    pub fn make_partial_box_inner_type(ty: &Type) -> Option<proc_macro2::TokenStream> {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Box"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return make_partial_type_path(&inner_ty);
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
     pub fn is_option_type(ty: &Type) -> bool {
         match ty {
             Type::Path(TypePath { path, .. }) => {
@@ -409,6 +429,19 @@ mod type_analysis {
             Type::Path(TypePath { path, .. }) => {
                 if let Some(segment) = path.segments.last() {
                     segment.ident == "Vec"
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_box_type(ty: &Type) -> bool {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last() {
+                    segment.ident == "Box"
                 } else {
                     false
                 }
@@ -474,6 +507,40 @@ mod type_analysis {
                     if let Some(GenericArgument::Type(value_ty)) = iter.next() {
                         return Some(value_ty.clone());
                     }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Extract the key type (first generic parameter) from IndexMap<K, V>
+    pub fn extract_indexmap_key_type(ty: &Type) -> Option<Type> {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "IndexMap"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(key_ty)) = args.args.first()
+                {
+                    return Some(key_ty.clone());
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Extract the key type from Option<IndexMap<K, V>>
+    pub fn extract_option_indexmap_key_type(ty: &Type) -> Option<Type> {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return extract_indexmap_key_type(&inner_ty);
                 }
                 None
             }
@@ -581,6 +648,41 @@ mod type_analysis {
             _ => None,
         }
     }
+
+    /// Check if a type is Option<Box<T>>
+    pub fn is_option_box_type(ty: &Type) -> bool {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return is_box_type(&inner_ty);
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// Extract the inner type from Option<Box<T>> and return a TokenStream for Partial{T}
+    /// Handles both `Option<Box<Foo>>` and `Option<Box<module::Foo>>`.
+    pub fn make_partial_option_box_inner_type(ty: &Type) -> Option<proc_macro2::TokenStream> {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return make_partial_box_inner_type(&inner_ty);
+                }
+                None
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Module for code generation functions
@@ -676,26 +778,32 @@ mod codegen {
 
                 if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
-                    let value_ty = if is_optional {
-                        extract_option_indexmap_value_type(ty).expect("Can't fail")
+                    let (key_ty, value_ty) = if is_optional {
+                        (
+                            extract_option_indexmap_key_type(ty).expect("Can't fail"),
+                            extract_option_indexmap_value_type(ty).expect("Can't fail"),
+                        )
                     } else {
-                        extract_indexmap_value_type(ty).expect("Can't fail")
+                        (
+                            extract_indexmap_key_type(ty).expect("Can't fail"),
+                            extract_indexmap_value_type(ty).expect("Can't fail"),
+                        )
                     };
                     let kind = analyze_indexmap_value_type(&value_ty, f);
 
                     match kind {
                         IndexMapValueKind::Nested(partial_type) => {
                             if is_optional {
-                                quote! { #name: TomlValue<Option<indexmap::IndexMap<String, #partial_type>>> }
+                                quote! { #name: TomlValue<Option<indexmap::IndexMap<#key_ty, #partial_type>>> }
                             } else {
-                                quote! { #name: TomlValue<indexmap::IndexMap<String, #partial_type>> }
+                                quote! { #name: TomlValue<indexmap::IndexMap<#key_ty, #partial_type>> }
                             }
                         }
                         IndexMapValueKind::VecNested(partial_type) => {
                             if is_optional {
-                                quote! { #name: TomlValue<Option<indexmap::IndexMap<String, Vec<#partial_type>>>> }
+                                quote! { #name: TomlValue<Option<indexmap::IndexMap<#key_ty, Vec<#partial_type>>>> }
                             } else {
-                                quote! { #name: TomlValue<indexmap::IndexMap<String, Vec<#partial_type>>> }
+                                quote! { #name: TomlValue<indexmap::IndexMap<#key_ty, Vec<#partial_type>>> }
                             }
                         }
                         IndexMapValueKind::Primitive => {
@@ -713,6 +821,12 @@ mod codegen {
                         quote! {
                             #name: TomlValue<Option<Vec<#partial_type>>>
                         }
+                    } else if is_option_box_type(ty) {
+                        // Option<Box<nested>> - the partial is the inner T, not the Box
+                        let partial_type = make_partial_option_box_inner_type(ty).expect("can't fail");
+                        quote! {
+                            #name: TomlValue<Option<#partial_type>>
+                        }
                     } else if is_option_type(ty) {
                         let partial_type = make_partial_option_inner_type(ty).expect("can't fail");
                         quote! {
@@ -722,6 +836,12 @@ mod codegen {
                         let partial_type = make_partial_vec_inner_type(ty).expect("can't fail");
                         quote! {
                             #name: TomlValue<Vec<#partial_type>>
+                        }
+                    } else if is_box_type(ty) {
+                        // Box<nested> - the partial is the inner T, not the Box
+                        let partial_type = make_partial_box_inner_type(ty).expect("can't fail");
+                        quote! {
+                            #name: TomlValue<#partial_type>
                         }
                     } else {
                         let partial_type = make_partial_type_path(ty).expect("can't fail");
@@ -826,6 +946,13 @@ mod codegen {
                                 opt.as_ref().map(|vec| vec.iter().all(|p| p.can_concrete())).unwrap_or(true)
                             }).unwrap_or(false)
                         }
+                    } else if is_option_box_type(&f.ty) {
+                        // Option<Box<nested>> - stored as Option<PartialT>
+                        quote! {
+                            self.#name.value.as_ref().map(|opt| {
+                                opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
+                            }).unwrap_or(false)
+                        }
                     } else if is_option_type(&f.ty) {
                         quote! {
                             self.#name.value.as_ref().map(|opt| {
@@ -837,6 +964,11 @@ mod codegen {
                             self.#name.value.as_ref().map(|vec| {
                                 vec.iter().all(|p| p.can_concrete())
                             }).unwrap_or(false)
+                        }
+                    } else if is_box_type(&f.ty) {
+                        // Box<nested> - the partial is the inner T, so same as regular nested
+                        quote! {
+                            self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
                         }
                     } else {
                         quote! {
@@ -936,6 +1068,11 @@ mod codegen {
                                 vec.into_iter().filter_map(|p| p.to_concrete()).collect()
                             })
                         }
+                    } else if is_option_box_type(&f.ty) {
+                        // Option<Box<nested>> - convert partial to concrete and wrap in Box
+                        quote! {
+                            #name: self.#name.value.flatten().and_then(|p| p.to_concrete()).map(Box::new)
+                        }
                     } else if is_option_type(&f.ty) {
                         quote! {
                             #name: self.#name.value.flatten().and_then(|p| p.to_concrete())
@@ -945,6 +1082,11 @@ mod codegen {
                             #name: self.#name.value.map(|vec| {
                                 vec.into_iter().filter_map(|p| p.to_concrete()).collect()
                             }).expect("was checked by can_concrete before")
+                        }
+                    } else if is_box_type(&f.ty) {
+                        // Box<nested> - convert partial to concrete and wrap in Box
+                        quote! {
+                            #name: Box::new(self.#name.value.and_then(|p| p.to_concrete()).expect("was checked by can_concrete before"))
                         }
                     } else {
                         quote! {
@@ -1166,7 +1308,12 @@ mod codegen {
                 match &v.fields {
                     Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
                         let inner_ty = &fields.unnamed.first().expect("gen_tagged_enum_variants - failed to get first unmapped field").ty;
-                        let partial_inner_type = make_partial_type_path(inner_ty).expect("gen_tagged_enum_variants - failed to create partial type path for first unmapped field");
+                        // For Box<T>, the partial is PartialT (not Box<PartialT>)
+                        let partial_inner_type = if is_box_type(inner_ty) {
+                            make_partial_box_inner_type(inner_ty).expect("gen_tagged_enum_variants - failed to create partial type path for Box inner type")
+                        } else {
+                            make_partial_type_path(inner_ty).expect("gen_tagged_enum_variants - failed to create partial type path for first unmapped field")
+                        };
                         quote_spanned! { v.span() =>
                             #variant_name(#partial_inner_type)
                         }
@@ -1196,7 +1343,12 @@ mod codegen {
                 match &v.fields {
                     Fields::Unnamed(fields) => {
                         let inner_ty = &fields.unnamed.first().expect("failed to get first unampped field - gen_tagged_enum_meta_impl").ty;
-                        let partial_inner_type = make_partial_type_path(inner_ty).expect("gen_tagged_enum_meta_impl - failed to create partial type path for first unnamed field");
+                        // For Box<T>, the partial is PartialT (not Box<PartialT>)
+                        let partial_inner_type = if is_box_type(inner_ty) {
+                            make_partial_box_inner_type(inner_ty).expect("gen_tagged_enum_meta_impl - failed to create partial type path for Box inner type")
+                        } else {
+                            make_partial_type_path(inner_ty).expect("gen_tagged_enum_meta_impl - failed to create partial type path for first unnamed field")
+                        };
                         quote_spanned! { v.span() =>
                             #variant_name_str => {
                                 let result: ::toml_pretty_deser::TomlValue<#partial_inner_type> =
@@ -1261,9 +1413,25 @@ mod codegen {
             .iter()
             .map(|v| {
                 let variant_name = &v.ident;
-                quote_spanned! { v.span() =>
-                    #partial_name::#variant_name(inner) => {
-                        inner.to_concrete().map(#enum_name::#variant_name)
+                // Check if the original type was Box<T>
+                let is_boxed = match &v.fields {
+                    Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                        let inner_ty = &fields.unnamed.first().expect("to_concrete_variants").ty;
+                        is_box_type(inner_ty)
+                    }
+                    _ => false,
+                };
+                if is_boxed {
+                    quote_spanned! { v.span() =>
+                        #partial_name::#variant_name(inner) => {
+                            inner.to_concrete().map(|c| #enum_name::#variant_name(Box::new(c)))
+                        }
+                    }
+                } else {
+                    quote_spanned! { v.span() =>
+                        #partial_name::#variant_name(inner) => {
+                            inner.to_concrete().map(#enum_name::#variant_name)
+                        }
                     }
                 }
             })
@@ -1615,7 +1783,11 @@ mod handlers {
         let inner_type = match &input.data {
             Data::Struct(data) => match &data.fields {
                 Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
-                    &fields.unnamed.first().expect("handle_tuple_struct failed to get first unmapped field").ty
+                    &fields
+                        .unnamed
+                        .first()
+                        .expect("handle_tuple_struct failed to get first unmapped field")
+                        .ty
                 }
                 _ => panic!("tuple struct only supports structs with a single unnamed field"),
             },
@@ -1686,10 +1858,13 @@ mod handlers {
             gen_from_toml_table_complete_impl(struct_name, &partial_name, fields, generics);
         let from_toml_item_impl = gen_from_toml_item_for_struct(&partial_name, generate_verify);
         let has_adapt_in_verify_fields = fields.iter().any(is_adapt_in_verify_field);
-        let verify_from_toml_impl =
-            gen_verify_from_toml_if_needed(&partial_name, generics, generate_verify, has_adapt_in_verify_fields);
-        let adapt_in_verify_getters =
-            gen_adapt_in_verify_getters(&partial_name, fields, generics);
+        let verify_from_toml_impl = gen_verify_from_toml_if_needed(
+            &partial_name,
+            generics,
+            generate_verify,
+            has_adapt_in_verify_fields,
+        );
+        let adapt_in_verify_getters = gen_adapt_in_verify_getters(&partial_name, fields, generics);
 
         let expanded = quote! {
             #cleaned_input
