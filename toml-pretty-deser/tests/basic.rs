@@ -761,6 +761,7 @@ fn test_two_errors_pretty() {
 #[tpd]
 struct AliasedOutput {
     #[tpd_alias("alsoAName")]
+    #[tpd_alias("alsoAName2")]
     my_name: String,
     #[tpd_alias("myValue")]
     my_value: i32,
@@ -785,6 +786,25 @@ fn test_alias_exact_mode() {
         assert_eq!(output.regular_field, "no alias");
     }
 }
+#[test]
+fn test_alias_exact_mode2() {
+    // In Exact mode, aliases should work but different cases should not
+    let toml = "
+        alsoAName2 = 'using alias no 2'
+        myValue = 42
+        regular_field = 'no alias'
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialAliasedOutput, AliasedOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_name, "using alias no 2");
+        assert_eq!(output.my_value, 42);
+        assert_eq!(output.regular_field, "no alias");
+    }
+}
+
 
 #[test]
 fn test_alias_exact_mode_failure() {
