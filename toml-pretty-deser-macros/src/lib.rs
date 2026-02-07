@@ -450,6 +450,40 @@ mod type_analysis {
     pub fn is_single_unnamed_field_variant(variant: &syn::Variant) -> bool {
         matches!(&variant.fields, Fields::Unnamed(f) if f.unnamed.len() == 1)
     }
+
+    /// Check if a type is Option<Vec<T>>
+    pub fn is_option_vec_type(ty: &Type) -> bool {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return is_vec_type(&inner_ty);
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// Extract the inner type from Option<Vec<T>>, returning T's identifier
+    pub fn extract_option_vec_inner_type(ty: &Type) -> Option<syn::Ident> {
+        match ty {
+            Type::Path(TypePath { path, .. }) => {
+                if let Some(segment) = path.segments.last()
+                    && segment.ident == "Option"
+                    && let PathArguments::AngleBracketed(args) = &segment.arguments
+                    && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+                {
+                    return extract_vec_inner_type(&inner_ty);
+                }
+                None
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Module for code generation functions
@@ -578,7 +612,14 @@ mod codegen {
                         }
                     }
                 } else if is_nested_field(f) {
-                    if is_option_type(ty) {
+                    if is_option_vec_type(ty) {
+                        // Option<Vec<nested>>
+                        let inner_type_name = extract_option_vec_inner_type(ty).expect("can't fail");
+                        let partial_type = format_ident!("Partial{}", inner_type_name);
+                        quote! {
+                            #name: TomlValue<Option<Vec<#partial_type>>>
+                        }
+                    } else if is_option_type(ty) {
                         let inner_type_name = extract_option_inner_type(ty).expect("can't fail");
                         let partial_type = format_ident!("Partial{}", inner_type_name);
                         quote! {
@@ -687,7 +728,14 @@ mod codegen {
                         }
                     }
                 } else if is_nested_field(f) {
-                    if is_option_type(&f.ty) {
+                    if is_option_vec_type(&f.ty) {
+                        // Option<Vec<nested>>
+                        quote! {
+                            self.#name.value.as_ref().map(|opt| {
+                                opt.as_ref().map(|vec| vec.iter().all(|p| p.can_concrete())).unwrap_or(true)
+                            }).unwrap_or(false)
+                        }
+                    } else if is_option_type(&f.ty) {
                         quote! {
                             self.#name.value.as_ref().map(|opt| {
                                 opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
@@ -790,7 +838,14 @@ mod codegen {
                         }
                     }
                 } else if is_nested_field(f) {
-                    if is_option_type(&f.ty) {
+                    if is_option_vec_type(&f.ty) {
+                        // Option<Vec<nested>>
+                        quote! {
+                            #name: self.#name.value.flatten().map(|vec| {
+                                vec.into_iter().filter_map(|p| p.to_concrete()).collect()
+                            })
+                        }
+                    } else if is_option_type(&f.ty) {
                         quote! {
                             #name: self.#name.value.flatten().and_then(|p| p.to_concrete())
                         }
@@ -1513,7 +1568,14 @@ mod handlers {
             let is_indexmap = is_indexmap_type(ty) || is_option_indexmap_type(ty);
 
             if is_nested_field(f) && !is_indexmap {
-                if is_option_type(ty) {
+                if is_option_vec_type(ty) {
+                    // Option<Vec<nested>> - check that we can extract the inner type
+                    assert!(
+                        extract_option_vec_inner_type(ty).is_some(),
+                        "nested attribute on Option<Vec<_>> field {:?} requires a simple inner type name",
+                        &f.ident
+                    );
+                } else if is_option_type(ty) {
                     assert!(
                         extract_option_inner_type(ty).is_some(),
                         "nested attribute on Option field {:?} requires a simple inner type name",

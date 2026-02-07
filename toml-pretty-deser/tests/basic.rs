@@ -1318,3 +1318,134 @@ fn test_default_with() {
         assert!(config.defaulted_i16 == 43);
     }
 }
+
+// =============================================================================
+// Tests for Option<Vec<nested>>
+// =============================================================================
+
+#[derive(Debug)]
+#[tpd]
+struct NestedItem {
+    name: String,
+    value: i32,
+}
+
+#[derive(Debug)]
+#[tpd]
+struct OptionVecNestedOuter {
+    #[tpd_nested]
+    opt_items: Option<Vec<NestedItem>>,
+    regular_field: String,
+}
+
+#[test]
+fn test_option_vec_nested_present() {
+    let toml = "
+        regular_field = 'hello'
+        [[opt_items]]
+            name = 'item1'
+            value = 10
+        [[opt_items]]
+            name = 'item2'
+            value = 20
+    ";
+
+    let result: Result<_, _> =
+        deserialize::<PartialOptionVecNestedOuter, OptionVecNestedOuter>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.regular_field, "hello");
+        assert!(output.opt_items.is_some());
+        let items = output.opt_items.unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "item1");
+        assert_eq!(items[0].value, 10);
+        assert_eq!(items[1].name, "item2");
+        assert_eq!(items[1].value, 20);
+    }
+}
+
+#[test]
+fn test_option_vec_nested_missing() {
+    let toml = "
+        regular_field = 'hello'
+    ";
+
+    let result: Result<_, _> =
+        deserialize::<PartialOptionVecNestedOuter, OptionVecNestedOuter>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.regular_field, "hello");
+        assert!(output.opt_items.is_none());
+    }
+}
+
+#[test]
+fn test_option_vec_nested_inline() {
+    let toml = "
+        regular_field = 'world'
+        opt_items = [
+            { name = 'a', value = 1 },
+            { name = 'b', value = 2 },
+            { name = 'c', value = 3 },
+        ]
+    ";
+
+    let result: Result<_, _> =
+        deserialize::<PartialOptionVecNestedOuter, OptionVecNestedOuter>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.regular_field, "world");
+        assert!(output.opt_items.is_some());
+        let items = output.opt_items.unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].name, "a");
+        assert_eq!(items[2].name, "c");
+    }
+}
+
+#[test]
+fn test_option_vec_nested_empty() {
+    let toml = "
+        regular_field = 'test'
+        opt_items = []
+    ";
+
+    let result: Result<_, _> =
+        deserialize::<PartialOptionVecNestedOuter, OptionVecNestedOuter>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.regular_field, "test");
+        assert!(output.opt_items.is_some());
+        let items = output.opt_items.unwrap();
+        assert_eq!(items.len(), 0);
+    }
+}
+
+#[test]
+fn test_option_vec_nested_inner_error() {
+    let toml = "
+        regular_field = 'test'
+        [[opt_items]]
+            name = 'item1'
+            value = 10
+        [[opt_items]]
+            name = 123
+            value = 20
+    ";
+
+    let result: Result<_, _> =
+        deserialize::<PartialOptionVecNestedOuter, OptionVecNestedOuter>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+    }
+}
+
