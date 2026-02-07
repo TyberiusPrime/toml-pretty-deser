@@ -260,6 +260,24 @@ mod tablelike;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
 pub use toml_pretty_deser_macros::tpd;
 
+/// Error type for `#[tpd_with]` converter functions.
+/// 
+/// The tuple contains:
+/// - `String`: The error message to display
+/// - `Option<String>`: Optional help text with suggestions
+/// 
+/// # Example
+/// ```ignore
+/// fn parse_positive(s: &str) -> Result<PositiveInt, WithError> {
+///     match s.parse::<i32>() {
+///         Ok(n) if n > 0 => Ok(PositiveInt(n)),
+///         Ok(_) => Err(("Value must be positive".to_string(), Some("Use a number > 0".to_string()))),
+///         Err(_) => Err(("Invalid integer".to_string(), None)),
+///     }
+/// }
+/// ```
+pub type WithError = (String, Option<String>);
+
 /// Get enum variant names.
 ///
 /// Implemented by [`toml_pretty_deser_macros::tpd`]

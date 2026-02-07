@@ -195,6 +195,7 @@ fn clean_struct_input(input: &mut DeriveInput) {
                     && !attr.path().is_ident("tpd_default")
                     && !attr.path().is_ident("tpd_skip")
                     && !attr.path().is_ident("tpd_adapt_in_verify")
+                    && !attr.path().is_ident("tpd_with")
             });
         }
     }
@@ -237,6 +238,21 @@ mod type_analysis {
             .attrs
             .iter()
             .any(|attr| attr.path().is_ident("tpd_adapt_in_verify"))
+    }
+
+    /// Extract the function path from `#[tpd_with(function)]` attribute
+    /// Returns the TokenStream of the function path (e.g., `my_func` or `module::my_func`)
+    pub fn extract_tpd_with_function(field: &syn::Field) -> Option<proc_macro2::TokenStream> {
+        for attr in &field.attrs {
+            if attr.path().is_ident("tpd_with") {
+                let result: Result<syn::Path, _> = attr.parse_args();
+                match result {
+                    Ok(path) => return Some(quote! { #path }),
+                    Err(e) => panic!("Failed to parse tpd_with function path: {}", e),
+                }
+            }
+        }
+        None
     }
 
     pub fn extract_aliases(field: &syn::Field) -> Vec<String> {
@@ -1110,8 +1126,16 @@ mod codegen {
                 let aliases = extract_aliases(f);
                 let ty = &f.ty;
 
+                // Check if this field has a tpd_with converter
+                let with_func = extract_tpd_with_function(f);
+
                 if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
+
+                    // tpd_with is not supported with IndexMap for now
+                    if with_func.is_some() {
+                        panic!("tpd_with is not supported on IndexMap fields");
+                    }
 
                     if is_optional {
                         quote! {
@@ -1127,6 +1151,11 @@ mod codegen {
                         }
                     }
                 } else if is_option_type(ty) {
+                    // tpd_with is not supported with Option for now - it would need more complex handling
+                    if with_func.is_some() {
+                        panic!("tpd_with is not yet supported on Option fields");
+                    }
+
                     quote! {
                         #name: {
                             let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
@@ -1137,6 +1166,76 @@ mod codegen {
                                 }
                             } else {
                                 t
+                            }
+                        }
+                    }
+                } else if let Some(func) = with_func {
+                    // Field has tpd_with converter
+                    // The converter function takes &str and returns Result<T, (String, Option<String>)>
+                    let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
+                    let has_default = is_defaulted_field(f);
+                    
+                    if has_default {
+                        // If field has default and is missing, use default instead of calling converter
+                        quote! {
+                            #name: {
+                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error);
+                                match &raw.state {
+                                    TomlValueState::Missing { .. } => {
+                                        // Field is missing - keep the Missing state
+                                        // It will be defaulted in to_concrete()
+                                        TomlValue {
+                                            value: None,
+                                            state: raw.state,
+                                        }
+                                    }
+                                    TomlValueState::Ok { span } => {
+                                        let s = raw.value.as_ref().expect("Ok state must have value");
+                                        match #func(s.as_str()) {
+                                            Ok(converted) => TomlValue::new_ok(converted, span.clone()),
+                                            Err((msg, help)) => {
+                                                let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
+                                                failed.register_error(&helper.col.errors);
+                                                failed
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        // Wrong type or other error - forward it
+                                        raw.register_error(&helper.col.errors);
+                                        TomlValue {
+                                            value: None,
+                                            state: raw.state,
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        quote! {
+                            #name: {
+                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error);
+                                match &raw.state {
+                                    TomlValueState::Ok { span } => {
+                                        let s = raw.value.as_ref().expect("Ok state must have value");
+                                        match #func(s.as_str()) {
+                                            Ok(converted) => TomlValue::new_ok(converted, span.clone()),
+                                            Err((msg, help)) => {
+                                                let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
+                                                failed.register_error(&helper.col.errors);
+                                                failed
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        // Missing, wrong type, or other error - forward it
+                                        raw.register_error(&helper.col.errors);
+                                        TomlValue {
+                                            value: None,
+                                            state: raw.state,
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
