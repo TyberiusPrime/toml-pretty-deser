@@ -474,3 +474,336 @@ fn test_byte_or_char_invalid_multi_char_string() {
         assert!(err_str.contains("Invalid value"));
     }
 }
+
+// Test: adapt_in_verify with tpd_default - the adapt getter should use missing_is_error=false
+#[tpd]
+#[derive(Debug)]
+struct AdaptWithDefaultTest {
+    name: String,
+    #[tpd_adapt_in_verify]
+    #[tpd_default]
+    converted: ConvertedTypeDefault,
+}
+
+#[derive(Debug, Default)]
+struct ConvertedTypeDefault(i32);
+
+impl VerifyFromToml for PartialAdaptWithDefaultTest {
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
+        // This should NOT produce a "Missing required key" error when the field is missing
+        // because tpd_default means missing is ok
+        let str_val: TomlValue<String> = self.tpd_get_converted(helper, false, true);
+        match str_val.as_ref() {
+            Some(s) => match s.parse::<i32>() {
+                Ok(n) => {
+                    self.converted = TomlValue::new_ok(ConvertedTypeDefault(n), str_val.span())
+                }
+                Err(_) => {
+                    self.converted = TomlValue::new_validation_failed(
+                        str_val.span(),
+                        "Not a valid number".to_string(),
+                        None,
+                    )
+                }
+            },
+            None => {
+                // Missing - use default
+                self.converted = TomlValue::new_ok(ConvertedTypeDefault::default(), str_val.span())
+            }
+        }
+        self
+    }
+}
+
+#[test]
+fn test_adapt_with_default_present() {
+    let toml = "
+        name = 'test'
+        converted = '42'
+        ";
+
+    let result: Result<_, _> =
+        deserialize::<PartialAdaptWithDefaultTest, AdaptWithDefaultTest>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.converted.0, 42);
+    }
+}
+
+#[test]
+fn test_adapt_with_default_missing() {
+    let toml = "
+        name = 'test'
+        ";
+
+    let result: Result<_, _> =
+        deserialize::<PartialAdaptWithDefaultTest, AdaptWithDefaultTest>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.converted.0, 0); // default
+    }
+}
+
+// Test: adapt_in_verify with tpd_default_in_verify - combined behavior
+#[tpd]
+#[derive(Debug)]
+struct AdaptWithDefaultInVerifyTest {
+    name: String,
+    #[tpd_adapt_in_verify]
+    #[tpd_default_in_verify]
+    converted: ConvertedTypeDefault2,
+}
+
+#[derive(Debug, Default)]
+struct ConvertedTypeDefault2(i32);
+
+impl VerifyFromToml for PartialAdaptWithDefaultInVerifyTest {
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
+        // With both adapt_in_verify AND default_in_verify, the getter should ideally
+        // not generate a "Missing required key" error automatically
+        let str_val: TomlValue<String> = self.tpd_get_converted(helper, false, true);
+        match str_val.as_ref() {
+            Some(s) => match s.parse::<i32>() {
+                Ok(n) => {
+                    self.converted = TomlValue::new_ok(ConvertedTypeDefault2(n), str_val.span())
+                }
+                Err(_) => {
+                    self.converted = TomlValue::new_validation_failed(
+                        str_val.span(),
+                        "Not a valid number".to_string(),
+                        None,
+                    )
+                }
+            },
+            None => {
+                // Missing - use default
+                self.converted = TomlValue::new_ok(ConvertedTypeDefault2::default(), str_val.span())
+            }
+        }
+        self
+    }
+}
+
+#[test]
+fn test_adapt_with_default_in_verify_missing() {
+    let toml = "
+        name = 'test'
+        ";
+
+    let result: Result<_, _> =
+        deserialize::<PartialAdaptWithDefaultInVerifyTest, AdaptWithDefaultInVerifyTest>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.converted.0, 0); // default
+    }
+}
+
+// Test: adapt_in_verify with tpd_default - missing_is_error parameter is ignored
+// When tpd_default is present alongside tpd_adapt_in_verify, the getter automatically
+// forces missing_is_error to false, regardless of what the caller passes.
+#[tpd]
+#[derive(Debug)]
+struct AdaptWithDefaultIgnoresErrorFlagTest {
+    name: String,
+    #[tpd_adapt_in_verify]
+    #[tpd_default]
+    converted: ConvertedTypeDefault3,
+}
+
+#[derive(Debug, Default)]
+struct ConvertedTypeDefault3(i32);
+
+impl VerifyFromToml for PartialAdaptWithDefaultIgnoresErrorFlagTest {
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
+        // Even though we pass missing_is_error=true, the tpd_default attribute
+        // ensures that no "Missing required key" error is generated
+        let str_val: TomlValue<String> = self.tpd_get_converted(helper, true, true);
+        match str_val.as_ref() {
+            Some(s) => match s.parse::<i32>() {
+                Ok(n) => {
+                    self.converted = TomlValue::new_ok(ConvertedTypeDefault3(n), str_val.span())
+                }
+                Err(_) => {
+                    self.converted = TomlValue::new_validation_failed(
+                        str_val.span(),
+                        "Not a valid number".to_string(),
+                        None,
+                    )
+                }
+            },
+            None => {
+                // Missing - use default
+                self.converted = TomlValue::new_ok(ConvertedTypeDefault3::default(), str_val.span())
+            }
+        }
+        self
+    }
+}
+
+#[test]
+fn test_adapt_with_default_ignores_error_flag_present() {
+    // When the field is present, it should parse correctly
+    let toml = "
+        name = 'test'
+        converted = '42'
+        ";
+
+    let result: Result<_, _> = deserialize::<
+        PartialAdaptWithDefaultIgnoresErrorFlagTest,
+        AdaptWithDefaultIgnoresErrorFlagTest,
+    >(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.converted.0, 42);
+    }
+}
+
+#[test]
+fn test_adapt_with_default_ignores_error_flag_missing() {
+    // Even with missing_is_error=true in the getter call, tpd_default ensures
+    // no "Missing required key" error is generated
+    let toml = "
+        name = 'test'
+        ";
+
+    let result: Result<_, _> = deserialize::<
+        PartialAdaptWithDefaultIgnoresErrorFlagTest,
+        AdaptWithDefaultIgnoresErrorFlagTest,
+    >(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.converted.0, 0); // default
+    }
+}
+
+// Test: adapt_in_verify with tpd_default_in_verify - missing_is_error parameter is also ignored
+#[tpd]
+#[derive(Debug)]
+struct AdaptWithDefaultInVerifyIgnoresErrorFlagTest {
+    name: String,
+    #[tpd_adapt_in_verify]
+    #[tpd_default_in_verify]
+    converted: ConvertedTypeDefault4,
+}
+
+#[derive(Debug, Default)]
+struct ConvertedTypeDefault4(i32);
+
+impl VerifyFromToml for PartialAdaptWithDefaultInVerifyIgnoresErrorFlagTest {
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
+        // Even though we pass missing_is_error=true, the tpd_default_in_verify attribute
+        // ensures that no "Missing required key" error is generated
+        let str_val: TomlValue<String> = self.tpd_get_converted(helper, true, true);
+        match str_val.as_ref() {
+            Some(s) => match s.parse::<i32>() {
+                Ok(n) => {
+                    self.converted = TomlValue::new_ok(ConvertedTypeDefault4(n), str_val.span())
+                }
+                Err(_) => {
+                    self.converted = TomlValue::new_validation_failed(
+                        str_val.span(),
+                        "Not a valid number".to_string(),
+                        None,
+                    )
+                }
+            },
+            None => {
+                // Missing - use default
+                self.converted = TomlValue::new_ok(ConvertedTypeDefault4::default(), str_val.span())
+            }
+        }
+        self
+    }
+}
+
+#[test]
+fn test_adapt_with_default_in_verify_ignores_error_flag_missing() {
+    // Even with missing_is_error=true in the getter call, tpd_default_in_verify ensures
+    // no "Missing required key" error is generated
+    let toml = "
+        name = 'test'
+        ";
+
+    let result: Result<_, _> = deserialize::<
+        PartialAdaptWithDefaultInVerifyIgnoresErrorFlagTest,
+        AdaptWithDefaultInVerifyIgnoresErrorFlagTest,
+    >(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.converted.0, 0); // default
+    }
+}
+
+// Test: adapt_in_verify WITHOUT tpd_default - missing_is_error parameter is respected
+// This ensures the fix doesn't break the normal behavior when no default is specified
+#[tpd]
+#[derive(Debug)]
+struct AdaptWithoutDefaultTest {
+    name: String,
+    #[tpd_adapt_in_verify]
+    converted: ConvertedTypeNoDefault,
+}
+
+#[derive(Debug)]
+struct ConvertedTypeNoDefault(i32);
+
+impl VerifyFromToml for PartialAdaptWithoutDefaultTest {
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
+        // Without tpd_default, missing_is_error=true should produce an error when missing
+        let str_val: TomlValue<String> = self.tpd_get_converted(helper, true, true);
+        match str_val.as_ref() {
+            Some(s) => match s.parse::<i32>() {
+                Ok(n) => self.converted = TomlValue::new_ok(ConvertedTypeNoDefault(n), str_val.span()),
+                Err(_) => {
+                    self.converted = TomlValue::new_validation_failed(
+                        str_val.span(),
+                        "Not a valid number".to_string(),
+                        None,
+                    )
+                }
+            },
+            None => {
+                // For required field, we still set a failed state to trigger error
+                self.converted = str_val.convert_failed_type();
+            }
+        }
+        self
+    }
+}
+
+#[test]
+fn test_adapt_without_default_present() {
+    let toml = "
+        name = 'test'
+        converted = '42'
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialAdaptWithoutDefaultTest, AdaptWithoutDefaultTest>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.converted.0, 42);
+    }
+}
+
+#[test]
+fn test_adapt_without_default_missing() {
+    // Without tpd_default, a missing field should produce an error
+    let toml = "
+        name = 'test'
+        ";
+
+    let result: Result<_, _> = deserialize::<PartialAdaptWithoutDefaultTest, AdaptWithoutDefaultTest>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = &result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("Missing required key"));
+    }
+}

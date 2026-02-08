@@ -770,3 +770,157 @@ fn test_tpd_with_box_validation_failure() {
         assert!(err_str.contains("must be positive"));
     }
 }
+
+// =============================================================================
+// Tests for tpd_with combined with tpd_default_in_verify
+// =============================================================================
+
+// This type does NOT implement Default, so we must set it in verify()
+#[derive(Debug, PartialEq, Eq)]
+struct ComputedCustom(String);
+
+fn parse_computed(s: &str) -> Result<ComputedCustom, WithError> {
+    Ok(ComputedCustom(s.to_uppercase()))
+}
+
+#[tpd(partial = false)]
+#[derive(Debug)]
+struct WithDefaultInVerifyAndWith {
+    #[tpd_default_in_verify]
+    #[tpd_with(parse_computed)]
+    custom: ComputedCustom,
+    required: i32,
+}
+
+impl VerifyFromToml for PartialWithDefaultInVerifyAndWith {
+    fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self {
+        // If custom is missing, provide a computed default
+        if self.custom.value.is_none() {
+            self.custom = TomlValue::new_ok(
+                ComputedCustom("DEFAULT_COMPUTED".to_string()),
+                self.custom.span(),
+            );
+        }
+        self
+    }
+}
+
+#[test]
+fn test_tpd_with_and_default_in_verify_present() {
+    let toml = r#"
+        custom = "provided"
+        required = 10
+    "#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithDefaultInVerifyAndWith, WithDefaultInVerifyAndWith>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.custom, ComputedCustom("PROVIDED".to_string()));
+        assert_eq!(output.required, 10);
+    }
+}
+
+#[test]
+fn test_tpd_with_and_default_in_verify_missing() {
+    // This is the key test case: when the field is missing, we should NOT get
+    // a "Missing required key" error because tpd_default_in_verify indicates
+    // we'll provide a value in verify()
+    let toml = "required = 10";
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithDefaultInVerifyAndWith, WithDefaultInVerifyAndWith>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(
+            output.custom,
+            ComputedCustom("DEFAULT_COMPUTED".to_string())
+        );
+        assert_eq!(output.required, 10);
+    }
+}
+
+// =============================================================================
+// Tests for VecMode::SingleOk with tpd_with
+// =============================================================================
+
+#[test]
+fn test_tpd_with_vec_single_ok_mode_single_value() {
+    // When using VecMode::SingleOk, a single string value should be treated as [value]
+    #[tpd]
+    #[derive(Debug)]
+    struct WithVecSingleOk {
+        #[tpd_with(parse_uppercase)]
+        items: Vec<UppercaseString>,
+    }
+
+    let toml = "items = 'hello'"; // Single value, not an array
+
+    let result = deserialize_with_mode::<PartialWithVecSingleOk, WithVecSingleOk>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::SingleOk,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.items.len(), 1);
+        assert_eq!(output.items[0].0, "HELLO");
+    }
+}
+
+#[test]
+fn test_tpd_with_vec_single_ok_mode_array_value() {
+    // VecMode::SingleOk should still work with arrays
+    #[tpd]
+    #[derive(Debug)]
+    struct WithVecSingleOkArray {
+        #[tpd_with(parse_uppercase)]
+        items: Vec<UppercaseString>,
+    }
+
+    let toml = "items = ['hello', 'world']";
+
+    let result = deserialize_with_mode::<PartialWithVecSingleOkArray, WithVecSingleOkArray>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::SingleOk,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.items.len(), 2);
+        assert_eq!(output.items[0].0, "HELLO");
+        assert_eq!(output.items[1].0, "WORLD");
+    }
+}
+
+// =============================================================================
+// Tests for FieldMatchMode with tpd_with (case insensitivity)
+// =============================================================================
+
+#[test]
+fn test_tpd_with_field_match_mode_anycase() {
+    // When using FieldMatchMode::AnyCase, field names should be case insensitive
+    #[tpd]
+    #[derive(Debug)]
+    struct WithFieldMatchMode {
+        #[tpd_with(parse_uppercase)]
+        my_field: UppercaseString,
+    }
+
+    let toml = "MyField = 'hello'"; // Different case than my_field
+
+    let result = deserialize_with_mode::<PartialWithFieldMatchMode, WithFieldMatchMode>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.my_field.0, "HELLO");
+    }
+}

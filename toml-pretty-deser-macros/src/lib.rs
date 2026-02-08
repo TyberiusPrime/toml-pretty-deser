@@ -1581,7 +1581,7 @@ mod codegen {
                     // Field has tpd_with converter
                     // The converter function takes &str and returns Result<T, (String, Option<String>)>
                     let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
-                    let has_default = is_defaulted_field(f);
+                    let has_default = is_defaulted_field(f) || is_defaulted_in_verify_field(f);
                     let needs_box = is_box_type(ty);
                     
                     // Generate the wrapping expression based on whether Box is needed
@@ -1878,6 +1878,15 @@ mod codegen {
                 let name_str = name.to_string();
                 let aliases = extract_aliases(f);
 
+                // If tpd_default or tpd_default_in_verify is also present, 
+                // force missing_is_error to false regardless of what the caller passes
+                let has_default = is_defaulted_field(f) || is_defaulted_in_verify_field(f);
+                let missing_is_error_expr = if has_default {
+                    quote! { false }
+                } else {
+                    quote! { missing_is_error }
+                };
+
                 quote! {
                     pub fn #getter_name<T: FromTomlItem + std::fmt::Debug>(
                         &self,
@@ -1886,9 +1895,9 @@ mod codegen {
                         auto_register_type_errors: bool,
                     ) -> TomlValue<T> {
                         if auto_register_type_errors {
-                            helper.get_with_aliases(#name_str, &[#(#aliases),*], missing_is_error)
+                            helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error_expr)
                         } else {
-                            helper.get_with_aliases_no_auto_error(#name_str, &[#(#aliases),*], missing_is_error)
+                            helper.get_with_aliases_no_auto_error(#name_str, &[#(#aliases),*], #missing_is_error_expr)
                         }
                     }
                 }

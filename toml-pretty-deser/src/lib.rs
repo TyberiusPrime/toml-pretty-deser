@@ -2173,14 +2173,47 @@ where
                             }
                         }
                     }
-                    None => TomlValue {
-                        value: None,
-                        state: TomlValueState::WrongType {
-                            span: span.clone(),
-                            expected: "array",
-                            found: item.type_name(),
-                        },
-                    },
+                    None => {
+                        // Not an array - check if VecMode::SingleOk allows single values
+                        match col.vec_mode {
+                            VecMode::SingleOk => {
+                                // Try to treat single value as a one-element array
+                                match item.as_str() {
+                                    Some(s) => match converter(s) {
+                                        Ok(converted) => TomlValue {
+                                            value: Some(vec![converted]),
+                                            state: TomlValueState::Ok { span: span.clone() },
+                                        },
+                                        Err((msg, help)) => {
+                                            let failed: TomlValue<T> =
+                                                TomlValue::new_validation_failed(span.clone(), msg, help);
+                                            failed.register_error(&col.errors);
+                                            TomlValue {
+                                                value: None,
+                                                state: TomlValueState::Nested {},
+                                            }
+                                        }
+                                    },
+                                    None => TomlValue {
+                                        value: None,
+                                        state: TomlValueState::WrongType {
+                                            span: span.clone(),
+                                            expected: "string or array of strings",
+                                            found: item.type_name(),
+                                        },
+                                    },
+                                }
+                            }
+                            VecMode::Strict => TomlValue {
+                                value: None,
+                                state: TomlValueState::WrongType {
+                                    span: span.clone(),
+                                    expected: "array",
+                                    found: item.type_name(),
+                                },
+                            },
+                        }
+                    }
                 }
             } else {
                 TomlValue {

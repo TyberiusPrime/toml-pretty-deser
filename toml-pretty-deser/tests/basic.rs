@@ -1577,3 +1577,265 @@ fn test_f64_mixed_int_and_float() {
     }
 }
 
+
+// =============================================================================
+// Tests for VecMode::SingleOk with tpd_nested
+// =============================================================================
+
+#[tpd]
+#[derive(Debug)]
+struct NestedItemForVecMode {
+    name: String,
+    value: i32,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct OuterWithNestedVec {
+    #[tpd_nested]
+    items: Vec<NestedItemForVecMode>,
+}
+
+#[test]
+fn test_nested_vec_single_ok_mode_single_value() {
+    // When using VecMode::SingleOk, a single nested table should be treated as [table]
+    let toml = r#"
+        [items]
+        name = 'single'
+        value = 42
+    "#;
+
+    let result = deserialize_with_mode::<PartialOuterWithNestedVec, OuterWithNestedVec>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::SingleOk,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.items.len(), 1);
+        assert_eq!(output.items[0].name, "single");
+        assert_eq!(output.items[0].value, 42);
+    }
+}
+
+#[test]
+fn test_nested_vec_single_ok_mode_array() {
+    // VecMode::SingleOk should still work with arrays of tables
+    let toml = r#"
+        [[items]]
+        name = 'first'
+        value = 1
+        [[items]]
+        name = 'second'
+        value = 2
+    "#;
+
+    let result = deserialize_with_mode::<PartialOuterWithNestedVec, OuterWithNestedVec>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::SingleOk,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.items.len(), 2);
+        assert_eq!(output.items[0].name, "first");
+        assert_eq!(output.items[1].name, "second");
+    }
+}
+
+// =============================================================================
+// Tests for tpd_nested with tpd_default enum with aliases
+// =============================================================================
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[tpd]
+pub enum CompressionFormat {
+    #[tpd_alias("uncompressed", "raw")]
+    #[default]
+    Uncompressed,
+    #[tpd_alias("gzip", "gz")]
+    Gzip,
+    #[tpd_alias("zstd", "zst")]
+    Zstd,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct InnerWithDefaultEnum {
+    name: String,
+    #[tpd_default]
+    compression: CompressionFormat,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct OuterWithOptionalNested {
+    id: i32,
+    #[tpd_nested]
+    inner: Option<InnerWithDefaultEnum>,
+}
+
+#[test]
+fn test_nested_default_enum_with_alias_primary() {
+    // Test using primary enum variant name
+    let toml = r#"
+        id = 1
+        [inner]
+        name = 'test'
+        compression = 'Gzip'
+    "#;
+
+    let result = deserialize::<PartialOuterWithOptionalNested, OuterWithOptionalNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.id, 1);
+        assert!(output.inner.is_some());
+        let inner = output.inner.unwrap();
+        assert_eq!(inner.name, "test");
+        assert_eq!(inner.compression, CompressionFormat::Gzip);
+    }
+}
+
+#[test]
+fn test_nested_default_enum_with_alias_lowercase() {
+    // Test using alias (lowercase)
+    let toml = r#"
+        id = 1
+        [inner]
+        name = 'test'
+        compression = 'gzip'
+    "#;
+
+    let result = deserialize::<PartialOuterWithOptionalNested, OuterWithOptionalNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        let inner = output.inner.unwrap();
+        assert_eq!(inner.compression, CompressionFormat::Gzip);
+    }
+}
+
+#[test]
+fn test_nested_default_enum_with_alias_short() {
+    // Test using short alias
+    let toml = r#"
+        id = 1
+        [inner]
+        name = 'test'
+        compression = 'gz'
+    "#;
+
+    let result = deserialize::<PartialOuterWithOptionalNested, OuterWithOptionalNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        let inner = output.inner.unwrap();
+        assert_eq!(inner.compression, CompressionFormat::Gzip);
+    }
+}
+
+#[test]
+fn test_nested_default_enum_missing_uses_default() {
+    // Test that missing compression uses Default (Uncompressed)
+    let toml = r#"
+        id = 1
+        [inner]
+        name = 'test'
+    "#;
+
+    let result = deserialize::<PartialOuterWithOptionalNested, OuterWithOptionalNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        let inner = output.inner.unwrap();
+        assert_eq!(inner.compression, CompressionFormat::Uncompressed);
+    }
+}
+
+#[test]
+fn test_nested_default_enum_zstd_alias() {
+    // Test zstd alias
+    let toml = r#"
+        id = 1
+        [inner]
+        name = 'test'
+        compression = 'zst'
+    "#;
+
+    let result = deserialize::<PartialOuterWithOptionalNested, OuterWithOptionalNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        let inner = output.inner.unwrap();
+        assert_eq!(inner.compression, CompressionFormat::Zstd);
+    }
+}
+
+// Test with FieldMatchMode::AnyCase - aliases should still work
+#[test]
+fn test_nested_default_enum_with_anycase_mode() {
+    let toml = r#"
+        id = 1
+        [inner]
+        name = 'test'
+        Compression = 'gz'
+    "#;
+
+    let result = deserialize_with_mode::<PartialOuterWithOptionalNested, OuterWithOptionalNested>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        let inner = output.inner.unwrap();
+        assert_eq!(inner.compression, CompressionFormat::Gzip);
+    }
+}
+
+// Test with non-optional nested
+#[tpd]
+#[derive(Debug)]
+struct OuterWithRequiredNested {
+    id: i32,
+    #[tpd_nested]
+    inner: InnerWithDefaultEnum,
+}
+
+#[test]
+fn test_required_nested_default_enum_with_alias() {
+    let toml = r#"
+        id = 1
+        [inner]
+        name = 'test'
+        compression = 'zst'
+    "#;
+
+    let result = deserialize::<PartialOuterWithRequiredNested, OuterWithRequiredNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.inner.compression, CompressionFormat::Zstd);
+    }
+}
+
+// Test with inline table
+#[test]
+fn test_nested_inline_default_enum_with_alias() {
+    let toml = r#"
+        id = 1
+        inner = { name = 'test', compression = 'raw' }
+    "#;
+
+    let result = deserialize::<PartialOuterWithOptionalNested, OuterWithOptionalNested>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        let inner = output.inner.unwrap();
+        assert_eq!(inner.compression, CompressionFormat::Uncompressed);
+    }
+}
