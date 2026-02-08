@@ -813,7 +813,6 @@ fn test_alias_exact_mode2() {
     }
 }
 
-
 #[test]
 fn test_alias_exact_mode_failure() {
     // In Exact mode, different case should NOT work
@@ -1327,7 +1326,7 @@ struct DefaultConfigDefaultWith {
     defaulted_i16: i16,
 }
 
-impl VerifyFromToml for PartialDefaultConfigDefaultWith{
+impl VerifyFromToml for PartialDefaultConfigDefaultWith {
     fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self {
         //not defaulting!
         self.defaulted_i16 = self.defaulted_i16.or_default_with(|| 43);
@@ -1471,9 +1470,11 @@ fn test_option_vec_nested_inner_error() {
     dbg!(&result);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     }
 }
 
@@ -1576,7 +1577,6 @@ fn test_f64_mixed_int_and_float() {
         assert_eq!(output.opt_f64, Some(3.14));
     }
 }
-
 
 // =============================================================================
 // Tests for VecMode::SingleOk with tpd_nested

@@ -66,9 +66,11 @@ fn test_box_nested_missing() {
     dbg!(&result);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors.iter().any(|e| e.inner.spans[0]
-            .msg
-            .contains("Missing required key: 'boxed'.")));
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
+                .msg
+                .contains("Missing required key: 'boxed'.")
+        }));
     }
 }
 
@@ -85,9 +87,11 @@ fn test_box_nested_inner_field_missing() {
     dbg!(&result);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, partial)) = result {
-        assert!(errors.iter().any(|e| e.inner.spans[0]
-            .msg
-            .contains("Missing required key: 'value'.")));
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
+                .msg
+                .contains("Missing required key: 'value'.")
+        }));
         // Check that we can still access the partial's boxed inner name
         assert_eq!(
             partial.boxed.value.as_ref().unwrap().name.as_ref().unwrap(),
@@ -109,9 +113,11 @@ fn test_box_nested_wrong_type() {
     dbg!(&result);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     }
 }
 
@@ -347,9 +353,11 @@ fn test_boxed_tagged_enum_missing_field() {
     dbg!(&result);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Missing required key: 'y'.")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Missing required key: 'y'."))
+        );
     }
 }
 

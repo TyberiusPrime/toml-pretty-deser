@@ -362,30 +362,38 @@ fn test_adapt_optional_missing() {
 pub fn tpd_extract_u8_from_byte_or_char(
     toml_value_str: TomlValue<String>,
     toml_value_u8: TomlValue<u8>,
+    missing_is_error: bool,
+    helper: &TomlHelper<'_>,
 ) -> TomlValue<u8> {
-    fn err(span: std::ops::Range<usize>) -> TomlValue<u8> {
-        TomlValue::new_validation_failed(
+    fn err(helper: &TomlHelper<'_>, span: std::ops::Range<usize>) -> TomlValue<u8> {
+        let e = TomlValue::new_validation_failed(
             span,
             "Invalid value".to_string(),
             Some("Use a single byte (number or char)".to_string()),
-        )
+        );
+        e.register_error(&helper.col);
+        e
     }
 
     if toml_value_str.is_missing() && toml_value_u8.is_missing() {
+        // Register error if the extraction failed (but not for missing - that's ok for optional)
+        if !toml_value_u8.is_ok() && (!toml_value_u8.is_missing() || missing_is_error) {
+            toml_value_u8.register_error(&helper.col);
+        }
         return toml_value_u8;
     }
 
     match toml_value_str.as_ref() {
         Some(s) => {
             if s.as_bytes().len() != 1 {
-                err(toml_value_str.span())
+                err(helper, toml_value_str.span())
             } else {
                 TomlValue::new_ok(s.as_bytes()[0], toml_value_str.span())
             }
         }
         None => match toml_value_u8.as_ref() {
             Some(byte) => TomlValue::new_ok(*byte, toml_value_u8.span()),
-            None => err(toml_value_u8.span()),
+            None => err(helper, toml_value_u8.span()),
         },
     }
 }
@@ -403,13 +411,12 @@ impl VerifyFromToml for PartialByteOrCharTest {
     fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
         // Use tpd_get_delimiter with auto_register_type_errors=false to avoid registering
         // WrongType errors when probing for multiple types
-        let str_val: TomlValue<String> = self.tpd_get_delimiter(helper, false, false);
-        let u8_val: TomlValue<u8> = self.tpd_get_delimiter(helper, false, false);
-        let extracted = tpd_extract_u8_from_byte_or_char(str_val, u8_val);
-        // Register error if the extraction failed (but not for missing - that's ok for optional)
-        if !extracted.is_ok() && !extracted.is_missing() {
-            extracted.register_error(&helper.col);
-        }
+        let extracted = tpd_extract_u8_from_byte_or_char(
+            self.tpd_get_delimiter(helper, false, false),
+            self.tpd_get_delimiter(helper, false, false),
+            false,
+            helper,
+        );
         self.delimiter = extracted.into_optional();
         self
     }
@@ -759,7 +766,9 @@ impl VerifyFromToml for PartialAdaptWithoutDefaultTest {
         let str_val: TomlValue<String> = self.tpd_get_converted(helper, true, true);
         match str_val.as_ref() {
             Some(s) => match s.parse::<i32>() {
-                Ok(n) => self.converted = TomlValue::new_ok(ConvertedTypeNoDefault(n), str_val.span()),
+                Ok(n) => {
+                    self.converted = TomlValue::new_ok(ConvertedTypeNoDefault(n), str_val.span())
+                }
                 Err(_) => {
                     self.converted = TomlValue::new_validation_failed(
                         str_val.span(),
@@ -784,7 +793,8 @@ fn test_adapt_without_default_present() {
         converted = '42'
         ";
 
-    let result: Result<_, _> = deserialize::<PartialAdaptWithoutDefaultTest, AdaptWithoutDefaultTest>(toml);
+    let result: Result<_, _> =
+        deserialize::<PartialAdaptWithoutDefaultTest, AdaptWithoutDefaultTest>(toml);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -799,7 +809,8 @@ fn test_adapt_without_default_missing() {
         name = 'test'
         ";
 
-    let result: Result<_, _> = deserialize::<PartialAdaptWithoutDefaultTest, AdaptWithoutDefaultTest>(toml);
+    let result: Result<_, _> =
+        deserialize::<PartialAdaptWithoutDefaultTest, AdaptWithoutDefaultTest>(toml);
     dbg!(&result);
     assert!(result.is_err());
     if let Err(e) = &result {

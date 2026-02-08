@@ -708,14 +708,11 @@ fn pretty_error_message(
         let mut spans = spans.to_vec();
         spans.sort_by_key(|span| span.span.start);
 
-        let mut previous_newline =
+        let previous_newline =
             memchr::memmem::rfind(&source.as_bytes()[..spans[0].span.start], b"\n");
         let this_line_is_block_start = source.as_bytes()[previous_newline.unwrap_or(0)..]
             .trim_ascii_start()
             .starts_with(b"[");
-        if this_line_is_block_start {
-            previous_newline = None;
-        }
 
         let mut labels = Vec::new();
 
@@ -737,48 +734,59 @@ fn pretty_error_message(
                 let labels = vec![Label::new(0..0).with_text(final_message)];
                 Block::new(&idx, labels).expect("can not fail")
             });
-
-        let (lines_before, digits_needed) = match previous_newline {
-            None => (String::new(), 1),
-            Some(previous_newline) => {
-                let upto_span = &BStr::new(source.as_bytes())[..previous_newline];
-                let lines: Vec<_> = upto_span.lines().collect();
-                let str_line_no = format!("{}", lines.len());
-                let digits_needed = str_line_no.len();
-                let mut seen_opening = false;
-                let mut lines_before: Vec<_> = lines
-                    .into_iter()
-                    .enumerate()
-                    .rev()
-                    .take_while(move |x| {
-                        if BStr::new(x.1).trim_ascii_start().starts_with(b"[") {
-                            seen_opening = true;
-                            true
-                        } else {
-                            !seen_opening
-                        }
-                    })
-                    .map(|(line_no, line)| {
-                        format!(
-                            "{:>digits_needed$} │ {}",
-                            line_no + 1,
-                            std::string::String::from_utf8_lossy(line)
-                        )
-                    })
-                    .collect();
-                lines_before.reverse();
-                (lines_before.join("\n"), digits_needed)
-            }
-        };
-
         let block = block.map_code(|c| CodeWidth::new(c, c.len()));
-        let mut out = String::new();
-        writeln!(&mut out, "{}{}", block.prologue(), source_name).expect("can't fail");
-        write!(&mut out, " {:digits_needed$}┆\n{}\n", " ", lines_before).expect("can't fail");
-        let blockf: String = format!("{block}")
+         let blockf: String = format!("{block}")
             .lines()
             .skip(1)
             .fold(String::new(), |acc, line| acc + line + "\n");
+        let digits_needed = blockf.chars().position(|c| c == '│').unwrap_or(1);
+
+        let lines_before = match previous_newline {
+            None => (String::new()),
+            Some(previous_newline) => {
+                let lines: Vec<_> = {
+                    let upto_span = &BStr::new(source.as_bytes())[..previous_newline];
+                    upto_span.lines().collect()
+                };
+                let mut seen_opening = false;
+                let mut lines_before: Vec<_> = {
+                    if this_line_is_block_start {
+                        vec![]
+                    } else {
+                        lines
+                            .into_iter()
+                            .enumerate()
+                            .rev()
+                            .take_while(move |x| {
+                                if BStr::new(x.1).trim_ascii_start().starts_with(b"[") {
+                                    seen_opening = true;
+                                    true
+                                } else {
+                                    !seen_opening
+                                }
+                            })
+                            .map(|(line_no, line)| {
+                                format!(
+                                    "{:<digits_needed$}│ {}",
+                                    line_no + 1,
+                                    std::string::String::from_utf8_lossy(line)
+                                )
+                            })
+                            .collect()
+                    }
+                };
+                lines_before.reverse();
+                lines_before.join("\n")
+            }
+        };
+
+        let mut out = String::new();
+        writeln!(&mut out, "{}{}", block.prologue(), source_name).expect("can't fail");
+        write!(&mut out, "{:digits_needed$}┆\n{}", " ", lines_before).expect("can't fail");
+        if !lines_before.is_empty() {
+            write!(&mut out, "\n").expect("can't fail");
+        }
+      
         write!(&mut out, "{blockf}").expect("can't fail");
         writeln!(&mut out, "{}", block.epilogue()).expect("can't fail");
 
@@ -1225,7 +1233,6 @@ impl<'a> TomlHelper<'a> {
             if first_span.is_none() {
                 first_span = Some(item_span.clone());
             }
-
             // Deserialize the value
             let value_result = T::from_toml_item(item, item_span, &self.col);
 

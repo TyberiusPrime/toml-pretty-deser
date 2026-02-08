@@ -291,9 +291,11 @@ fn test_either_one_missing_variant_field() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
+        );
     } else {
         panic!("expected missing required key for variant field");
     }
@@ -316,9 +318,11 @@ fn test_either_one_unknown_key_in_variant() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Unknown key."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Unknown key.")
+        );
     } else {
         panic!("expected unknown key error inside variant");
     }
@@ -349,12 +353,16 @@ fn test_either_one_fields_mismatch_variant() {
                 .count()
                 == 2
         );
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'."));
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
+        );
     } else {
         panic!("expected errors due to field/variant mismatch");
     }
@@ -402,9 +410,11 @@ fn test_either_one_missing_choice_field() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'."));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'.")
+        );
     } else {
         panic!("expected missing required key.");
     }
@@ -426,9 +436,11 @@ fn test_either_one_wrong_field_type_in_variant() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     } else {
         panic!("expected wrong type error in variant field");
     }

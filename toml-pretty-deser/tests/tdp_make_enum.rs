@@ -108,9 +108,11 @@ fn test_tpd_make_enum_wrong_type() {
 
     match result {
         Err(DeserError::DeserFailure(errors, _)) => {
-            assert!(errors
-                .iter()
-                .any(|e| { e.inner.spans.iter().any(|s| s.msg.contains("Wrong type")) }));
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| { e.inner.spans.iter().any(|s| s.msg.contains("Wrong type")) })
+            );
         }
         _ => panic!("Expected DeserFailure due to wrong type"),
     }

@@ -329,10 +329,10 @@ struct OuterWithNonTrivialDefaultNested {
 #[test]
 fn test_tpd_default_nested_with_non_trivial_default() {
     let toml = r#"name = "test""#;
-    let result =
-        deserialize::<PartialOuterWithNonTrivialDefaultNested, OuterWithNonTrivialDefaultNested>(
-            toml,
-        );
+    let result = deserialize::<
+        PartialOuterWithNonTrivialDefaultNested,
+        OuterWithNonTrivialDefaultNested,
+    >(toml);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -351,10 +351,10 @@ fn test_tpd_default_nested_override_non_trivial_default() {
         count = 5
         enabled = false
     "#;
-    let result =
-        deserialize::<PartialOuterWithNonTrivialDefaultNested, OuterWithNonTrivialDefaultNested>(
-            toml,
-        );
+    let result = deserialize::<
+        PartialOuterWithNonTrivialDefaultNested,
+        OuterWithNonTrivialDefaultNested,
+    >(toml);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {

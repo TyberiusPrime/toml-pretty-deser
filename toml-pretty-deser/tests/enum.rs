@@ -104,9 +104,11 @@ fn test_enum_invalid_variant() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
+        );
     } else {
         panic!("Expected failure due to invalid enum variant")
     }
@@ -122,9 +124,11 @@ fn test_enum_missing_required() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Missing required key: 'an_enum'."),);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Missing required key: 'an_enum'."),
+        );
     } else {
         panic!("Expected failure due to missing required enum field")
     }

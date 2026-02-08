@@ -80,16 +80,22 @@ fn test_absorb_remaining_only_extras() {
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, partial)) = result {
         // Check that missing required fields are reported
-        assert!(errors.iter().any(|e| e.inner.spans[0]
-            .msg
-            .contains("Missing required key: 'name'")));
-        assert!(errors.iter().any(|e| e.inner.spans[0]
-            .msg
-            .contains("Missing required key: 'count'")));
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
+                .msg
+                .contains("Missing required key: 'name'")
+        }));
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
+                .msg
+                .contains("Missing required key: 'count'")
+        }));
         // But the unknown fields should NOT cause "Unknown key" errors
-        assert!(!errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg == "Unknown key."));
+        assert!(
+            !errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg == "Unknown key.")
+        );
         // And they should be in the partial's extra field
         assert_eq!(partial.extra.into_option().unwrap().len(), 2);
     }
@@ -242,9 +248,11 @@ fn test_absorb_remaining_typed_wrong_type() {
     let result = deserialize::<PartialAbsorbTyped, AbsorbTyped>(toml);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     }
 }
 
@@ -352,9 +360,11 @@ fn test_absorb_remaining_vec_strings_wrong_element_type() {
     let result = deserialize::<PartialAbsorbVecStrings, AbsorbVecStrings>(toml);
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     }
 }
 
@@ -372,9 +382,11 @@ fn test_absorb_remaining_vec_strings_mixed_valid_invalid() {
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, partial)) = result {
         // Should have error for 'bad'
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
         // Partial should still have the good ones (access via .value, not .into_option())
         let lists = partial.lists.value;
         assert!(lists.is_some());
@@ -500,15 +512,18 @@ fn test_absorb_remaining_nested_error_propagation() {
     assert!(result.is_err());
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         // Should have error about missing 'enabled' in server
-        assert!(errors.iter().any(|e| e
-            .inner
-            .spans
-            .iter()
-            .any(|s| s.msg.contains("Missing required key: 'enabled'"))));
+        assert!(errors.iter().any(|e| {
+            e.inner
+                .spans
+                .iter()
+                .any(|s| s.msg.contains("Missing required key: 'enabled'"))
+        }));
         // Should have error about wrong type for value in database
-        assert!(errors
-            .iter()
-            .any(|e| e.inner.spans.iter().any(|s| s.msg.contains("Wrong type"))));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans.iter().any(|s| s.msg.contains("Wrong type")))
+        );
     }
 }
 
@@ -944,7 +959,7 @@ fn test_absorb_remaining_skipped_field_name_absorbed() {
     if let Ok(output) = result {
         assert_eq!(output.name, "test");
         assert_eq!(output.internal, 0); // default, not from TOML
-                                        // "internal" should be absorbed since the field is skipped
+        // "internal" should be absorbed since the field is skipped
         assert!(output.extra.contains_key("internal"));
         assert!(output.extra.contains_key("other"));
         assert_eq!(output.extra.len(), 2);

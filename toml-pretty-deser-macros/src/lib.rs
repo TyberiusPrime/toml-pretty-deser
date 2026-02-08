@@ -206,7 +206,9 @@ fn clean_struct_input(input: &mut DeriveInput) {
 fn clean_enum_input(input: &mut DeriveInput) {
     if let Data::Enum(ref mut data) = input.data {
         for variant in &mut data.variants {
-            variant.attrs.retain(|attr| !attr.path().is_ident("tpd_alias"));
+            variant
+                .attrs
+                .retain(|attr| !attr.path().is_ident("tpd_alias"));
         }
     }
 }
@@ -1232,7 +1234,7 @@ mod codegen {
                         extract_indexmap_value_type(ty).expect("can't fail")
                     };
                     let kind = analyze_indexmap_value_type(&value_ty, f);
-                    
+
                     match kind {
                         IndexMapValueKind::Nested(_) => {
                             // Convert each partial to concrete
@@ -1583,14 +1585,14 @@ mod codegen {
                     let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
                     let has_default = is_defaulted_field(f) || is_defaulted_in_verify_field(f);
                     let needs_box = is_box_type(ty);
-                    
+
                     // Generate the wrapping expression based on whether Box is needed
                     let wrap_converted = if needs_box {
                         quote! { Box::new(converted) }
                     } else {
                         quote! { converted }
                     };
-                    
+
                     if has_default {
                         // If field has default and is missing, use default instead of calling converter
                         quote! {
@@ -1711,10 +1713,10 @@ mod codegen {
                         extract_indexmap_value_type(ty).expect("Failed to extract indexmap value type"),
                     )
                 };
-                
+
                 // Check if the value type needs to be a partial type (for nested)
                 let kind = analyze_indexmap_value_type(&value_ty, f);
-                
+
                 match kind {
                     IndexMapValueKind::Nested(partial_type) => {
                         if is_optional {
@@ -1878,7 +1880,7 @@ mod codegen {
                 let name_str = name.to_string();
                 let aliases = extract_aliases(f);
 
-                // If tpd_default or tpd_default_in_verify is also present, 
+                // If tpd_default or tpd_default_in_verify is also present,
                 // force missing_is_error to false regardless of what the caller passes
                 let has_default = is_defaulted_field(f) || is_defaulted_in_verify_field(f);
                 let missing_is_error_expr = if has_default {
@@ -2458,8 +2460,13 @@ mod handlers {
             where_clause,
             &variants_slice,
         );
-        let from_toml_item_impl =
-            gen_from_toml_item_for_unit_enum(enum_name, &impl_generics, &ty_generics, where_clause, &variants_slice);
+        let from_toml_item_impl = gen_from_toml_item_for_unit_enum(
+            enum_name,
+            &impl_generics,
+            &ty_generics,
+            where_clause,
+            &variants_slice,
+        );
 
         let expanded = quote! {
             #cleaned_input
@@ -2536,13 +2543,17 @@ mod handlers {
         // Key type K must implement From<String> (validated at trait bound level, not here)
         for f in &absorb_remaining_fields {
             let ty = &f.ty;
-            let field_name = f.ident.as_ref().map_or_else(|| "unnamed".to_string(), |i| i.to_string());
+            let field_name = f
+                .ident
+                .as_ref()
+                .map_or_else(|| "unnamed".to_string(), |i| i.to_string());
 
             if !is_option_indexmap_type(ty) && !is_indexmap_type(ty) {
                 // Wrong type entirely
                 panic!(
                     "#[tpd_absorb_remaining] on field '{}' requires type IndexMap<K, T> or Option<IndexMap<K, T>>, found: {}",
-                    field_name, quote!(#ty)
+                    field_name,
+                    quote!(#ty)
                 );
             }
         }
@@ -2581,7 +2592,8 @@ mod handlers {
         let partial_fields = gen_partial_struct_fields(fields);
         let from_toml_table_complete_impl =
             gen_from_toml_table_complete_impl(struct_name, &partial_name, fields, generics);
-        let from_toml_item_impl = gen_from_toml_item_for_struct(&partial_name, generate_verify, has_absorb_remaining);
+        let from_toml_item_impl =
+            gen_from_toml_item_for_struct(&partial_name, generate_verify, has_absorb_remaining);
         let has_adapt_in_verify_fields = fields.iter().any(is_adapt_in_verify_field);
         let verify_from_toml_impl = gen_verify_from_toml_if_needed(
             &partial_name,
