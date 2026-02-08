@@ -1711,14 +1711,12 @@ mod codegen {
 
     pub fn gen_from_toml_item_for_struct(
         partial_name: &syn::Ident,
-        generate_verify: bool,
+        _generate_verify: bool,
         has_absorb_remaining: bool,
     ) -> TokenStream2 {
-        let verify_call = if generate_verify {
-            quote! { .verify(&mut helper) }
-        } else {
-            quote! {}
-        };
+        // Always call verify() - either the macro generates a default impl,
+        // or the user provides one with `partial = false`
+        let verify_call = quote! { .verify(&mut helper) };
 
         // Only call deny_unknown if there's no absorb_remaining field
         // (absorb_remaining handles unknown keys by absorbing them)

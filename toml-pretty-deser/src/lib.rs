@@ -1815,6 +1815,41 @@ impl<T> TomlValue<T> {
             _ => self,
         }
     }
+
+    /// Like `or_default_with`, but also calls `verify()` on the newly created partial.
+    ///
+    /// This is useful when the default partial contains nested structs that have their own
+    /// `#[tpd_default_in_verify]` fields that need to be initialized by their `verify()` methods.
+    ///
+    /// # Example
+    /// ```ignore
+    /// impl VerifyFromToml for PartialOuter {
+    ///     fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
+    ///         self.nested = self.nested.or_default_with_verify(helper, || PartialNested {
+    ///             // inner fields can be left as Missing - nested's verify() will handle them
+    ///             field: TomlValue::new_empty_missing(0..0),
+    ///         });
+    ///         self
+    ///     }
+    /// }
+    /// ```
+    #[must_use]
+    pub fn or_default_with_verify<F>(self, helper: &mut TomlHelper<'_>, default_func: F) -> Self
+    where
+        T: VerifyFromToml,
+        F: FnOnce() -> T,
+    {
+        match &self.state {
+            TomlValueState::Missing { .. } => {
+                let partial = default_func().verify(helper);
+                Self {
+                    value: Some(partial),
+                    state: TomlValueState::Ok { span: 0..0 },
+                }
+            }
+            _ => self,
+        }
+    }
 }
 
 #[doc(hidden)]

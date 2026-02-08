@@ -692,10 +692,8 @@ fn test_nested_default_in_verify_or_default_when_provided() {
 
 // =============================================================================
 // Test: Multiple levels of tpd_default_in_verify
-// NOTE: When using partial = false for a nested struct with tpd_default_in_verify,
-// the user-provided verify() is NOT called during nested struct deserialization.
-// For this pattern to work, use tpd_default instead of tpd_default_in_verify,
-// or ensure the parent struct's verify() handles all nested defaults.
+// This tests the scenario: A includes #[tpd_nested] B, B includes #[tpd_default_in_verify] #[tpd_nested] C
+// B's verify() should be called when B is deserialized as a nested struct
 // =============================================================================
 
 #[tpd]
@@ -704,61 +702,48 @@ struct DeepInner {
     value: u32,
 }
 
-// Using tpd_default (not tpd_default_in_verify) for the deep nested field
-// so it works correctly without requiring verify() to be called
-#[tpd]
+// B: has #[tpd_default_in_verify] #[tpd_nested] for C (DeepInner)
+// B's verify() should set the default for C when C is missing
+#[tpd(partial = false)]
 #[derive(Debug, PartialEq, Clone)]
-struct MiddleConfigSimple {
+struct MiddleConfigWithVerify {
     name: String,
     #[tpd_nested]
-    #[tpd_default]
+    #[tpd_default_in_verify]
     deep: DeepInner,
 }
 
-impl Default for DeepInner {
-    fn default() -> Self {
-        Self { value: 999 }
-    }
-}
-
-#[tpd(partial = false)]
-#[derive(Debug)]
-struct OuterWithNestedVerify {
-    id: String,
-    #[tpd_nested]
-    #[tpd_default_in_verify]
-    middle: MiddleConfigSimple,
-}
-
-impl VerifyFromToml for PartialOuterWithNestedVerify {
+impl VerifyFromToml for PartialMiddleConfigWithVerify {
     fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self {
-        // Provide a default partial with all fields filled in
-        self.middle = self.middle.or_default_with(|| PartialMiddleConfigSimple {
-            name: TomlValue::new_ok("default-middle".to_string(), 0..0),
-            // deep will use Default since it has #[tpd_default]
-            deep: TomlValue::new_empty_missing(0..0),
+        // This should be called when MiddleConfigWithVerify is deserialized as a nested struct
+        self.deep = self.deep.or_default_with(|| PartialDeepInner {
+            value: TomlValue::new_ok(999, 0..0),
         });
         self
     }
 }
 
+// A: has #[tpd_nested] B (MiddleConfigWithVerify)
+#[tpd]
+#[derive(Debug)]
+struct OuterWithNestedVerify {
+    id: String,
+    #[tpd_nested]
+    middle: MiddleConfigWithVerify,
+}
+
 #[test]
 fn test_deeply_nested_default_in_verify_all_missing() {
+    // middle is required, so this should fail
     let toml = r#"id = "root""#;
     let result = deserialize::<PartialOuterWithNestedVerify, OuterWithNestedVerify>(toml);
     dbg!(&result);
-    assert!(result.is_ok());
-    if let Ok(output) = result {
-        assert_eq!(output.id, "root");
-        assert_eq!(output.middle.name, "default-middle");
-        // Uses DeepInner::default() since deep has #[tpd_default]
-        assert_eq!(output.middle.deep.value, 999);
-    }
+    assert!(result.is_err()); // middle is required
 }
 
 #[test]
 fn test_deeply_nested_default_in_verify_partial_provided() {
-    // When middle is provided, its tpd_default fields (like deep) use their Default impl
+    // middle is provided but deep is missing - B's verify() should set the default for deep
     let toml = r#"
         id = "root"
         [middle]
@@ -770,7 +755,7 @@ fn test_deeply_nested_default_in_verify_partial_provided() {
     if let Ok(output) = result {
         assert_eq!(output.id, "root");
         assert_eq!(output.middle.name, "custom-middle");
-        // deep uses Default::default() since it has #[tpd_default]
+        // deep should use the default from MiddleConfigWithVerify's verify()
         assert_eq!(output.middle.deep.value, 999);
     }
 }
@@ -785,6 +770,93 @@ fn test_deeply_nested_default_in_verify_all_provided() {
         value = 42
     "#;
     let result = deserialize::<PartialOuterWithNestedVerify, OuterWithNestedVerify>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.id, "root");
+        assert_eq!(output.middle.name, "custom-middle");
+        assert_eq!(output.middle.deep.value, 42);
+    }
+}
+
+// =============================================================================
+// Test: Three levels with tpd_default_in_verify at the outer level too
+// =============================================================================
+
+#[tpd(partial = false)]
+#[derive(Debug)]
+struct OuterWithNestedVerifyAndDefault {
+    id: String,
+    #[tpd_nested]
+    #[tpd_default_in_verify]
+    middle: MiddleConfigWithVerify,
+}
+
+impl VerifyFromToml for PartialOuterWithNestedVerifyAndDefault {
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
+        self.middle =
+            self.middle
+                .or_default_with_verify(helper, || PartialMiddleConfigWithVerify {
+                    name: TomlValue::new_ok("default-middle".to_string(), 0..0),
+                    // deep is missing here - MiddleConfigWithVerify's verify() should handle it
+                    deep: TomlValue::new_empty_missing(0..0),
+                });
+        self
+    }
+}
+
+#[test]
+fn test_three_level_nested_all_missing() {
+    // Both middle and deep are missing - outer verify sets middle, middle's verify sets deep
+    let toml = r#"id = "root""#;
+    let result = deserialize::<
+        PartialOuterWithNestedVerifyAndDefault,
+        OuterWithNestedVerifyAndDefault,
+    >(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.id, "root");
+        assert_eq!(output.middle.name, "default-middle");
+        // deep should use the default from MiddleConfigWithVerify's verify()
+        assert_eq!(output.middle.deep.value, 999);
+    }
+}
+
+#[test]
+fn test_three_level_nested_middle_provided_deep_missing() {
+    // middle is provided, deep is missing - middle's verify() should set deep
+    let toml = r#"
+        id = "root"
+        [middle]
+        name = "custom-middle"
+    "#;
+    let result = deserialize::<
+        PartialOuterWithNestedVerifyAndDefault,
+        OuterWithNestedVerifyAndDefault,
+    >(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.id, "root");
+        assert_eq!(output.middle.name, "custom-middle");
+        assert_eq!(output.middle.deep.value, 999);
+    }
+}
+
+#[test]
+fn test_three_level_nested_all_provided() {
+    let toml = r#"
+        id = "root"
+        [middle]
+        name = "custom-middle"
+        [middle.deep]
+        value = 42
+    "#;
+    let result = deserialize::<
+        PartialOuterWithNestedVerifyAndDefault,
+        OuterWithNestedVerifyAndDefault,
+    >(toml);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
