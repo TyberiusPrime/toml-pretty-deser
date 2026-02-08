@@ -596,7 +596,8 @@ pub trait FromTomlTable<T> {
 /// Your main hook into verifying your values
 pub trait VerifyFromToml {
     #[must_use]
-    fn verify(self, _helper: &mut TomlHelper<'_>) -> Self
+    #[allow(unused_mut)]
+    fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized,
     {
@@ -1596,7 +1597,15 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub const fn as_ref(&self) -> Option<&T> {
+    pub fn is_ok(&self) -> bool{
+        matches!(self.state, TomlValueState::Ok { .. })
+    }
+
+    pub fn is_missing(&self) -> bool{
+        matches!(self.state, TomlValueState::Missing { .. })
+    }
+
+    pub fn as_ref(&self) -> Option<&T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value.as_ref(),
             _ => None,
