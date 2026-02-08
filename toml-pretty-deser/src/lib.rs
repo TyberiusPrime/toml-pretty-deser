@@ -468,15 +468,19 @@ where
         ));
     }
 
-    if partial.can_concrete() {
+    let failing_fields = partial.can_concrete();
+    if failing_fields.is_empty() {
         Ok(partial
             .to_concrete()
-            .expect("can_concrete() returned true; qed"))
+            .expect("can_concrete() returned empty; bug"))
     } else {
+        //otherwise, we would have had errors!
         panic!(
             "The Partial was still incomplete, but no error was logged.
 Do you have a #[tpd_default_in_verify] field that you're not setting?
 Otherwise, this points to a bug in toml_pretty_deser
+
+Failing fields: {failing_fields:?}
 
 Partial:
 {partial:#?}
@@ -586,7 +590,9 @@ impl<P> DeserError<P> {
 /// You shouldn't need to implement this, use `FromTomlItem` instead.
 ///
 pub trait FromTomlTable<T> {
-    fn can_concrete(&self) -> bool;
+    /// Returns a list of field names that failed to deserialize.
+    /// An empty vector means all fields are valid and `to_concrete()` can be called.
+    fn can_concrete(&self) -> Vec<&'static str>;
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized;
@@ -1830,7 +1836,7 @@ where
             let partial = P::from_toml_table(&mut helper).verify(&mut helper);
             helper.deny_unknown();
 
-            if partial.can_concrete() {
+            if partial.can_concrete().is_empty() {
                 TomlValue {
                     value: Some(partial),
                     state: TomlValueState::Ok { span: span.clone() },

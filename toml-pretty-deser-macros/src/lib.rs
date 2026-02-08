@@ -243,6 +243,23 @@ mod type_analysis {
             .any(|attr| attr.path().is_ident("tpd_skip"))
     }
 
+    /// Check if the skipped field should be available in verify().
+    /// Returns true if the attribute is `#[tpd_skip(true)]` or `#[tpd_skip]` (default is true).
+    /// Returns false if the attribute is `#[tpd_skip(false)]`.
+    pub fn is_skipped_field_available_in_verify(field: &syn::Field) -> bool {
+        for attr in &field.attrs {
+            if attr.path().is_ident("tpd_skip") {
+                // Try to parse the argument - if no argument or parse fails, default to true
+                if let Ok(lit) = attr.parse_args::<syn::LitBool>() {
+                    return lit.value();
+                }
+                // No argument means default behavior (true - available in verify)
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn is_absorb_remaining_field(field: &syn::Field) -> bool {
         field
             .attrs
@@ -866,14 +883,21 @@ mod codegen {
     ) -> Vec<TokenStream2> {
         fields
             .iter()
-            .map(|f| {
-                // Skipped fields are included as Option<T> so they can be set in verify()
+            .filter_map(|f| {
+                // Skipped fields with tpd_skip(false) are NOT included in the partial struct
+                // They will just use Default::default() in to_concrete()
                 if is_skipped_field(f) {
-                    let name = &f.ident;
-                    let ty = &f.ty;
-                    return quote! {
-                        #name: Option<#ty>
-                    };
+                    if is_skipped_field_available_in_verify(f) {
+                        // tpd_skip or tpd_skip(true): include as Option<T> so they can be set in verify()
+                        let name = &f.ident;
+                        let ty = &f.ty;
+                        return Some(quote! {
+                            #name: Option<#ty>
+                        });
+                    } else {
+                        // tpd_skip(false): exclude from partial struct entirely
+                        return None;
+                    }
                 }
                 let name = &f.ident;
                 let ty = &f.ty;
@@ -893,7 +917,7 @@ mod codegen {
                     };
                     let kind = analyze_indexmap_value_type(&value_ty, f);
 
-                    match kind {
+                    Some(match kind {
                         IndexMapValueKind::Nested(partial_type) => {
                             if is_optional {
                                 quote! { #name: TomlValue<Option<indexmap::IndexMap<#key_ty, #partial_type>>> }
@@ -915,9 +939,9 @@ mod codegen {
                                 quote! { #name: TomlValue<#ty> }
                             }
                         }
-                    }
+                    })
                 } else if is_nested_field(f) {
-                    if is_option_vec_type(ty) {
+                    Some(if is_option_vec_type(ty) {
                         // Option<Vec<nested>>
                         let partial_type = make_partial_option_vec_inner_type(ty).expect("can't fail");
                         quote! {
@@ -950,11 +974,11 @@ mod codegen {
                         quote! {
                             #name: TomlValue<#partial_type>
                         }
-                    }
+                    })
                 } else {
-                    quote! {
+                    Some(quote! {
                         #name: TomlValue<#ty>
-                    }
+                    })
                 }
             })
             .collect()
@@ -968,36 +992,37 @@ mod codegen {
     ) -> TokenStream2 {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-        let can_concrete_fields: Vec<_> = fields
+        // Generate code that pushes field name to failing_fields if the field fails can_concrete check
+        let can_concrete_checks: Vec<_> = fields
             .iter()
             .filter(|f| !is_skipped_field(f))
             .map(|f| {
                 let name = &f.ident;
+                let name_str = name.as_ref().expect("field must have name").to_string();
                 let ty = &f.ty;
 
                 if is_skipped_field(f) {
-                    quote! {
-                        true
-                    }
+                    // Skipped fields always pass - no check needed
+                    quote! {}
                 } else if is_absorb_remaining_field(f) {
                     // absorb_remaining fields always pass can_concrete (empty map is valid)
-                    quote! {
-                        true
-                    }
+                    quote! {}
                 } else if is_defaulted_field(f) && is_nested_field(f) {
                     // tpd_default + tpd_nested: true if missing (will use default) or if nested can_concrete
                     quote! {
-                        self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
+                        if !self.#name.value.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(true) {
+                            failing_fields.push(#name_str);
+                        }
                     }
                 } else if is_defaulted_field(f) {
                     // tpd_default fields always pass can_concrete (will use Default::default() if missing)
-                    quote! {
-                        true
-                    }
+                    quote! {}
                 } else if is_adapt_in_verify_field(f) {
                     // adapt_in_verify fields must be set by user in verify()
                     quote! {
-                        self.#name.has_value()
+                        if !self.#name.has_value() {
+                            failing_fields.push(#name_str);
+                        }
                     }
                 } else if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
@@ -1012,36 +1037,46 @@ mod codegen {
                         IndexMapValueKind::Nested(_) => {
                             if is_optional {
                                 quote! {
-                                    self.#name.value.as_ref().map(|opt| {
-                                        opt.as_ref().map(|map| map.values().all(|p| p.can_concrete())).unwrap_or(true)
-                                    }).unwrap_or(false)
+                                    if !self.#name.value.as_ref().map(|opt| {
+                                        opt.as_ref().map(|map| map.values().all(|p| p.can_concrete().is_empty())).unwrap_or(true)
+                                    }).unwrap_or(false) {
+                                        failing_fields.push(#name_str);
+                                    }
                                 }
                             } else {
                                 quote! {
-                                    self.#name.value.as_ref().map(|map| {
-                                        map.values().all(|p| p.can_concrete())
-                                    }).unwrap_or(false)
+                                    if !self.#name.value.as_ref().map(|map| {
+                                        map.values().all(|p| p.can_concrete().is_empty())
+                                    }).unwrap_or(false) {
+                                        failing_fields.push(#name_str);
+                                    }
                                 }
                             }
                         }
                         IndexMapValueKind::VecNested(_) => {
                             if is_optional {
                                 quote! {
-                                    self.#name.value.as_ref().map(|opt| {
-                                        opt.as_ref().map(|map| map.values().all(|vec| vec.iter().all(|p| p.can_concrete()))).unwrap_or(true)
-                                    }).unwrap_or(false)
+                                    if !self.#name.value.as_ref().map(|opt| {
+                                        opt.as_ref().map(|map| map.values().all(|vec| vec.iter().all(|p| p.can_concrete().is_empty()))).unwrap_or(true)
+                                    }).unwrap_or(false) {
+                                        failing_fields.push(#name_str);
+                                    }
                                 }
                             } else {
                                 quote! {
-                                    self.#name.value.as_ref().map(|map| {
-                                        map.values().all(|vec| vec.iter().all(|p| p.can_concrete()))
-                                    }).unwrap_or(false)
+                                    if !self.#name.value.as_ref().map(|map| {
+                                        map.values().all(|vec| vec.iter().all(|p| p.can_concrete().is_empty()))
+                                    }).unwrap_or(false) {
+                                        failing_fields.push(#name_str);
+                                    }
                                 }
                             }
                         }
                         IndexMapValueKind::Primitive => {
                             quote! {
-                                self.#name.has_value()
+                                if !self.#name.has_value() {
+                                    failing_fields.push(#name_str);
+                                }
                             }
                         }
                     }
@@ -1049,42 +1084,56 @@ mod codegen {
                     if is_option_vec_type(&f.ty) {
                         // Option<Vec<nested>>
                         quote! {
-                            self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|vec| vec.iter().all(|p| p.can_concrete())).unwrap_or(true)
-                            }).unwrap_or(false)
+                            if !self.#name.value.as_ref().map(|opt| {
+                                opt.as_ref().map(|vec| vec.iter().all(|p| p.can_concrete().is_empty())).unwrap_or(true)
+                            }).unwrap_or(false) {
+                                failing_fields.push(#name_str);
+                            }
                         }
                     } else if is_option_box_type(&f.ty) {
                         // Option<Box<nested>> - stored as Option<PartialT>
                         quote! {
-                            self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
-                            }).unwrap_or(false)
+                            if !self.#name.value.as_ref().map(|opt| {
+                                opt.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(true)
+                            }).unwrap_or(false) {
+                                failing_fields.push(#name_str);
+                            }
                         }
                     } else if is_option_type(&f.ty) {
                         quote! {
-                            self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|p| p.can_concrete()).unwrap_or(true)
-                            }).unwrap_or(false)
+                            if !self.#name.value.as_ref().map(|opt| {
+                                opt.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(true)
+                            }).unwrap_or(false) {
+                                failing_fields.push(#name_str);
+                            }
                         }
                     } else if is_vec_type(&f.ty) {
                         quote! {
-                            self.#name.value.as_ref().map(|vec| {
-                                vec.iter().all(|p| p.can_concrete())
-                            }).unwrap_or(false)
+                            if !self.#name.value.as_ref().map(|vec| {
+                                vec.iter().all(|p| p.can_concrete().is_empty())
+                            }).unwrap_or(false) {
+                                failing_fields.push(#name_str);
+                            }
                         }
                     } else if is_box_type(&f.ty) {
                         // Box<nested> - the partial is the inner T, so same as regular nested
                         quote! {
-                            self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
+                            if !self.#name.value.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(false) {
+                                failing_fields.push(#name_str);
+                            }
                         }
                     } else {
                         quote! {
-                            self.#name.value.as_ref().map(|p| p.can_concrete()).unwrap_or(false)
+                            if !self.#name.value.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(false) {
+                                failing_fields.push(#name_str);
+                            }
                         }
                     }
                 } else {
                     quote! {
-                        self.#name.has_value()
+                        if !self.#name.has_value() {
+                            failing_fields.push(#name_str);
+                        }
                     }
                 }
             })
@@ -1097,9 +1146,16 @@ mod codegen {
                 let ty = &f.ty;
 
                 if is_skipped_field(f) {
-                    // Skipped fields use the value set in verify(), or Default::default() if not set
-                    quote! {
-                        #name: self.#name.unwrap_or_default()
+                    if is_skipped_field_available_in_verify(f) {
+                        // tpd_skip or tpd_skip(true): use the value set in verify(), or Default::default() if not set
+                        quote! {
+                            #name: self.#name.unwrap_or_default()
+                        }
+                    } else {
+                        // tpd_skip(false): field not in partial struct, always use Default::default()
+                        quote! {
+                            #name: <#ty as ::std::default::Default>::default()
+                        }
                     }
                 } else if is_absorb_remaining_field(f) {
                     // absorb_remaining fields extract their value or use empty map if None
@@ -1558,10 +1614,11 @@ mod codegen {
             })
             .collect();
 
-        // skipped fields are initialized with None (can be set in verify())
+        // skipped fields with tpd_skip(true) are initialized with None (can be set in verify())
+        // Fields with tpd_skip(false) are not included in the partial struct at all
         let skipped_fields: Vec<_> = fields
             .iter()
-            .filter(|f| is_skipped_field(f))
+            .filter(|f| is_skipped_field(f) && is_skipped_field_available_in_verify(f))
             .map(|f| {
                 let name = &f.ident;
                 quote! {
@@ -1626,17 +1683,12 @@ mod codegen {
             })
             .collect();
 
-        // Handle empty structs - when there are no fields, can_concrete should return true
-        let can_concrete_body = if can_concrete_fields.is_empty() {
-            quote! { true }
-        } else {
-            quote! { #(#can_concrete_fields)&&* }
-        };
-
         quote! {
             impl #impl_generics FromTomlTable<#struct_name> for #partial_name #ty_generics #where_clause {
-                fn can_concrete(&self) -> bool {
-                    #can_concrete_body
+                fn can_concrete(&self) -> Vec<&'static str> {
+                    let mut failing_fields: Vec<&'static str> = Vec::new();
+                    #(#can_concrete_checks)*
+                    failing_fields
                 }
 
                 fn to_concrete(self) -> Option<#struct_name #ty_generics> {
@@ -1689,7 +1741,7 @@ mod codegen {
                                 #verify_call;
                             #deny_unknown_call
 
-                            if partial.can_concrete()  {
+                            if partial.can_concrete().is_empty()  {
                                 TomlValue {
                                         value: Some(partial),
                                         state: TomlValueState::Ok {
@@ -1952,7 +2004,7 @@ mod codegen {
 
         quote! {
             impl #impl_generics FromTomlTable<#enum_name> for #partial_name #ty_generics #where_clause {
-                fn can_concrete(&self) -> bool {
+                fn can_concrete(&self) -> Vec<&'static str> {
                     match self {
                         #(#can_concrete_variants)*
                     }
@@ -2195,7 +2247,7 @@ mod codegen {
                                         &fields_to_ignore,
                                     ) {
                                         Some(partial) => {
-                                            if partial.can_concrete() {
+                                            if partial.can_concrete().is_empty() {
                                                 TomlValue {
                                                     value: Some(partial.to_concrete().expect("to_concrete failed but can_concrete passed. Bug")),
                                                     state: TomlValueState::Ok { span},
