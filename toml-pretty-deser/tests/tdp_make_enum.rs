@@ -186,3 +186,147 @@ fn test_tpd_make_enum_error_suggestions() {
         _ => panic!("Expected DeserFailure"),
     }
 }
+
+// ============================================================================
+// Tests for #[tpd_alias] on unit enum variants
+// ============================================================================
+
+/// Unit enum with aliases on variants
+#[tpd]
+#[derive(Debug, Clone, PartialEq)]
+enum Status {
+    #[tpd_alias("active", "enabled")]
+    Active,
+    #[tpd_alias("inactive", "disabled")]
+    Inactive,
+    #[tpd_alias("pending", "waiting")]
+    Pending,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct StatusConfig {
+    status: Status,
+    opt_status: Option<Status>,
+    statuses: Vec<Status>,
+}
+
+#[test]
+fn test_unit_enum_alias_primary_name() {
+    // Test that the primary variant name still works
+    let toml = "
+        status = 'Active'
+        opt_status = 'Inactive'
+        statuses = ['Active', 'Inactive', 'Pending']
+    ";
+
+    let result: Result<StatusConfig, _> = deserialize::<PartialStatusConfig, StatusConfig>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+
+    let config = result.unwrap();
+    assert_eq!(config.status, Status::Active);
+    assert_eq!(config.opt_status, Some(Status::Inactive));
+    assert_eq!(
+        config.statuses,
+        vec![Status::Active, Status::Inactive, Status::Pending]
+    );
+}
+
+#[test]
+fn test_unit_enum_alias_with_aliases() {
+    // Test that aliases work
+    let toml = "
+        status = 'active'
+        opt_status = 'disabled'
+        statuses = ['enabled', 'inactive', 'waiting']
+    ";
+
+    let result: Result<StatusConfig, _> = deserialize::<PartialStatusConfig, StatusConfig>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+
+    let config = result.unwrap();
+    assert_eq!(config.status, Status::Active);
+    assert_eq!(config.opt_status, Some(Status::Inactive));
+    assert_eq!(
+        config.statuses,
+        vec![Status::Active, Status::Inactive, Status::Pending]
+    );
+}
+
+#[test]
+fn test_unit_enum_alias_mixed() {
+    // Test mixing primary names and aliases
+    let toml = "
+        status = 'Active'
+        opt_status = 'disabled'
+        statuses = ['Active', 'inactive', 'Pending']
+    ";
+
+    let result: Result<StatusConfig, _> = deserialize::<PartialStatusConfig, StatusConfig>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+
+    let config = result.unwrap();
+    assert_eq!(config.status, Status::Active);
+    assert_eq!(config.opt_status, Some(Status::Inactive));
+    assert_eq!(
+        config.statuses,
+        vec![Status::Active, Status::Inactive, Status::Pending]
+    );
+}
+
+#[test]
+fn test_unit_enum_alias_invalid_still_errors() {
+    // Test that invalid values still produce errors
+    let toml = "
+        status = 'unknown'
+        statuses = ['Active']
+    ";
+
+    let result: Result<StatusConfig, _> = deserialize::<PartialStatusConfig, StatusConfig>(toml);
+    dbg!(&result);
+
+    match result {
+        Err(DeserError::DeserFailure(errors, _)) => {
+            assert!(errors.iter().any(|e| {
+                e.inner
+                    .spans
+                    .iter()
+                    .any(|s| s.msg.contains("Invalid enum variant"))
+            }));
+        }
+        _ => panic!("Expected DeserFailure due to invalid enum variant"),
+    }
+}
+
+#[test]
+fn test_unit_enum_alias_suggestions_include_aliases() {
+    // Test that error suggestions include aliases
+    let toml = "
+        status = 'activ'
+        statuses = ['Active']
+    ";
+
+    let result: Result<StatusConfig, _> = deserialize::<PartialStatusConfig, StatusConfig>(toml);
+    dbg!(&result);
+
+    match result {
+        Err(DeserError::DeserFailure(errors, _)) => {
+            // Should suggest "Active" or "active" since "activ" is close
+            let has_suggestion = errors.iter().any(|e| {
+                e.inner
+                    .help
+                    .as_ref()
+                    .map(|h| h.contains("Active") || h.contains("active"))
+                    .unwrap_or(false)
+            });
+            assert!(
+                has_suggestion,
+                "Expected error to suggest 'Active' or 'active'"
+            );
+        }
+        _ => panic!("Expected DeserFailure"),
+    }
+}

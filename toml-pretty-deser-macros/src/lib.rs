@@ -201,6 +201,15 @@ fn clean_struct_input(input: &mut DeriveInput) {
     }
 }
 
+/// Clean attributes from enum variants, removing our custom attributes
+fn clean_enum_input(input: &mut DeriveInput) {
+    if let Data::Enum(ref mut data) = input.data {
+        for variant in &mut data.variants {
+            variant.attrs.retain(|attr| !attr.path().is_ident("tpd_alias"));
+        }
+    }
+}
+
 /// Module for type analysis utilities
 mod type_analysis {
     use super::*;
@@ -259,6 +268,45 @@ mod type_analysis {
         let mut aliases = Vec::new();
 
         for attr in &field.attrs {
+            if attr.path().is_ident("tpd_alias") {
+                let result: Result<Vec<String>, _> =
+                    attr.parse_args_with(|input: syn::parse::ParseStream| {
+                        let mut names = Vec::new();
+                        loop {
+                            if input.is_empty() {
+                                break;
+                            }
+
+                            if input.peek(syn::LitStr) {
+                                let lit: syn::LitStr = input.parse()?;
+                                names.push(lit.value());
+                            } else {
+                                let ident: syn::Ident = input.parse()?;
+                                names.push(ident.to_string());
+                            }
+
+                            if !input.is_empty() {
+                                input.parse::<syn::Token![,]>()?;
+                            }
+                        }
+                        Ok(names)
+                    });
+
+                match result {
+                    Ok(found_aliases) => aliases.extend(found_aliases),
+                    Err(e) => panic!("{}", e),
+                }
+            }
+        }
+
+        aliases
+    }
+
+    /// Extract aliases from an enum variant's #[tpd_alias(...)] attribute
+    pub fn extract_variant_aliases(variant: &syn::Variant) -> Vec<String> {
+        let mut aliases = Vec::new();
+
+        for attr in &variant.attrs {
             if attr.path().is_ident("tpd_alias") {
                 let result: Result<Vec<String>, _> =
                     attr.parse_args_with(|input: syn::parse::ParseStream| {
@@ -717,11 +765,30 @@ mod codegen {
     ) -> TokenStream2 {
         let variant_names: Vec<_> = variants.iter().map(|v| v.ident.to_string()).collect();
 
+        // Collect all names including aliases for suggestion purposes
+        let all_names_with_aliases: Vec<_> = variants
+            .iter()
+            .flat_map(|v| {
+                let primary = v.ident.to_string();
+                let aliases = extract_variant_aliases(v);
+                std::iter::once(primary).chain(aliases)
+            })
+            .collect();
+
+        // Generate match arms for each variant, including aliases
         let from_str_arms = variants.iter().map(|v| {
             let name = &v.ident;
             let name_str = name.to_string();
-            quote! {
-                #name_str => ::std::option::Option::Some(#enum_name::#name)
+            let aliases = extract_variant_aliases(v);
+
+            if aliases.is_empty() {
+                quote! {
+                    #name_str => ::std::option::Option::Some(#enum_name::#name)
+                }
+            } else {
+                quote! {
+                    #name_str #(| #aliases)* => ::std::option::Option::Some(#enum_name::#name)
+                }
             }
         });
 
@@ -729,6 +796,10 @@ mod codegen {
             impl #impl_generics ::toml_pretty_deser::StringNamedEnum for #enum_name #ty_generics #where_clause {
                 fn all_variant_names() -> &'static [&'static str] {
                     &[#(#variant_names),*]
+                }
+
+                fn all_variant_names_with_aliases() -> &'static [&'static str] {
+                    &[#(#all_names_with_aliases),*]
                 }
 
                 fn from_str(s: &str) -> ::std::option::Option<Self> {
@@ -1486,6 +1557,28 @@ mod codegen {
 
         let variant_names: Vec<_> = variants.iter().map(|v| v.ident.to_string()).collect();
 
+        // Collect all names including aliases for suggestion purposes
+        let all_names_with_aliases: Vec<_> = variants
+            .iter()
+            .flat_map(|v| {
+                let primary = v.ident.to_string();
+                let aliases = extract_variant_aliases(v);
+                std::iter::once(primary).chain(aliases)
+            })
+            .collect();
+
+        // Generate arms for variant_aliases function
+        let variant_aliases_arms: Vec<_> = variants
+            .iter()
+            .map(|v| {
+                let variant_name_str = v.ident.to_string();
+                let aliases = extract_variant_aliases(v);
+                quote! {
+                    #variant_name_str => &[#(#aliases),*]
+                }
+            })
+            .collect();
+
         let deserialize_variant_arms: Vec<_> = variants
             .iter()
             .map(|v| {
@@ -1525,6 +1618,17 @@ mod codegen {
 
                 fn all_variant_names() -> &'static [&'static str] {
                     &[#(#variant_names),*]
+                }
+
+                fn all_variant_names_with_aliases() -> &'static [&'static str] {
+                    &[#(#all_names_with_aliases),*]
+                }
+
+                fn variant_aliases(variant_name: &str) -> &'static [&'static str] {
+                    match variant_name {
+                        #(#variant_aliases_arms,)*
+                        _ => &[],
+                    }
                 }
 
                 fn deserialize_variant(
@@ -1624,6 +1728,7 @@ mod codegen {
                     col: &TomlCollector
             ) -> TomlValue<Self> {
                     let variant_names = Self::all_variant_names();
+                    let all_names_with_aliases = Self::all_variant_names_with_aliases();
                     match item.as_table_like_plus() {
                     Some(table) => {
                         let mut helper = TomlHelper::from_item(item, col);
@@ -1639,10 +1744,27 @@ mod codegen {
                                 let tag_str = tag_result.value.as_ref().expect("No avlue on TomlValueState::Ok. Bug");
                                 let mut matched_variant: Option<&str> = None;
 
+                                // First try to match against primary variant names
                                 for variant_name in variant_names {
                                     if col.match_mode.matches(variant_name, tag_str) {
                                         matched_variant = Some(variant_name);
                                         break;
+                                    }
+                                }
+
+                                // If no match, try to match against aliases
+                                if matched_variant.is_none() {
+                                    for variant_name in variant_names {
+                                        let aliases = Self::variant_aliases(variant_name);
+                                        for alias in aliases {
+                                            if col.match_mode.matches(alias, tag_str) {
+                                                matched_variant = Some(variant_name);
+                                                break;
+                                            }
+                                        }
+                                        if matched_variant.is_some() {
+                                            break;
+                                        }
                                     }
                                 }
 
@@ -1672,7 +1794,7 @@ mod codegen {
                                         state: TomlValueState::ValidationFailed {
                                             span,
                                             message: "Unknown enum variant".to_string(),
-                                            help: Some(suggest_alternatives(tag_str, variant_names)),
+                                            help: Some(suggest_alternatives(tag_str, all_names_with_aliases)),
                                         },
                                     }
                                 }
@@ -1693,7 +1815,7 @@ mod codegen {
                                 state: TomlValueState::ValidationFailed {
                                     span: wrong_span.clone(),
                                     message: format!("Wrong type: {}, expected string", found),
-                                    help: Some(suggest_alternatives("", variant_names)),
+                                    help: Some(suggest_alternatives("", all_names_with_aliases)),
                                 },
                             },
                             TomlValueState::Missing { .. } => TomlValue {
@@ -1701,7 +1823,7 @@ mod codegen {
                                 state: TomlValueState::ValidationFailed {
                                     span,
                                     message: format!("Missing required tag field: {}", tag_key),
-                                    help: Some(suggest_alternatives("", variant_names)),
+                                    help: Some(suggest_alternatives("", all_names_with_aliases)),
                                 },
                             },
                             _ => TomlValue {
@@ -1767,6 +1889,7 @@ mod codegen {
                     col: &TomlCollector
             ) -> TomlValue<Self> {
                     let variant_names = #partial_name::all_variant_names();
+                    let all_names_with_aliases = #partial_name::all_variant_names_with_aliases();
                     match item.as_table_like_plus() {
                     Some(table) => {
                         let mut helper = TomlHelper::from_item(item, col);
@@ -1782,10 +1905,27 @@ mod codegen {
                                 let tag_str = tag_result.value.as_ref().expect("No value on TomlValueState::Ok. Bug");
                                 let mut matched_variant: Option<&str> = None;
 
+                                // First try to match against primary variant names
                                 for variant_name in variant_names {
                                     if col.match_mode.matches(variant_name, tag_str) {
                                         matched_variant = Some(variant_name);
                                         break;
+                                    }
+                                }
+
+                                // If no match, try to match against aliases
+                                if matched_variant.is_none() {
+                                    for variant_name in variant_names {
+                                        let aliases = #partial_name::variant_aliases(variant_name);
+                                        for alias in aliases {
+                                            if col.match_mode.matches(alias, tag_str) {
+                                                matched_variant = Some(variant_name);
+                                                break;
+                                            }
+                                        }
+                                        if matched_variant.is_some() {
+                                            break;
+                                        }
                                     }
                                 }
 
@@ -1828,7 +1968,7 @@ mod codegen {
                                         state: TomlValueState::ValidationFailed {
                                             span,
                                             message: "Unknown enum variant".to_string(),
-                                            help: Some(suggest_alternatives(tag_str, variant_names)),
+                                            help: Some(suggest_alternatives(tag_str, all_names_with_aliases)),
                                         },
                                     }
                                 }
@@ -1849,7 +1989,7 @@ mod codegen {
                                 state: TomlValueState::ValidationFailed {
                                     span: wrong_span.clone(),
                                     message: format!("Wrong type: {}, expected string", found),
-                                    help: Some(suggest_alternatives("", variant_names)),
+                                    help: Some(suggest_alternatives("", all_names_with_aliases)),
                                 },
                             },
                             TomlValueState::Missing { .. } => TomlValue {
@@ -1857,7 +1997,7 @@ mod codegen {
                                 state: TomlValueState::ValidationFailed {
                                     span,
                                     message: format!("Missing required tag field: {}", tag_key),
-                                    help: Some(suggest_alternatives("", variant_names)),
+                                    help: Some(suggest_alternatives("", all_names_with_aliases)),
                                 },
                             },
                             _ => TomlValue {
@@ -1888,6 +2028,9 @@ mod handlers {
     use crate::type_analysis::*;
 
     pub fn handle_unit_enum(input: DeriveInput) -> TokenStream {
+        let mut cleaned_input = input.clone();
+        clean_enum_input(&mut cleaned_input);
+
         let enum_name = &input.ident;
         let generics = &input.generics;
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -1918,7 +2061,7 @@ mod handlers {
             gen_from_toml_item_for_unit_enum(enum_name, &impl_generics, &ty_generics, where_clause);
 
         let expanded = quote! {
-            #input
+            #cleaned_input
 
             #string_named_enum_impl
             #from_toml_item_impl
@@ -2041,6 +2184,9 @@ mod handlers {
         tag_key: String,
         aliases: Vec<String>,
     ) -> TokenStream {
+        let mut cleaned_input = input.clone();
+        clean_enum_input(&mut cleaned_input);
+
         let enum_name = &input.ident;
         let partial_name = format_ident!("Partial{}", enum_name);
         let vis = &input.vis;
@@ -2083,7 +2229,7 @@ mod handlers {
         );
 
         let expanded = quote_spanned! { enum_name.span() =>
-            #input
+            #cleaned_input
 
             #[derive(Debug)]
             #generics

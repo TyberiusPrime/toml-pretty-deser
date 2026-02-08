@@ -282,7 +282,14 @@ pub type WithError = (String, Option<String>);
 ///
 /// Implemented by [`toml_pretty_deser_macros::tpd`]
 pub trait StringNamedEnum: Sized + Clone {
+    /// Returns the primary variant names (without aliases)
     fn all_variant_names() -> &'static [&'static str];
+    /// Returns all variant names including aliases (for error suggestions)
+    fn all_variant_names_with_aliases() -> &'static [&'static str] {
+        // Default implementation returns just the primary names
+        // The macro will override this when aliases are present
+        Self::all_variant_names()
+    }
     fn from_str(s: &str) -> Option<Self>;
 }
 
@@ -294,8 +301,15 @@ pub trait TaggedEnumMeta: Sized {
     const TAG_KEY: &'static str;
     /// Aliases for the tag key (e.g., if "type" is an alias for "kind")
     const TAG_ALIASES: &'static [&'static str];
-    /// All variant names for error messages and matching
+    /// All primary variant names for matching
     fn all_variant_names() -> &'static [&'static str];
+    /// All variant names including aliases (for error suggestions)
+    fn all_variant_names_with_aliases() -> &'static [&'static str] {
+        // Default implementation returns just the primary names
+        Self::all_variant_names()
+    }
+    /// Get aliases for a specific variant (returns empty slice if no aliases)
+    fn variant_aliases(variant_name: &str) -> &'static [&'static str];
     /// Deserialize a specific variant by name from a TOML item
     fn deserialize_variant(
         variant_name: &str,
@@ -519,7 +533,7 @@ fn format_quoted_list(items: &[&str]) -> String {
 #[doc(hidden)]
 #[must_use]
 pub fn suggest_enum_alternatives<E: StringNamedEnum>(current: &str) -> String {
-    suggest_alternatives(current, E::all_variant_names())
+    suggest_alternatives(current, E::all_variant_names_with_aliases())
 }
 
 /// The failure states of deserialization

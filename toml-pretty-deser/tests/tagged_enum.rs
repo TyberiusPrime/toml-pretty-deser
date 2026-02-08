@@ -623,12 +623,10 @@ fn test_module_qualified_tagged_enum_type_a() {
         x = 42
         y = 100
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterWithModuleQualifiedEnum, OuterWithModuleQualifiedEnum>(
-            toml,
-            FieldMatchMode::Exact,
-            VecMode::Strict,
-        );
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialOuterWithModuleQualifiedEnum,
+        OuterWithModuleQualifiedEnum,
+    >(toml, FieldMatchMode::Exact, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -652,12 +650,10 @@ fn test_module_qualified_tagged_enum_type_b() {
         p = 'hello'
         q = 200
     ";
-    let result: Result<_, _> =
-        deserialize_with_mode::<PartialOuterWithModuleQualifiedEnum, OuterWithModuleQualifiedEnum>(
-            toml,
-            FieldMatchMode::Exact,
-            VecMode::Strict,
-        );
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialOuterWithModuleQualifiedEnum,
+        OuterWithModuleQualifiedEnum,
+    >(toml, FieldMatchMode::Exact, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
@@ -670,5 +666,192 @@ fn test_module_qualified_tagged_enum_type_b() {
                 assert_eq!(inner.q, 200);
             }
         }
+    }
+}
+
+// ============================================================================
+// Tests for #[tpd_alias] on tagged enum variants
+// ============================================================================
+
+#[tpd]
+#[derive(Debug, Clone)]
+struct ConfigA {
+    value_a: i32,
+}
+
+#[tpd]
+#[derive(Debug, Clone)]
+struct ConfigB {
+    value_b: String,
+}
+
+/// Tagged enum with aliases on variants
+#[tpd(tag = "type")]
+#[derive(Debug)]
+enum ConfigType {
+    #[tpd_alias("config_a", "typeA")]
+    ConfigA(ConfigA),
+    #[tpd_alias("config_b", "typeB")]
+    ConfigB(ConfigB),
+}
+
+#[tpd]
+#[derive(Debug)]
+struct OuterConfigType {
+    #[tpd_nested]
+    config: ConfigType,
+}
+
+#[test]
+fn test_tagged_enum_alias_primary_name() {
+    // Test that primary variant name still works
+    let toml = "
+    [config]
+        type = 'ConfigA'
+        value_a = 42
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterConfigType, OuterConfigType>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.config {
+            ConfigType::ConfigA(inner) => {
+                assert_eq!(inner.value_a, 42);
+            }
+            ConfigType::ConfigB(_) => {
+                panic!("expected ConfigA variant");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_alias_with_alias() {
+    // Test that alias works
+    let toml = "
+    [config]
+        type = 'config_a'
+        value_a = 100
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterConfigType, OuterConfigType>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.config {
+            ConfigType::ConfigA(inner) => {
+                assert_eq!(inner.value_a, 100);
+            }
+            ConfigType::ConfigB(_) => {
+                panic!("expected ConfigA variant");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_alias_second_alias() {
+    // Test that second alias works
+    let toml = "
+    [config]
+        type = 'typeB'
+        value_b = 'hello world'
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterConfigType, OuterConfigType>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.config {
+            ConfigType::ConfigA(_) => {
+                panic!("expected ConfigB variant");
+            }
+            ConfigType::ConfigB(inner) => {
+                assert_eq!(inner.value_b, "hello world");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_alias_unknown_still_errors() {
+    // Test that unknown variant still produces error with suggestions including aliases
+    let toml = "
+    [config]
+        type = 'UnknownType'
+        value_a = 1
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterConfigType, OuterConfigType>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Unknown enum variant")),
+            "Expected Unknown enum variant error"
+        );
+    } else {
+        panic!("expected error for unknown variant");
+    }
+}
+
+#[tpd]
+#[derive(Debug)]
+struct OuterManyConfigType {
+    #[tpd_nested]
+    configs: Vec<ConfigType>,
+}
+
+#[test]
+fn test_tagged_enum_alias_in_vec_mixed() {
+    // Test aliases work in Vec context with mixed primary names and aliases
+    let toml = "
+    [[configs]]
+        type = 'ConfigA'
+        value_a = 1
+
+    [[configs]]
+        type = 'config_b'
+        value_b = 'alias used'
+
+    [[configs]]
+        type = 'typeA'
+        value_a = 3
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialOuterManyConfigType,
+        OuterManyConfigType,
+    >(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.configs.len(), 3);
+        assert!(matches!(
+            &output.configs[0],
+            ConfigType::ConfigA(ConfigA { value_a: 1 })
+        ));
+        assert!(matches!(
+            &output.configs[1],
+            ConfigType::ConfigB(ConfigB { value_b }) if value_b == "alias used"
+        ));
+        assert!(matches!(
+            &output.configs[2],
+            ConfigType::ConfigA(ConfigA { value_a: 3 })
+        ));
     }
 }
