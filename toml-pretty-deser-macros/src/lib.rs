@@ -2092,7 +2092,7 @@ mod codegen {
                         fields_to_ignore.extend(tag_aliases.iter().copied());
                         let span: std::ops::Range<usize> = table.span().unwrap_or(0..0);
                         match &tag_result.state {
-                            TomlValueState::Ok { .. } => {
+                            TomlValueState::Ok { span: tag_span, } => {
                                 let tag_str = tag_result.value.as_ref().expect("No avlue on TomlValueState::Ok. Bug");
                                 let mut matched_variant: Option<&str> = None;
 
@@ -2129,12 +2129,12 @@ mod codegen {
                                     ) {
                                         Some(partial) => TomlValue {
                                             value: Some(partial),
-                                            state: TomlValueState::Ok { span},
+                                            state: TomlValueState::Ok { span: tag_span.clone()},
                                         },
                                         None => TomlValue {
                                             value: None,
                                             state: TomlValueState::ValidationFailed {
-                                                span,
+                                                span: tag_span.clone(),
                                                 message: "Failed to deserialize variant".to_string(),
                                                 help: None,
                                             },
@@ -2144,7 +2144,7 @@ mod codegen {
                                     TomlValue {
                                         value: None,
                                         state: TomlValueState::ValidationFailed {
-                                            span,
+                                            span: tag_span.clone(),
                                             message: "Unknown enum variant".to_string(),
                                             help: Some(suggest_alternatives(tag_str, all_names_with_aliases)),
                                         },

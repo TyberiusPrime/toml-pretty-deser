@@ -358,6 +358,7 @@ fn test_nested_default_in_verify_explicit_overrides_conditional() {
 
 #[tpd(partial = false)]
 #[derive(Debug)]
+#[allow(dead_code)]
 struct AppConfigWithForgottenDefault {
     name: String,
     #[tpd_nested]

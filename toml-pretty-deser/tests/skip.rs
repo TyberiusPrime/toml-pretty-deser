@@ -41,7 +41,7 @@ struct SkipSetInVerify {
 }
 
 impl VerifyFromToml for PartialSkipSetInVerify {
-    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self
+    fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized,
     {
@@ -95,7 +95,7 @@ struct SkipTrueExplicit {
 }
 
 impl VerifyFromToml for PartialSkipTrueExplicit {
-    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self
+    fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized,
     {
