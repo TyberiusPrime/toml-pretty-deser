@@ -1476,10 +1476,17 @@ mod codegen {
             })
             .collect();
 
+        // Handle empty structs - when there are no fields, can_concrete should return true
+        let can_concrete_body = if can_concrete_fields.is_empty() {
+            quote! { true }
+        } else {
+            quote! { #(#can_concrete_fields)&&* }
+        };
+
         quote! {
             impl #impl_generics FromTomlTable<#struct_name> for #partial_name #ty_generics #where_clause {
                 fn can_concrete(&self) -> bool {
-                    #(#can_concrete_fields)&&*
+                    #can_concrete_body
                 }
 
                 fn to_concrete(self) -> Option<#struct_name #ty_generics> {

@@ -597,7 +597,7 @@ pub trait FromTomlTable<T> {
 pub trait VerifyFromToml {
     #[must_use]
     #[allow(unused_mut)]
-    fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized,
     {

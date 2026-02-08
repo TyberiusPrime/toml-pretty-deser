@@ -855,3 +855,119 @@ fn test_tagged_enum_alias_in_vec_mixed() {
         ));
     }
 }
+
+// ============================================================================
+// Tests for empty struct variants in tagged enums
+// ============================================================================
+
+/// Empty struct - has no fields
+#[tpd]
+#[derive(Debug, Clone, PartialEq)]
+struct EmptyInner {}
+
+/// Non-empty struct for contrast
+#[tpd]
+#[derive(Debug, Clone)]
+struct NonEmptyInner {
+    value: i32,
+}
+
+/// Tagged enum with an empty struct variant
+#[tpd(tag = "kind")]
+#[derive(Debug)]
+enum MaybeEmpty {
+    Empty(EmptyInner),
+    NonEmpty(NonEmptyInner),
+}
+
+#[tpd]
+#[derive(Debug)]
+struct OuterMaybeEmpty {
+    #[tpd_nested]
+    item: MaybeEmpty,
+}
+
+#[test]
+fn test_tagged_enum_empty_struct_variant() {
+    let toml = "
+    [item]
+        kind = 'Empty'
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterMaybeEmpty, OuterMaybeEmpty>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.item {
+            MaybeEmpty::Empty(inner) => {
+                assert_eq!(inner, EmptyInner {});
+            }
+            MaybeEmpty::NonEmpty(_) => {
+                panic!("expected Empty variant");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_non_empty_struct_variant() {
+    let toml = "
+    [item]
+        kind = 'NonEmpty'
+        value = 42
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterMaybeEmpty, OuterMaybeEmpty>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.item {
+            MaybeEmpty::Empty(_) => {
+                panic!("expected NonEmpty variant");
+            }
+            MaybeEmpty::NonEmpty(inner) => {
+                assert_eq!(inner.value, 42);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_empty_struct_in_vec() {
+    let toml = "
+    [[items]]
+        kind = 'Empty'
+
+    [[items]]
+        kind = 'NonEmpty'
+        value = 100
+    ";
+
+    #[tpd]
+    #[derive(Debug)]
+    struct OuterManyMaybeEmpty {
+        #[tpd_nested]
+        items: Vec<MaybeEmpty>,
+    }
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialOuterManyMaybeEmpty,
+        OuterManyMaybeEmpty,
+    >(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.items.len(), 2);
+        assert!(matches!(&output.items[0], MaybeEmpty::Empty(_)));
+        assert!(matches!(
+            &output.items[1],
+            MaybeEmpty::NonEmpty(NonEmptyInner { value: 100 })
+        ));
+    }
+}

@@ -1,0 +1,1 @@
+error: #[tpd_absorb_remaining] requires field type IndexMap<String, T> where T: FromTomlItem
