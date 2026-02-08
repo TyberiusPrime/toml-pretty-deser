@@ -1265,6 +1265,7 @@ macro_rules! impl_from_toml_item_integer {
 
 impl_from_toml_item_integer!(i8, "i8");
 impl_from_toml_item_integer!(u8, "u8");
+impl_from_toml_item_integer!(u16, "u16");
 impl_from_toml_item_integer!(i16, "i16");
 impl_from_toml_item_integer!(i32, "i32");
 impl_from_toml_item_integer!(u32, "u32");
