@@ -291,11 +291,9 @@ fn test_either_one_missing_variant_field() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
     } else {
         panic!("expected missing required key for variant field");
     }
@@ -318,11 +316,9 @@ fn test_either_one_unknown_key_in_variant() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Unknown key.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Unknown key."));
     } else {
         panic!("expected unknown key error inside variant");
     }
@@ -353,16 +349,12 @@ fn test_either_one_fields_mismatch_variant() {
                 .count()
                 == 2
         );
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'.")
-        );
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'n'."));
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'o'."));
     } else {
         panic!("expected errors due to field/variant mismatch");
     }
@@ -410,11 +402,9 @@ fn test_either_one_missing_choice_field() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'.")
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'choice'."));
     } else {
         panic!("expected missing required key.");
     }
@@ -436,11 +426,9 @@ fn test_either_one_wrong_field_type_in_variant() {
     );
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
     } else {
         panic!("expected wrong type error in variant field");
     }
@@ -1002,5 +990,58 @@ fn test_tagged_enum_empty_struct_in_vec() {
             &output.items[1],
             MaybeEmpty::NonEmpty(NonEmptyInner { value: 100 })
         ));
+    }
+}
+
+#[test]
+fn test_missing_variant_field_shows_variant_context() {
+    // When a key is missing inside a tagged enum variant, the error should include
+    // a secondary span pointing to the tag value to indicate which variant is involved.
+    let toml = "
+    [choice]
+        kind = 'KindA'
+        n = -5
+        # o is missing
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterEither, OuterEither>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        // Find the missing key error
+        let missing_key_error = errors
+            .iter()
+            .find(|e| e.inner.spans[0].msg.contains("Missing required key: 'o'"))
+            .expect("Should have a missing key error for 'o'");
+
+        // The error should have at least 2 spans:
+        // 1. The primary span pointing to where the key should be (or the table)
+        // 2. A secondary span pointing to the tag value with context like "Involving this variant"
+        assert!(
+            missing_key_error.inner.spans.len() >= 2,
+            "Missing key error should have at least 2 spans (primary + variant context), got: {:?}",
+            missing_key_error.inner.spans
+        );
+
+        // Check that one of the spans mentions the variant context
+        let has_variant_context = missing_key_error
+            .inner
+            .spans
+            .iter()
+            .any(|span| span.msg.contains("variant") || span.msg.contains("Involving"));
+        assert!(
+            has_variant_context,
+            "Error should include a span mentioning the variant context: {:?}",
+            missing_key_error.inner.spans
+        );
+
+        // Print the pretty error for visual verification
+        let pretty = missing_key_error.pretty("test.toml");
+        println!("Pretty error:\n{}", pretty);
+    } else {
+        panic!("expected missing required key for variant field");
     }
 }

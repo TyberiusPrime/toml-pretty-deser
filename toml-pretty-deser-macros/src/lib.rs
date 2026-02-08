@@ -889,7 +889,7 @@ mod codegen {
                                 "Invalid enum variant.".to_string(),
                                 ::std::option::Option::Some(help),
                             );
-                            res.register_error(&col.errors);
+                            res.register_error_with_collector(col);
                             res
                         }
                         other => ::toml_pretty_deser::TomlValue::new_wrong_type(other, parent_span, "string"),
@@ -1495,14 +1495,14 @@ mod codegen {
                                             Ok(converted) => TomlValue::new_ok(Some(Box::new(converted)), span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
-                                                failed.register_error(&helper.col.errors);
+                                                failed.register_error_with_collector(&helper.col);
                                                 failed
                                             }
                                         }
                                     }
                                     _ => {
                                         // Wrong type or other error - forward it
-                                        raw.register_error(&helper.col.errors);
+                                        raw.register_error_with_collector(&helper.col);
                                         TomlValue {
                                             value: None,
                                             state: raw.state,
@@ -1546,14 +1546,14 @@ mod codegen {
                                             Ok(converted) => TomlValue::new_ok(Some(converted), span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
-                                                failed.register_error(&helper.col.errors);
+                                                failed.register_error_with_collector(&helper.col);
                                                 failed
                                             }
                                         }
                                     }
                                     _ => {
                                         // Wrong type or other error - forward it
-                                        raw.register_error(&helper.col.errors);
+                                        raw.register_error_with_collector(&helper.col);
                                         TomlValue {
                                             value: None,
                                             state: raw.state,
@@ -1611,14 +1611,14 @@ mod codegen {
                                             Ok(converted) => TomlValue::new_ok(#wrap_converted, span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
-                                                failed.register_error(&helper.col.errors);
+                                                failed.register_error_with_collector(&helper.col);
                                                 failed
                                             }
                                         }
                                     }
                                     _ => {
                                         // Wrong type or other error - forward it
-                                        raw.register_error(&helper.col.errors);
+                                        raw.register_error_with_collector(&helper.col);
                                         TomlValue {
                                             value: None,
                                             state: raw.state,
@@ -1638,14 +1638,14 @@ mod codegen {
                                             Ok(converted) => TomlValue::new_ok(#wrap_converted, span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
-                                                failed.register_error(&helper.col.errors);
+                                                failed.register_error_with_collector(&helper.col);
                                                 failed
                                             }
                                         }
                                     }
                                     _ => {
                                         // Missing, wrong type, or other error - forward it
-                                        raw.register_error(&helper.col.errors);
+                                        raw.register_error_with_collector(&helper.col);
                                         TomlValue {
                                             value: None,
                                             state: raw.state,
@@ -2162,7 +2162,9 @@ mod codegen {
                                 }
 
                                 if let Some(variant_name) = matched_variant {
-                                    match Self::deserialize_variant(
+                                    // Push context about which variant we're deserializing
+                                    let ctx_count = col.push_context(tag_span.clone(), &format!("Involving variant '{}'", variant_name));
+                                    let result = match Self::deserialize_variant(
                                         variant_name,
                                         item,
                                         col,
@@ -2180,7 +2182,9 @@ mod codegen {
                                                 help: None,
                                             },
                                         },
-                                    }
+                                    };
+                                    col.pop_context_to(ctx_count);
+                                    result
                                 } else {
                                     TomlValue {
                                         value: None,
@@ -2294,7 +2298,7 @@ mod codegen {
                         fields_to_ignore.extend(tag_aliases.iter().copied());
                         let span: std::ops::Range<usize> = table.span().unwrap_or(0..0);
                         match &tag_result.state {
-                            TomlValueState::Ok { .. } => {
+                            TomlValueState::Ok { span: tag_span } => {
                                 let tag_str = tag_result.value.as_ref().expect("No value on TomlValueState::Ok. Bug");
                                 let mut matched_variant: Option<&str> = None;
 
@@ -2323,7 +2327,9 @@ mod codegen {
                                 }
 
                                 if let Some(variant_name) = matched_variant {
-                                    match #partial_name::deserialize_variant(
+                                    // Push context about which variant we're deserializing
+                                    let ctx_count = col.push_context(tag_span.clone(), &format!("Involving variant '{}'", variant_name));
+                                    let result = match #partial_name::deserialize_variant(
                                         variant_name,
                                         item,
                                         col,
@@ -2354,7 +2360,9 @@ mod codegen {
                                                 help: None,
                                             },
                                         },
-                                    }
+                                    };
+                                    col.pop_context_to(ctx_count);
+                                    result
                                 } else {
                                     TomlValue {
                                         value: None,

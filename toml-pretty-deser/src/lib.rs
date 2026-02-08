@@ -261,11 +261,11 @@ pub use tablelike::{AsTableLikePlus, TableLikePlus};
 pub use toml_pretty_deser_macros::tpd;
 
 /// Error type for `#[tpd_with]` converter functions.
-/// 
+///
 /// The tuple contains:
 /// - `String`: The error message to display
 /// - `Option<String>`: Optional help text with suggestions
-/// 
+///
 /// # Example
 /// ```ignore
 /// fn parse_positive(s: &str) -> Result<PositiveInt, WithError> {
@@ -355,7 +355,8 @@ fn normalize_to_no_case(s: &str) -> String {
         .filter_map(|c| match c {
             'A'..='Z' => Some(c.to_lowercase().next().expect("can't fail")),
             'a'..='z' | '0'..='9' => Some(c),
-            _ => None,
+            '-' | '_' => None,
+            x => Some(x),
         })
         .collect()
 }
@@ -453,6 +454,7 @@ where
         errors: errors.clone(),
         match_mode,
         vec_mode,
+        context_spans: Rc::new(RefCell::new(Vec::new())),
     };
     let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col);
 
@@ -860,6 +862,35 @@ pub struct TomlCollector {
     pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
     pub match_mode: FieldMatchMode,
     pub vec_mode: VecMode,
+    /// Context spans that will be added to errors (e.g., "Involving this variant")
+    /// These are stored as (span, message) pairs and are added to all errors registered
+    /// while the context is active.
+    pub context_spans: Rc<RefCell<Vec<SpannedMessage>>>,
+}
+
+impl TomlCollector {
+    /// Add a context span that will be appended to all errors registered while this context is active.
+    /// Returns the number of context spans before this one was added (for use with `pop_context_to`).
+    pub fn push_context(&self, span: Range<usize>, msg: &str) -> usize {
+        let mut contexts = self.context_spans.borrow_mut();
+        let count = contexts.len();
+        contexts.push(SpannedMessage {
+            span,
+            msg: msg.to_string(),
+        });
+        count
+    }
+
+    /// Remove context spans back to a specific count (returned by `push_context`).
+    pub fn pop_context_to(&self, count: usize) {
+        let mut contexts = self.context_spans.borrow_mut();
+        contexts.truncate(count);
+    }
+
+    /// Get a copy of the current context spans.
+    pub fn get_context_spans(&self) -> Vec<SpannedMessage> {
+        self.context_spans.borrow().clone()
+    }
 }
 
 /// TOML 'table-like' access wrapper that e.g. verifies that no unexpected fields occur in your TOML
@@ -991,7 +1022,7 @@ impl<'a> TomlHelper<'a> {
                     },
                 };
                 if missing_is_error {
-                    res.register_error(&self.col.errors);
+                    res.register_error_with_collector(&self.col);
                 }
                 res
             }
@@ -999,7 +1030,7 @@ impl<'a> TomlHelper<'a> {
                 let (matched_key, item) = found_keys.first().expect("can't fail");
                 let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, &self.col);
                 if !matches!(res.state, TomlValueState::Ok { .. }) {
-                    res.register_error(&self.col.errors);
+                    res.register_error_with_collector(&self.col);
                 }
                 self.observed
                     .push(self.col.match_mode.normalize(matched_key));
@@ -1022,7 +1053,7 @@ impl<'a> TomlHelper<'a> {
                         spans,
                     },
                 };
-                res.register_error(&self.col.errors);
+                res.register_error_with_collector(&self.col);
                 res
             }
         }
@@ -1066,7 +1097,7 @@ impl<'a> TomlHelper<'a> {
                     },
                 };
                 if missing_is_error {
-                    res.register_error(&self.col.errors);
+                    res.register_error_with_collector(&self.col);
                 }
                 res
             }
@@ -1096,7 +1127,7 @@ impl<'a> TomlHelper<'a> {
                     },
                 };
                 // Still register multi-defined errors as those are always errors
-                res.register_error(&self.col.errors);
+                res.register_error_with_collector(&self.col);
                 res
             }
         }
@@ -1144,13 +1175,13 @@ impl<'a> TomlHelper<'a> {
 
     /// Absorb all remaining keys (not matched by other fields) into an `IndexMap`.
     /// This is used by `#[tpd_absorb_remaining]` fields.
-    /// 
+    ///
     /// The function iterates over all keys in the table, skips those that were
     /// already matched (in `self.observed`), and deserializes the remaining keys
     /// into an `IndexMap<K, T>` where K implements `From<String>`.
-    /// 
+    ///
     /// The absorbed keys are marked as observed, so `deny_unknown()` won't report them.
-    /// 
+    ///
     /// Returns a `TomlValue` containing the map. The map preserves insertion order.
     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, T>>
     where
@@ -1202,7 +1233,7 @@ impl<'a> TomlHelper<'a> {
                 }
                 _ => {
                     // Error during deserialization - register the error
-                    value_result.register_error(&self.col.errors);
+                    value_result.register_error_with_collector(&self.col);
                     all_ok = false;
                 }
             }
@@ -1602,7 +1633,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                             values.push(val);
                         }
                     } else {
-                        element.register_error(&col.errors);
+                        element.register_error_with_collector(col);
                         has_error = true;
                     }
                 }
@@ -1637,7 +1668,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                             values.push(val);
                         }
                     } else {
-                        element.register_error(&col.errors);
+                        element.register_error_with_collector(col);
                         has_error = true;
                     }
                 }
@@ -1663,7 +1694,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     if let TomlValueState::Ok { span } = &element.state {
                         TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
                     } else {
-                        element.register_error(&col.errors);
+                        element.register_error_with_collector(col);
                         TomlValue {
                             state: TomlValueState::Nested {},
                             value: None,
@@ -1686,7 +1717,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     if let TomlValueState::Ok { span } = &element.state {
                         TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
                     } else {
-                        element.register_error(&col.errors);
+                        element.register_error_with_collector(col);
                         TomlValue {
                             state: TomlValueState::Nested {},
                             value: None,
@@ -1814,11 +1845,11 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub fn is_ok(&self) -> bool{
+    pub fn is_ok(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
     }
 
-    pub fn is_missing(&self) -> bool{
+    pub fn is_missing(&self) -> bool {
         matches!(self.state, TomlValueState::Missing { .. })
     }
 
@@ -1852,15 +1883,30 @@ impl<T> TomlValue<T> {
     }
 
     pub fn register_error(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
-        match &self.state {
-            TomlValueState::NotSet | TomlValueState::Ok { .. } | TomlValueState::Nested => {} //ignored, we expect the errors below to have been added
-            TomlValueState::Missing { key, parent_span } => {
-                errors.borrow_mut().push(AnnotatedError::placed(
-                    parent_span.clone(),
-                    &format!("Missing required key: '{key}'."),
-                    "This key is required but was not found in the TOML document.",
-                ));
-            }
+        self.register_error_with_context(errors, &[]);
+    }
+
+    /// Register an error using the context spans from the collector.
+    pub fn register_error_with_collector(&self, col: &TomlCollector) {
+        let context = col.get_context_spans();
+        self.register_error_with_context(&col.errors, &context);
+    }
+
+    /// Register an error with additional context spans that will be appended to the error.
+    pub fn register_error_with_context(
+        &self,
+        errors: &Rc<RefCell<Vec<AnnotatedError>>>,
+        context_spans: &[SpannedMessage],
+    ) {
+        let mut err = match &self.state {
+            TomlValueState::NotSet | TomlValueState::Ok { .. } | TomlValueState::Nested => {
+                return;
+            } //ignored, we expect the errors below to have been added
+            TomlValueState::Missing { key, parent_span } => AnnotatedError::placed(
+                parent_span.clone(),
+                &format!("Missing required key: '{key}'."),
+                "This key is required but was not found in the TOML document.",
+            ),
             TomlValueState::MultiDefined { key, spans } => {
                 let mut err = AnnotatedError::placed(
                     spans[0].clone(),
@@ -1870,31 +1916,34 @@ impl<T> TomlValue<T> {
                 for span in spans.iter().skip(1) {
                     err.add_span(span.clone(), "Also defined here");
                 }
-                errors.borrow_mut().push(err);
+                err
             }
             TomlValueState::WrongType {
                 span,
                 expected,
                 found,
-            } => {
-                errors.borrow_mut().push(AnnotatedError::placed(
-                    span.clone(),
-                    &format!("Wrong type: expected {expected}, found {found}"),
-                    "This value has the wrong type.",
-                ));
-            }
+            } => AnnotatedError::placed(
+                span.clone(),
+                &format!("Wrong type: expected {expected}, found {found}"),
+                "This value has the wrong type.",
+            ),
             TomlValueState::ValidationFailed {
                 span,
                 message,
                 help,
-            } => {
-                errors.borrow_mut().push(AnnotatedError::placed(
-                    span.clone(),
-                    message,
-                    help.as_ref().map_or("", std::string::String::as_str),
-                ));
-            }
+            } => AnnotatedError::placed(
+                span.clone(),
+                message,
+                help.as_ref().map_or("", std::string::String::as_str),
+            ),
+        };
+
+        // Add context spans to the error
+        for context in context_spans {
+            err.add_span(context.span.clone(), &context.msg);
         }
+
+        errors.borrow_mut().push(err);
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -1919,7 +1968,7 @@ impl<T> TomlValue<T> {
                             help, //todo
                         },
                     };
-                    res.register_error(&helper.col.errors);
+                    res.register_error_with_collector(&helper.col);
                     res
                 }
             },
@@ -2066,7 +2115,7 @@ where
                                     map.insert(K::from(key.to_string()), v);
                                 }
                             } else {
-                                val.register_error(&col.errors);
+                                val.register_error_with_collector(col);
                                 has_errors = true;
                             }
                         }
@@ -2142,7 +2191,7 @@ where
                                     Err((msg, help)) => {
                                         let failed: TomlValue<T> =
                                             TomlValue::new_validation_failed(item_span, msg, help);
-                                        failed.register_error(&col.errors);
+                                        failed.register_error_with_collector(col);
                                         has_errors = true;
                                     }
                                 },
@@ -2155,7 +2204,7 @@ where
                                             found: value.type_name(),
                                         },
                                     };
-                                    wrong_type.register_error(&col.errors);
+                                    wrong_type.register_error_with_collector(col);
                                     has_errors = true;
                                 }
                             }
@@ -2186,8 +2235,12 @@ where
                                         },
                                         Err((msg, help)) => {
                                             let failed: TomlValue<T> =
-                                                TomlValue::new_validation_failed(span.clone(), msg, help);
-                                            failed.register_error(&col.errors);
+                                                TomlValue::new_validation_failed(
+                                                    span.clone(),
+                                                    msg,
+                                                    help,
+                                                );
+                                            failed.register_error_with_collector(col);
                                             TomlValue {
                                                 value: None,
                                                 state: TomlValueState::Nested {},
@@ -2259,19 +2312,17 @@ where
                             let item_span = value.span().unwrap_or(span.clone());
                             // Each value must be a string
                             match value.as_str() {
-                                Some(s) => {
-                                    match converter(s) {
-                                        Ok(converted) => {
-                                            map.insert(K::from(key.to_string()), converted);
-                                        }
-                                        Err((msg, help)) => {
-                                            let failed: TomlValue<T> =
-                                                TomlValue::new_validation_failed(item_span, msg, help);
-                                            failed.register_error(&col.errors);
-                                            has_errors = true;
-                                        }
+                                Some(s) => match converter(s) {
+                                    Ok(converted) => {
+                                        map.insert(K::from(key.to_string()), converted);
                                     }
-                                }
+                                    Err((msg, help)) => {
+                                        let failed: TomlValue<T> =
+                                            TomlValue::new_validation_failed(item_span, msg, help);
+                                        failed.register_error_with_collector(col);
+                                        has_errors = true;
+                                    }
+                                },
                                 None => {
                                     let wrong_type: TomlValue<T> = TomlValue {
                                         value: None,
@@ -2281,7 +2332,7 @@ where
                                             found: value.type_name(),
                                         },
                                     };
-                                    wrong_type.register_error(&col.errors);
+                                    wrong_type.register_error_with_collector(col);
                                     has_errors = true;
                                 }
                             }
