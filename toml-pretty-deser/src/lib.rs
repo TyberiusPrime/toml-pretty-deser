@@ -1849,6 +1849,96 @@ where
     }
 }
 
+/// Internally called by the macros for Vec with tpd_with converter
+///
+/// Applies a converter function to each string element in the array
+#[doc(hidden)]
+#[must_use]
+pub fn toml_item_as_vec_with<T, F>(
+    toml_item: &TomlValue<toml_edit::Item>,
+    col: &TomlCollector,
+    converter: F,
+) -> TomlValue<Vec<T>>
+where
+    F: Fn(&str) -> Result<T, WithError>,
+{
+    match &toml_item.state {
+        TomlValueState::Ok { span } => {
+            if let Some(ref item) = toml_item.value {
+                match item.as_array() {
+                    Some(array) => {
+                        let mut values = Vec::with_capacity(array.len());
+                        let mut has_errors = false;
+
+                        for value in array {
+                            let item_span = value.span().unwrap_or(span.clone());
+                            // Each element must be a string
+                            match value.as_str() {
+                                Some(s) => match converter(s) {
+                                    Ok(converted) => {
+                                        values.push(converted);
+                                    }
+                                    Err((msg, help)) => {
+                                        let failed: TomlValue<T> =
+                                            TomlValue::new_validation_failed(item_span, msg, help);
+                                        failed.register_error(&col.errors);
+                                        has_errors = true;
+                                    }
+                                },
+                                None => {
+                                    let wrong_type: TomlValue<T> = TomlValue {
+                                        value: None,
+                                        state: TomlValueState::WrongType {
+                                            span: item_span,
+                                            expected: "string",
+                                            found: value.type_name(),
+                                        },
+                                    };
+                                    wrong_type.register_error(&col.errors);
+                                    has_errors = true;
+                                }
+                            }
+                        }
+
+                        if has_errors {
+                            TomlValue {
+                                value: Some(values),
+                                state: TomlValueState::Nested {},
+                            }
+                        } else {
+                            TomlValue {
+                                value: Some(values),
+                                state: TomlValueState::Ok { span: span.clone() },
+                            }
+                        }
+                    }
+                    None => TomlValue {
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: span.clone(),
+                            expected: "array",
+                            found: item.type_name(),
+                        },
+                    },
+                }
+            } else {
+                TomlValue {
+                    value: None,
+                    state: TomlValueState::ValidationFailed {
+                        span: span.clone(),
+                        message: "Cannot convert empty value to vec".to_string(),
+                        help: None,
+                    },
+                }
+            }
+        }
+        _ => TomlValue {
+            value: None,
+            state: toml_item.state.clone(),
+        },
+    }
+}
+
 /// Internally called by the macros for IndexMap with tpd_with converter
 ///
 /// Similar to `toml_item_as_map` but applies a converter function to each string value

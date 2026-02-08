@@ -1233,6 +1233,96 @@ mod codegen {
                                     &helper.col)
                         }
                     }
+                } else if is_vec_type(ty) {
+                    let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
+                    if let Some(func) = with_func {
+                        // tpd_with on Vec<T>: apply converter to each element
+                        quote! {
+                            #name: {
+                                let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error);
+                                ::toml_pretty_deser::toml_item_as_vec_with(&item_result, &helper.col, #func)
+                            }
+                        }
+                    } else {
+                        quote! {
+                            #name: helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error)
+                        }
+                    }
+                } else if is_option_vec_type(ty) {
+                    if let Some(func) = with_func {
+                        // tpd_with on Option<Vec<T>>: apply converter to each element
+                        quote! {
+                            #name: {
+                                let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                ::toml_pretty_deser::toml_item_as_vec_with(&item_result, &helper.col, #func).into_optional()
+                            }
+                        }
+                    } else {
+                        quote! {
+                            #name: {
+                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                if let TomlValueState::Missing {parent_span, ..} = t.state {
+                                    TomlValue{
+                                        value: Some(None),
+                                        state: TomlValueState::Ok{span: parent_span},
+                                    }
+                                } else {
+                                    t
+                                }
+                            }
+                        }
+                    }
+                } else if is_option_box_type(ty) {
+                    if let Some(func) = with_func {
+                        // tpd_with on Option<Box<T>>: if present, apply converter and wrap in Box; if missing, None
+                        quote! {
+                            #name: {
+                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                match &raw.state {
+                                    TomlValueState::Missing { parent_span, .. } => {
+                                        // Field is missing - Option is None
+                                        TomlValue {
+                                            value: Some(None),
+                                            state: TomlValueState::Ok { span: parent_span.clone() },
+                                        }
+                                    }
+                                    TomlValueState::Ok { span } => {
+                                        let s = raw.value.as_ref().expect("Ok state must have value");
+                                        match #func(s.as_str()) {
+                                            Ok(converted) => TomlValue::new_ok(Some(Box::new(converted)), span.clone()),
+                                            Err((msg, help)) => {
+                                                let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
+                                                failed.register_error(&helper.col.errors);
+                                                failed
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        // Wrong type or other error - forward it
+                                        raw.register_error(&helper.col.errors);
+                                        TomlValue {
+                                            value: None,
+                                            state: raw.state,
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        quote! {
+                            #name: {
+                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                if let TomlValueState::Missing {parent_span, ..} = t.state {
+                                    TomlValue{
+                                        value: Some(None),
+                                        state: TomlValueState::Ok{span: parent_span},
+                                    }
+                                } else {
+                                    t
+                                }
+                            }
+                        }
+                    }
                 } else if is_option_type(ty) {
                     if let Some(func) = with_func {
                         // tpd_with on Option<T>: if present, apply converter; if missing, None

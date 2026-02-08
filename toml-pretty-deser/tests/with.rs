@@ -495,6 +495,240 @@ fn test_tpd_with_optional_indexmap_missing() {
 }
 
 // ====================================
+// Tests for Vec<T> with tpd_with
+// ====================================
+
+#[tpd]
+#[derive(Debug)]
+struct WithVecCustom {
+    #[tpd_with(parse_uppercase)]
+    names: Vec<UppercaseString>,
+}
+
+#[test]
+fn test_tpd_with_vec_happy_path() {
+    let toml = r#"names = ["alice", "bob", "carol"]"#;
+
+    let result: Result<_, _> = deserialize::<PartialWithVecCustom, WithVecCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.names.len(), 3);
+        assert_eq!(output.names[0], UppercaseString("ALICE".to_string()));
+        assert_eq!(output.names[1], UppercaseString("BOB".to_string()));
+        assert_eq!(output.names[2], UppercaseString("CAROL".to_string()));
+    }
+}
+
+#[test]
+fn test_tpd_with_vec_empty() {
+    let toml = r#"names = []"#;
+
+    let result: Result<_, _> = deserialize::<PartialWithVecCustom, WithVecCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.names.len(), 0);
+    }
+}
+
+#[test]
+fn test_tpd_with_vec_validation_failure() {
+    #[tpd]
+    #[derive(Debug)]
+    struct VecPositive {
+        #[tpd_with(parse_positive)]
+        values: Vec<PositiveInt>,
+    }
+
+    let toml = r#"values = ["5", "-10", "3"]"#;
+
+    let result: Result<_, _> = deserialize::<PartialVecPositive, VecPositive>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("must be positive"));
+    }
+}
+
+#[test]
+fn test_tpd_with_vec_wrong_element_type() {
+    let toml = r#"names = ["alice", 123, "carol"]"#;
+
+    let result: Result<_, _> = deserialize::<PartialWithVecCustom, WithVecCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("Wrong type"));
+    }
+}
+
+#[test]
+fn test_tpd_with_vec_missing() {
+    // Missing required Vec field should error
+    let toml = "";
+
+    let result: Result<_, _> = deserialize::<PartialWithVecCustom, WithVecCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("Missing required key"));
+    }
+}
+
+// ====================================
+// Tests for Option<Vec<T>> with tpd_with
+// ====================================
+
+#[tpd]
+#[derive(Debug)]
+struct WithOptionalVecCustom {
+    #[tpd_with(parse_uppercase)]
+    names: Option<Vec<UppercaseString>>,
+    count: i32,
+}
+
+#[test]
+fn test_tpd_with_option_vec_present() {
+    let toml = r#"
+        names = ["alice", "bob"]
+        count = 42
+    "#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithOptionalVecCustom, WithOptionalVecCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(output.names.is_some());
+        let names = output.names.unwrap();
+        assert_eq!(names.len(), 2);
+        assert_eq!(names[0], UppercaseString("ALICE".to_string()));
+        assert_eq!(names[1], UppercaseString("BOB".to_string()));
+        assert_eq!(output.count, 42);
+    }
+}
+
+#[test]
+fn test_tpd_with_option_vec_missing() {
+    let toml = r#"count = 42"#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithOptionalVecCustom, WithOptionalVecCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(output.names.is_none());
+        assert_eq!(output.count, 42);
+    }
+}
+
+#[test]
+fn test_tpd_with_option_vec_empty() {
+    let toml = r#"
+        names = []
+        count = 42
+    "#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithOptionalVecCustom, WithOptionalVecCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(output.names.is_some());
+        assert_eq!(output.names.unwrap().len(), 0);
+    }
+}
+
+#[test]
+fn test_tpd_with_option_vec_validation_failure() {
+    #[tpd]
+    #[derive(Debug)]
+    struct OptionalVecPositive {
+        #[tpd_with(parse_positive)]
+        values: Option<Vec<PositiveInt>>,
+    }
+
+    let toml = r#"values = ["5", "-10"]"#;
+
+    let result: Result<_, _> = deserialize::<PartialOptionalVecPositive, OptionalVecPositive>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("must be positive"));
+    }
+}
+
+// ====================================
+// Tests for Option<Box<T>> with tpd_with
+// ====================================
+
+#[tpd]
+#[derive(Debug)]
+struct WithOptionalBoxedCustom {
+    #[tpd_with(parse_uppercase)]
+    name: Option<Box<UppercaseString>>,
+    count: i32,
+}
+
+#[test]
+fn test_tpd_with_option_box_present() {
+    let toml = r#"
+        name = "hello"
+        count = 42
+    "#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithOptionalBoxedCustom, WithOptionalBoxedCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(output.name.is_some());
+        assert_eq!(*output.name.unwrap(), UppercaseString("HELLO".to_string()));
+        assert_eq!(output.count, 42);
+    }
+}
+
+#[test]
+fn test_tpd_with_option_box_missing() {
+    let toml = r#"count = 42"#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithOptionalBoxedCustom, WithOptionalBoxedCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(output.name.is_none());
+        assert_eq!(output.count, 42);
+    }
+}
+
+#[test]
+fn test_tpd_with_option_box_validation_failure() {
+    #[tpd]
+    #[derive(Debug)]
+    struct OptionalBoxedPositive {
+        #[tpd_with(parse_positive)]
+        value: Option<Box<PositiveInt>>,
+    }
+
+    let toml = r#"value = "-5""#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialOptionalBoxedPositive, OptionalBoxedPositive>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("must be positive"));
+    }
+}
+
+// ====================================
 // Tests for Box<T> with tpd_with
 // ====================================
 
