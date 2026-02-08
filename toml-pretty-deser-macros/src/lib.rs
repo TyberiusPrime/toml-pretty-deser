@@ -993,6 +993,7 @@ mod codegen {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
         // Generate code that pushes field name to failing_fields if the field fails can_concrete check
+        // For nested fields, also collect nested failing fields with a prefix
         let can_concrete_checks: Vec<_> = fields
             .iter()
             .filter(|f| !is_skipped_field(f))
@@ -1010,8 +1011,11 @@ mod codegen {
                 } else if is_defaulted_field(f) && is_nested_field(f) {
                     // tpd_default + tpd_nested: true if missing (will use default) or if nested can_concrete
                     quote! {
-                        if !self.#name.value.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(true) {
-                            failing_fields.push(#name_str);
+                        if let Some(p) = self.#name.value.as_ref() {
+                            let nested = p.can_concrete();
+                            for nested_field in nested {
+                                failing_fields.push(format!("{}.{}", #name_str, nested_field));
+                            }
                         }
                     }
                 } else if is_defaulted_field(f) {
@@ -1021,7 +1025,7 @@ mod codegen {
                     // adapt_in_verify fields must be set by user in verify()
                     quote! {
                         if !self.#name.has_value() {
-                            failing_fields.push(#name_str);
+                            failing_fields.push(#name_str.to_string());
                         }
                     }
                 } else if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
@@ -1037,18 +1041,26 @@ mod codegen {
                         IndexMapValueKind::Nested(_) => {
                             if is_optional {
                                 quote! {
-                                    if !self.#name.value.as_ref().map(|opt| {
-                                        opt.as_ref().map(|map| map.values().all(|p| p.can_concrete().is_empty())).unwrap_or(true)
-                                    }).unwrap_or(false) {
-                                        failing_fields.push(#name_str);
+                                    if let Some(Some(map)) = self.#name.value.as_ref() {
+                                        for (key, p) in map.iter() {
+                                            let nested = p.can_concrete();
+                                            for nested_field in nested {
+                                                failing_fields.push(format!("{}.{}.{}", #name_str, key, nested_field));
+                                            }
+                                        }
                                     }
                                 }
                             } else {
                                 quote! {
-                                    if !self.#name.value.as_ref().map(|map| {
-                                        map.values().all(|p| p.can_concrete().is_empty())
-                                    }).unwrap_or(false) {
-                                        failing_fields.push(#name_str);
+                                    if let Some(map) = self.#name.value.as_ref() {
+                                        for (key, p) in map.iter() {
+                                            let nested = p.can_concrete();
+                                            for nested_field in nested {
+                                                failing_fields.push(format!("{}.{}.{}", #name_str, key, nested_field));
+                                            }
+                                        }
+                                    } else {
+                                        failing_fields.push(#name_str.to_string());
                                     }
                                 }
                             }
@@ -1056,18 +1068,30 @@ mod codegen {
                         IndexMapValueKind::VecNested(_) => {
                             if is_optional {
                                 quote! {
-                                    if !self.#name.value.as_ref().map(|opt| {
-                                        opt.as_ref().map(|map| map.values().all(|vec| vec.iter().all(|p| p.can_concrete().is_empty()))).unwrap_or(true)
-                                    }).unwrap_or(false) {
-                                        failing_fields.push(#name_str);
+                                    if let Some(Some(map)) = self.#name.value.as_ref() {
+                                        for (key, vec) in map.iter() {
+                                            for (idx, p) in vec.iter().enumerate() {
+                                                let nested = p.can_concrete();
+                                                for nested_field in nested {
+                                                    failing_fields.push(format!("{}.{}[{}].{}", #name_str, key, idx, nested_field));
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             } else {
                                 quote! {
-                                    if !self.#name.value.as_ref().map(|map| {
-                                        map.values().all(|vec| vec.iter().all(|p| p.can_concrete().is_empty()))
-                                    }).unwrap_or(false) {
-                                        failing_fields.push(#name_str);
+                                    if let Some(map) = self.#name.value.as_ref() {
+                                        for (key, vec) in map.iter() {
+                                            for (idx, p) in vec.iter().enumerate() {
+                                                let nested = p.can_concrete();
+                                                for nested_field in nested {
+                                                    failing_fields.push(format!("{}.{}[{}].{}", #name_str, key, idx, nested_field));
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        failing_fields.push(#name_str.to_string());
                                     }
                                 }
                             }
@@ -1075,7 +1099,7 @@ mod codegen {
                         IndexMapValueKind::Primitive => {
                             quote! {
                                 if !self.#name.has_value() {
-                                    failing_fields.push(#name_str);
+                                    failing_fields.push(#name_str.to_string());
                                 }
                             }
                         }
@@ -1084,55 +1108,75 @@ mod codegen {
                     if is_option_vec_type(&f.ty) {
                         // Option<Vec<nested>>
                         quote! {
-                            if !self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|vec| vec.iter().all(|p| p.can_concrete().is_empty())).unwrap_or(true)
-                            }).unwrap_or(false) {
-                                failing_fields.push(#name_str);
+                            if let Some(Some(vec)) = self.#name.value.as_ref() {
+                                for (idx, p) in vec.iter().enumerate() {
+                                    let nested = p.can_concrete();
+                                    for nested_field in nested {
+                                        failing_fields.push(format!("{}[{}].{}", #name_str, idx, nested_field));
+                                    }
+                                }
                             }
                         }
                     } else if is_option_box_type(&f.ty) {
                         // Option<Box<nested>> - stored as Option<PartialT>
                         quote! {
-                            if !self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(true)
-                            }).unwrap_or(false) {
-                                failing_fields.push(#name_str);
+                            if let Some(Some(p)) = self.#name.value.as_ref() {
+                                let nested = p.can_concrete();
+                                for nested_field in nested {
+                                    failing_fields.push(format!("{}.{}", #name_str, nested_field));
+                                }
                             }
                         }
                     } else if is_option_type(&f.ty) {
                         quote! {
-                            if !self.#name.value.as_ref().map(|opt| {
-                                opt.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(true)
-                            }).unwrap_or(false) {
-                                failing_fields.push(#name_str);
+                            if let Some(Some(p)) = self.#name.value.as_ref() {
+                                let nested = p.can_concrete();
+                                for nested_field in nested {
+                                    failing_fields.push(format!("{}.{}", #name_str, nested_field));
+                                }
                             }
                         }
                     } else if is_vec_type(&f.ty) {
                         quote! {
-                            if !self.#name.value.as_ref().map(|vec| {
-                                vec.iter().all(|p| p.can_concrete().is_empty())
-                            }).unwrap_or(false) {
-                                failing_fields.push(#name_str);
+                            if let Some(vec) = self.#name.value.as_ref() {
+                                for (idx, p) in vec.iter().enumerate() {
+                                    let nested = p.can_concrete();
+                                    for nested_field in nested {
+                                        failing_fields.push(format!("{}[{}].{}", #name_str, idx, nested_field));
+                                    }
+                                }
+                            } else {
+                                failing_fields.push(#name_str.to_string());
                             }
                         }
                     } else if is_box_type(&f.ty) {
                         // Box<nested> - the partial is the inner T, so same as regular nested
                         quote! {
-                            if !self.#name.value.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(false) {
-                                failing_fields.push(#name_str);
+                            if let Some(p) = self.#name.value.as_ref() {
+                                let nested = p.can_concrete();
+                                for nested_field in nested {
+                                    failing_fields.push(format!("{}.{}", #name_str, nested_field));
+                                }
+                            } else {
+                                failing_fields.push(#name_str.to_string());
                             }
                         }
                     } else {
                         quote! {
-                            if !self.#name.value.as_ref().map(|p| p.can_concrete().is_empty()).unwrap_or(false) {
-                                failing_fields.push(#name_str);
+                            if let Some(p) = self.#name.value.as_ref() {
+                                let nested = p.can_concrete();
+                                for nested_field in nested {
+                                    failing_fields.push(format!("{}.{}", #name_str, nested_field));
+                                }
+                            } else {
+                                failing_fields.push(#name_str.to_string());
                             }
                         }
                     }
                 } else {
                     quote! {
                         if !self.#name.has_value() {
-                            failing_fields.push(#name_str);
+                            failing_fields.push(#name_str.to_string());
                         }
                     }
                 }
@@ -1685,8 +1729,8 @@ mod codegen {
 
         quote! {
             impl #impl_generics FromTomlTable<#struct_name> for #partial_name #ty_generics #where_clause {
-                fn can_concrete(&self) -> Vec<&'static str> {
-                    let mut failing_fields: Vec<&'static str> = Vec::new();
+                fn can_concrete(&self) -> Vec<String> {
+                    let mut failing_fields: Vec<String> = Vec::new();
                     #(#can_concrete_checks)*
                     failing_fields
                 }
@@ -2002,7 +2046,7 @@ mod codegen {
 
         quote! {
             impl #impl_generics FromTomlTable<#enum_name> for #partial_name #ty_generics #where_clause {
-                fn can_concrete(&self) -> Vec<&'static str> {
+                fn can_concrete(&self) -> Vec<String> {
                     match self {
                         #(#can_concrete_variants)*
                     }

@@ -592,7 +592,8 @@ impl<P> DeserError<P> {
 pub trait FromTomlTable<T> {
     /// Returns a list of field names that failed to deserialize.
     /// An empty vector means all fields are valid and `to_concrete()` can be called.
-    fn can_concrete(&self) -> Vec<&'static str>;
+    /// Nested field errors are prefixed with their parent field name (e.g., "parent.child").
+    fn can_concrete(&self) -> Vec<String>;
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized;
