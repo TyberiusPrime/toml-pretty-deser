@@ -1187,6 +1187,7 @@ impl_from_toml_item_integer!(i16, "i16");
 impl_from_toml_item_integer!(i32, "i32");
 impl_from_toml_item_integer!(u32, "u32");
 impl_from_toml_item_integer!(i64, "i64");
+impl_from_toml_item_integer!(isize, "isize");
 
 // u64 and usize need special handling because TOML only supports i64.
 // The valid range is 0..i64::MAX (0..2^63-1), not the full u64 range.

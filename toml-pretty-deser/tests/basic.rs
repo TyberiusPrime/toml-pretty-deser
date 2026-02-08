@@ -7,6 +7,7 @@ struct Output {
     a_i64: i64,
     a_f64: f64,
     a_usize: usize,
+    a_isize: isize,
     a_u64: u64,
     a_string: String,
     a_bool: bool,
@@ -45,6 +46,7 @@ fn test_happy_path() {
             a_i64 = -123
             a_f64 = 6.724
             a_usize = 123
+            a_isize = -12
             a_u64 = 3823174987
             a_string = 'Hello, World!'
             a_bool = true
@@ -67,6 +69,7 @@ fn test_happy_path() {
         assert_eq!(output.a_i64, -123);
         assert_eq!(output.a_f64, 6.724);
         assert_eq!(output.a_usize, 123);
+        assert_eq!(output.a_isize, -12);
         assert_eq!(output.a_u64, 3823174987);
         assert_eq!(output.a_string, "Hello, World!");
         assert!(output.a_bool);
@@ -88,6 +91,7 @@ fn test_missing() {
             a_f64 = 6.724
 
             a_usize = 123
+            a_isize = -12
             a_u64 = 3823174987
             a_string = 'Hello, World!'
             a_bool = true
@@ -127,6 +131,7 @@ fn test_optional_missing() {
             a_u64 = 3823174987
             a_string = 'Hello, World!'
             a_bool = true
+            a_isize = -12
 
             # opt_a_u8 is missing
             # opt_a_i64 is missing
@@ -162,6 +167,7 @@ fn test_verify_failure() {
             a_u64 = 3823174987
             a_string = 'Hello, World!'
             a_bool = true
+            a_isize = -12
 
             opt_a_u8 = 128
             opt_a_i64 = -456
@@ -204,6 +210,7 @@ fn test_wrong_type() {
 
             verified_i16 = 10
             defaulted_i16 = 100
+            a_isize = -12
             a_usize = 123
             a_u64 = 3823174987
         ";
@@ -237,6 +244,7 @@ fn test_range_validation() {
             defaulted_i16 = 100
 
             a_usize = 123
+            a_isize = -12
             a_u64 = 3823174987
         ";
 
