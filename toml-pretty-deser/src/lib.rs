@@ -1472,7 +1472,62 @@ macro_rules! impl_from_toml_item_value {
 
 impl_from_toml_item_value!(bool, "bool", Boolean);
 impl_from_toml_item_value!(String, "String", String);
-impl_from_toml_item_value!(f64, "Float", Float);
+
+// Custom implementation for f64 that accepts both Float and Integer values
+impl FromTomlItem for f64 {
+    fn from_toml_item(
+        item: &toml_edit::Item,
+        parent_span: Range<usize>,
+        _col: &TomlCollector,
+    ) -> TomlValue<Self> {
+        match item {
+            toml_edit::Item::None => unreachable!(),
+            toml_edit::Item::Value(toml_edit::Value::Float(formatted)) => {
+                let value = formatted.value();
+                TomlValue {
+                    value: Some(*value),
+                    state: TomlValueState::Ok {
+                        span: formatted.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
+            // Accept integers as f64 - TOML parses whole numbers as Integer, not Float
+            toml_edit::Item::Value(toml_edit::Value::Integer(formatted)) => {
+                let value = formatted.value();
+                TomlValue {
+                    value: Some(*value as f64),
+                    state: TomlValueState::Ok {
+                        span: formatted.span().unwrap_or(parent_span.clone()),
+                    },
+                }
+            }
+            toml_edit::Item::Value(value) => TomlValue {
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "Float",
+                    found: value.type_name(),
+                },
+            },
+            toml_edit::Item::Table(value) => TomlValue {
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "Float",
+                    found: "table",
+                },
+            },
+            toml_edit::Item::ArrayOfTables(value) => TomlValue {
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span.clone()),
+                    expected: "Float",
+                    found: "array of tables",
+                },
+            },
+        }
+    }
+}
 
 impl FromTomlItem for toml_edit::Item {
     #[mutants::skip] //unreachable

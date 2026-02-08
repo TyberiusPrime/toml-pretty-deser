@@ -1477,3 +1477,103 @@ fn test_option_vec_nested_inner_error() {
     }
 }
 
+// =============================================================================
+// Tests for integer values being accepted as f64
+// =============================================================================
+
+#[tpd]
+#[derive(Debug)]
+struct FloatFromIntOutput {
+    a_f64: f64,
+    opt_f64: Option<f64>,
+    opt_f64_missing: Option<f64>,
+}
+
+#[test]
+#[allow(clippy::float_cmp)]
+fn test_f64_accepts_integer() {
+    let toml = "
+        a_f64 = 42
+        opt_f64 = 100
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialFloatFromIntOutput, FloatFromIntOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.a_f64, 42.0);
+        assert_eq!(output.opt_f64, Some(100.0));
+        assert_eq!(output.opt_f64_missing, None);
+    }
+}
+
+#[test]
+#[allow(clippy::float_cmp)]
+fn test_f64_accepts_negative_integer() {
+    let toml = "
+        a_f64 = -42
+        opt_f64 = -100
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialFloatFromIntOutput, FloatFromIntOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.a_f64, -42.0);
+        assert_eq!(output.opt_f64, Some(-100.0));
+    }
+}
+
+#[test]
+#[allow(clippy::float_cmp)]
+fn test_f64_accepts_zero_integer() {
+    let toml = "
+        a_f64 = 0
+        opt_f64 = 0
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialFloatFromIntOutput, FloatFromIntOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.a_f64, 0.0);
+        assert_eq!(output.opt_f64, Some(0.0));
+    }
+}
+
+#[test]
+#[allow(clippy::float_cmp)]
+fn test_f64_still_accepts_float() {
+    // Ensure that explicit floats still work after the change
+    let toml = "
+        a_f64 = 3.14159
+        opt_f64 = -2.71828
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialFloatFromIntOutput, FloatFromIntOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.a_f64, 3.14159);
+        assert_eq!(output.opt_f64, Some(-2.71828));
+    }
+}
+
+#[test]
+#[allow(clippy::float_cmp)]
+fn test_f64_mixed_int_and_float() {
+    // Mix of integer and float values
+    let toml = "
+        a_f64 = 42
+        opt_f64 = 3.14
+    ";
+
+    let result: Result<_, _> = deserialize::<PartialFloatFromIntOutput, FloatFromIntOutput>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.a_f64, 42.0);
+        assert_eq!(output.opt_f64, Some(3.14));
+    }
+}
+
