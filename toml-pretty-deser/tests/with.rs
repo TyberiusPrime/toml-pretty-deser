@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use indexmap::IndexMap;
 use toml_pretty_deser::prelude::*;
 
 // Test basic tpd_with usage - convert string to custom type
@@ -255,5 +256,283 @@ fn test_tpd_with_prefixer() {
     assert!(result.is_ok());
     if let Ok(output) = result {
         assert_eq!(output.value, "PREFIX_test");
+    }
+}
+
+// ====================================
+// Tests for Option<T> with tpd_with
+// ====================================
+
+#[tpd]
+#[derive(Debug)]
+struct WithOptionalCustom {
+    #[tpd_with(parse_uppercase)]
+    name: Option<UppercaseString>,
+    count: i32,
+}
+
+#[test]
+fn test_tpd_with_option_present() {
+    let toml = r#"
+        name = "hello"
+        count = 42
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialWithOptionalCustom, WithOptionalCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, Some(UppercaseString("HELLO".to_string())));
+        assert_eq!(output.count, 42);
+    }
+}
+
+#[test]
+fn test_tpd_with_option_missing() {
+    let toml = r#"count = 42"#;
+
+    let result: Result<_, _> = deserialize::<PartialWithOptionalCustom, WithOptionalCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, None);
+        assert_eq!(output.count, 42);
+    }
+}
+
+#[test]
+fn test_tpd_with_option_validation_failure() {
+    // Use a converter that can fail
+    let toml = r#"
+        value = "-5"
+    "#;
+
+    #[tpd]
+    #[derive(Debug)]
+    struct OptionalPositive {
+        #[tpd_with(parse_positive)]
+        value: Option<PositiveInt>,
+    }
+
+    let result: Result<_, _> = deserialize::<PartialOptionalPositive, OptionalPositive>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("must be positive"));
+    }
+}
+
+#[test]
+fn test_tpd_with_option_wrong_type() {
+    let toml = r#"
+        name = 123
+        count = 42
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialWithOptionalCustom, WithOptionalCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("Wrong type"));
+    }
+}
+
+// ====================================
+// Tests for IndexMap<String, T> with tpd_with
+// ====================================
+
+#[tpd]
+#[derive(Debug)]
+struct WithMapCustom {
+    #[tpd_with(parse_uppercase)]
+    names: IndexMap<String, UppercaseString>,
+}
+
+#[test]
+fn test_tpd_with_indexmap_happy_path() {
+    let toml = r#"
+        [names]
+        first = "alice"
+        second = "bob"
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialWithMapCustom, WithMapCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.names.len(), 2);
+        assert_eq!(
+            output.names.get("first"),
+            Some(&UppercaseString("ALICE".to_string()))
+        );
+        assert_eq!(
+            output.names.get("second"),
+            Some(&UppercaseString("BOB".to_string()))
+        );
+    }
+}
+
+#[test]
+fn test_tpd_with_indexmap_inline_table() {
+    let toml = r#"names = { first = "alice", second = "bob" }"#;
+
+    let result: Result<_, _> = deserialize::<PartialWithMapCustom, WithMapCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.names.len(), 2);
+        assert_eq!(
+            output.names.get("first"),
+            Some(&UppercaseString("ALICE".to_string()))
+        );
+    }
+}
+
+#[test]
+fn test_tpd_with_indexmap_validation_failure() {
+    #[tpd]
+    #[derive(Debug)]
+    struct MapPositive {
+        #[tpd_with(parse_positive)]
+        values: IndexMap<String, PositiveInt>,
+    }
+
+    let toml = r#"
+        [values]
+        good = "5"
+        bad = "-10"
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialMapPositive, MapPositive>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("must be positive"));
+    }
+}
+
+#[test]
+fn test_tpd_with_indexmap_wrong_value_type() {
+    let toml = r#"
+        [names]
+        first = "alice"
+        second = 123
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialWithMapCustom, WithMapCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("Wrong type"));
+    }
+}
+
+#[test]
+fn test_tpd_with_indexmap_missing() {
+    // Missing required IndexMap field should error
+    let toml = "";
+
+    let result: Result<_, _> = deserialize::<PartialWithMapCustom, WithMapCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("Missing required key"));
+    }
+}
+
+// ====================================
+// Tests for Option<IndexMap<String, T>> with tpd_with
+// ====================================
+
+#[tpd]
+#[derive(Debug)]
+struct WithOptionalMapCustom {
+    #[tpd_with(parse_uppercase)]
+    names: Option<IndexMap<String, UppercaseString>>,
+    count: i32,
+}
+
+#[test]
+fn test_tpd_with_optional_indexmap_present() {
+    let toml = r#"
+        count = 10
+        [names]
+        first = "alice"
+    "#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithOptionalMapCustom, WithOptionalMapCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(output.names.is_some());
+        let names = output.names.unwrap();
+        assert_eq!(names.len(), 1);
+        assert_eq!(
+            names.get("first"),
+            Some(&UppercaseString("ALICE".to_string()))
+        );
+    }
+}
+
+#[test]
+fn test_tpd_with_optional_indexmap_missing() {
+    let toml = r#"count = 10"#;
+
+    let result: Result<_, _> =
+        deserialize::<PartialWithOptionalMapCustom, WithOptionalMapCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(output.names.is_none());
+        assert_eq!(output.count, 10);
+    }
+}
+
+// ====================================
+// Tests for Box<T> with tpd_with
+// ====================================
+
+#[tpd]
+#[derive(Debug)]
+struct WithBoxedCustom {
+    #[tpd_with(parse_uppercase)]
+    name: Box<UppercaseString>,
+}
+
+#[test]
+fn test_tpd_with_box_happy_path() {
+    let toml = r#"name = "hello""#;
+
+    let result: Result<_, _> = deserialize::<PartialWithBoxedCustom, WithBoxedCustom>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(*output.name, UppercaseString("HELLO".to_string()));
+    }
+}
+
+#[test]
+fn test_tpd_with_box_validation_failure() {
+    #[tpd]
+    #[derive(Debug)]
+    struct BoxedPositive {
+        #[tpd_with(parse_positive)]
+        value: Box<PositiveInt>,
+    }
+
+    let toml = r#"value = "-5""#;
+
+    let result: Result<_, _> = deserialize::<PartialBoxedPositive, BoxedPositive>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("must be positive"));
     }
 }

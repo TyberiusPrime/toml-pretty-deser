@@ -1132,12 +1132,24 @@ mod codegen {
                 if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
                     let is_optional = is_option_indexmap_type(ty);
 
-                    // tpd_with is not supported with IndexMap for now
-                    if with_func.is_some() {
-                        panic!("tpd_with is not supported on IndexMap fields");
-                    }
-
-                    if is_optional {
+                    if let Some(func) = with_func {
+                        // tpd_with on IndexMap: apply converter to each value
+                        if is_optional {
+                            quote! {
+                                #name: {
+                                    let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                    ::toml_pretty_deser::toml_item_as_map_with(&item_result, &helper.col, #func).into_optional()
+                                }
+                            }
+                        } else {
+                            quote! {
+                                #name: {
+                                    let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*], true);
+                                    ::toml_pretty_deser::toml_item_as_map_with(&item_result, &helper.col, #func)
+                                }
+                            }
+                        }
+                    } else if is_optional {
                         quote! {
                             #name: toml_item_as_map(
                                     &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], false),
@@ -1151,21 +1163,53 @@ mod codegen {
                         }
                     }
                 } else if is_option_type(ty) {
-                    // tpd_with is not supported with Option for now - it would need more complex handling
-                    if with_func.is_some() {
-                        panic!("tpd_with is not yet supported on Option fields");
-                    }
-
-                    quote! {
-                        #name: {
-                            let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
-                            if let TomlValueState::Missing {parent_span, ..} = t.state {
-                                TomlValue{
-                                    value: Some(None),
-                                    state: TomlValueState::Ok{span: parent_span},
+                    if let Some(func) = with_func {
+                        // tpd_with on Option<T>: if present, apply converter; if missing, None
+                        quote! {
+                            #name: {
+                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                match &raw.state {
+                                    TomlValueState::Missing { parent_span, .. } => {
+                                        // Field is missing - Option is None
+                                        TomlValue {
+                                            value: Some(None),
+                                            state: TomlValueState::Ok { span: parent_span.clone() },
+                                        }
+                                    }
+                                    TomlValueState::Ok { span } => {
+                                        let s = raw.value.as_ref().expect("Ok state must have value");
+                                        match #func(s.as_str()) {
+                                            Ok(converted) => TomlValue::new_ok(Some(converted), span.clone()),
+                                            Err((msg, help)) => {
+                                                let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
+                                                failed.register_error(&helper.col.errors);
+                                                failed
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        // Wrong type or other error - forward it
+                                        raw.register_error(&helper.col.errors);
+                                        TomlValue {
+                                            value: None,
+                                            state: raw.state,
+                                        }
+                                    }
                                 }
-                            } else {
-                                t
+                            }
+                        }
+                    } else {
+                        quote! {
+                            #name: {
+                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                if let TomlValueState::Missing {parent_span, ..} = t.state {
+                                    TomlValue{
+                                        value: Some(None),
+                                        state: TomlValueState::Ok{span: parent_span},
+                                    }
+                                } else {
+                                    t
+                                }
                             }
                         }
                     }
@@ -1174,6 +1218,14 @@ mod codegen {
                     // The converter function takes &str and returns Result<T, (String, Option<String>)>
                     let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
                     let has_default = is_defaulted_field(f);
+                    let needs_box = is_box_type(ty);
+                    
+                    // Generate the wrapping expression based on whether Box is needed
+                    let wrap_converted = if needs_box {
+                        quote! { Box::new(converted) }
+                    } else {
+                        quote! { converted }
+                    };
                     
                     if has_default {
                         // If field has default and is missing, use default instead of calling converter
@@ -1192,7 +1244,7 @@ mod codegen {
                                     TomlValueState::Ok { span } => {
                                         let s = raw.value.as_ref().expect("Ok state must have value");
                                         match #func(s.as_str()) {
-                                            Ok(converted) => TomlValue::new_ok(converted, span.clone()),
+                                            Ok(converted) => TomlValue::new_ok(#wrap_converted, span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
                                                 failed.register_error(&helper.col.errors);
@@ -1219,7 +1271,7 @@ mod codegen {
                                     TomlValueState::Ok { span } => {
                                         let s = raw.value.as_ref().expect("Ok state must have value");
                                         match #func(s.as_str()) {
-                                            Ok(converted) => TomlValue::new_ok(converted, span.clone()),
+                                            Ok(converted) => TomlValue::new_ok(#wrap_converted, span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
                                                 failed.register_error(&helper.col.errors);

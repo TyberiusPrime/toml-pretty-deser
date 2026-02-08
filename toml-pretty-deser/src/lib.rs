@@ -1834,6 +1834,99 @@ where
     }
 }
 
+/// Internally called by the macros for IndexMap with tpd_with converter
+///
+/// Similar to `toml_item_as_map` but applies a converter function to each string value
+#[doc(hidden)]
+#[must_use]
+pub fn toml_item_as_map_with<K, T, F>(
+    toml_item: &TomlValue<toml_edit::Item>,
+    col: &TomlCollector,
+    converter: F,
+) -> TomlValue<IndexMap<K, T>>
+where
+    K: From<String> + std::hash::Hash + Eq,
+    F: Fn(&str) -> Result<T, WithError>,
+{
+    match &toml_item.state {
+        TomlValueState::Ok { span } => {
+            if let Some(ref item) = toml_item.value {
+                match item.as_table_like_plus() {
+                    Some(table) => {
+                        let mut map = IndexMap::new();
+                        let mut has_errors = false;
+
+                        for (key, value) in table.iter() {
+                            let item_span = value.span().unwrap_or(span.clone());
+                            // Each value must be a string
+                            match value.as_str() {
+                                Some(s) => {
+                                    match converter(s) {
+                                        Ok(converted) => {
+                                            map.insert(K::from(key.to_string()), converted);
+                                        }
+                                        Err((msg, help)) => {
+                                            let failed: TomlValue<T> =
+                                                TomlValue::new_validation_failed(item_span, msg, help);
+                                            failed.register_error(&col.errors);
+                                            has_errors = true;
+                                        }
+                                    }
+                                }
+                                None => {
+                                    let wrong_type: TomlValue<T> = TomlValue {
+                                        value: None,
+                                        state: TomlValueState::WrongType {
+                                            span: item_span,
+                                            expected: "string",
+                                            found: value.type_name(),
+                                        },
+                                    };
+                                    wrong_type.register_error(&col.errors);
+                                    has_errors = true;
+                                }
+                            }
+                        }
+
+                        if has_errors {
+                            TomlValue {
+                                value: Some(map),
+                                state: TomlValueState::Nested {},
+                            }
+                        } else {
+                            TomlValue {
+                                value: Some(map),
+                                state: TomlValueState::Ok { span: span.clone() },
+                            }
+                        }
+                    }
+                    None => TomlValue {
+                        value: None,
+                        state: TomlValueState::WrongType {
+                            span: span.clone(),
+                            expected: "table|inline_table",
+                            found: item.type_name(),
+                        },
+                    },
+                }
+            } else {
+                TomlValue {
+                    value: None,
+                    state: TomlValueState::ValidationFailed {
+                        span: span.clone(),
+                        message: "Cannot convert empty value to map".to_string(),
+                        help: None,
+                    },
+                }
+            }
+        }
+        _ => TomlValue {
+            value: None,
+            state: toml_item.state.clone(),
+        },
+    }
+}
+
 /// Captures precisely what went wrong
 #[derive(Debug, Clone)]
 pub enum TomlValueState {
