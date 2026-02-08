@@ -230,6 +230,26 @@ fn test_tpd_with_missing_required() {
     }
 }
 
+// Test that missing tpd_with key error is not duplicated
+// This test verifies the bug where the error was added twice
+#[test]
+fn test_tpd_with_missing_key_error_not_duplicated() {
+    let toml = "count = 42"; // name is missing
+
+    let result: Result<_, _> = deserialize::<PartialWithUppercase, WithUppercase>(toml);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        // Count occurrences of "Missing required key" in the error string
+        let count = err_str.matches("Missing required key").count();
+        assert_eq!(
+            count, 1,
+            "Expected 'Missing required key' to appear exactly once, but it appeared {} times. Full error: {}",
+            count, err_str
+        );
+    }
+}
+
 // Test with closure-like inline functions (using a helper)
 fn make_prefixed_parser(prefix: &'static str) -> impl Fn(&str) -> Result<String, WithError> {
     move |s| Ok(format!("{}{}", prefix, s))

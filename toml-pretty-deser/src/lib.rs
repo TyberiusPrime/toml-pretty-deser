@@ -740,7 +740,7 @@ fn pretty_error_message(
             .skip(1)
             .map(|x| x.trim_end())
             .fold(String::new(), |acc, line| acc + line + "\n");
-        let digits_needed = blockf.chars().position(|c| c == '│').unwrap_or(1);
+        let digits_needed = blockf.chars().position(|c| c == '│').map(|x| x-1).unwrap_or(1);
 
         let lines_before = match previous_newline {
             None => String::new(),
@@ -768,7 +768,7 @@ fn pretty_error_message(
                             })
                             .map(|(line_no, line)| {
                                 format!(
-                                    "{:<digits_needed$}│ {}",
+                                    "{:>digits_needed$} │ {}",
                                     line_no + 1,
                                     std::string::String::from_utf8_lossy(line)
                                 )
@@ -783,7 +783,7 @@ fn pretty_error_message(
 
         let mut out = String::new();
         writeln!(&mut out, "{}{}", block.prologue(), source_name).expect("can't fail");
-        write!(&mut out, "{:digits_needed$}┆\n{}", " ", lines_before).expect("can't fail");
+        write!(&mut out, "{:digits_needed$} ┆\n{}", " ", lines_before).expect("can't fail");
         if !lines_before.is_empty() {
             write!(&mut out, "\n").expect("can't fail");
         }

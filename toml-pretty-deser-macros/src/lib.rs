@@ -1644,8 +1644,15 @@ mod codegen {
                                             }
                                         }
                                     }
+                                    TomlValueState::Missing { .. } => {
+                                        // Missing - error already registered in get_with_aliases
+                                        TomlValue {
+                                            value: None,
+                                            state: raw.state,
+                                        }
+                                    }
                                     _ => {
-                                        // Missing, wrong type, or other error - forward it
+                                        // Wrong type or other error - forward it
                                         raw.register_error(&helper.col);
                                         TomlValue {
                                             value: None,
