@@ -8,8 +8,8 @@ Error 1/1
 1 │ 
 2 │         color = 'Red'
 3 │         colors = ['Red', 'InvalidColor', 'Blue']
-  ┆                          ───────┬──────         
-  ┆                                 │               
+  ┆                          ───────┬──────
+  ┆                                 │
   ┆                                 ╰──────────────── Invalid enum variant.
 ──╯
 Hint: Did you mean: 'Red', 'Blue', or 'Green'?

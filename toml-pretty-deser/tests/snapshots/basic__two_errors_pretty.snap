@@ -7,7 +7,7 @@ Error 1/2
   ┆
 5 │         [level1.level2]
   ┆         ───────┬───────
-  ┆                │       
+  ┆                │
   ┆                ╰──────── Missing required key: 'data'.
 ──╯
 Hint: This key is required but was not found in the TOML document.
@@ -17,8 +17,8 @@ Error 2/2
   ┆
 5 │         [level1.level2]
 6 │             other = 2
-  ┆             ──┬──    
-  ┆               │      
+  ┆             ──┬──
+  ┆               │
   ┆               ╰─────── Unknown key.
 ──╯
 Hint: Did you mean: 'data'?

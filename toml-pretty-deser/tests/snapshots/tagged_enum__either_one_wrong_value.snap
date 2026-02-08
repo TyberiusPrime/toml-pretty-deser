@@ -7,7 +7,7 @@ expression: "errors[0].pretty(\"test.toml\")"
 2 │     [choice]
 3 │         kind = 'Nosuchenumvalue'
   ┆                ────────┬────────
-  ┆                        │        
+  ┆                        │
   ┆                        ╰───────── Unknown enum variant
 ──╯
 Hint: Did you mean: 'KindA' or 'KindB'?

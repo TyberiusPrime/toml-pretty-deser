@@ -5,8 +5,8 @@ expression: "e.pretty(\"test.toml\")"
   ╭─test.toml
   ┆
 2 │         a = 5,
-  ┆              ┬ 
-  ┆              │ 
+  ┆              ┬
+  ┆              │
   ┆              ╰── unexpected key or value, expected newline, `#`
 ──╯
 Hint: See the TOML Spec: https://toml.io/en/v1.1.0

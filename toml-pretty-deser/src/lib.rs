@@ -738,11 +738,12 @@ fn pretty_error_message(
          let blockf: String = format!("{block}")
             .lines()
             .skip(1)
+            .map(|x| x.trim_end())
             .fold(String::new(), |acc, line| acc + line + "\n");
         let digits_needed = blockf.chars().position(|c| c == '│').unwrap_or(1);
 
         let lines_before = match previous_newline {
-            None => (String::new()),
+            None => String::new(),
             Some(previous_newline) => {
                 let lines: Vec<_> = {
                     let upto_span = &BStr::new(source.as_bytes())[..previous_newline];
@@ -907,7 +908,7 @@ impl TomlCollector {
 
 /// TOML 'table-like' access wrapper that e.g. verifies that no unexpected fields occur in your TOML
 pub struct TomlHelper<'a> {
-    table: Option<&'a dyn TableLikePlus>,
+    pub table: Option<&'a dyn TableLikePlus>,
     /// Expected field info (what we allow to see)
     expected: Vec<FieldInfo>,
     /// Normalized names that were actually observed (matched against table keys)

@@ -9,7 +9,7 @@ Error 1/1
 2 │         name = "test"
 3 │         bad_number = "not a number"
   ┆                      ───────┬──────
-  ┆                             │      
+  ┆                             │
   ┆                             ╰─────── Wrong type: expected i64, found string
 ──╯
 Hint: This value has the wrong type.

@@ -587,8 +587,8 @@ fn test_mapped_nested_missing_field() {
   ┆
 2 │         [mapped_struct]
 3 │             a = { }  # missing n field
-  ┆                 ─┬─                   
-  ┆                  │                    
+  ┆                 ─┬─
+  ┆                  │
   ┆                  ╰───────────────────── Missing required key: 'n'.
 ──╯
 Hint: This key is required but was not found in the TOML document.

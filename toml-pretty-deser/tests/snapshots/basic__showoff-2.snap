@@ -8,7 +8,7 @@ expression: "errors[0].pretty(\"test.toml\")"
   ┆                   ▲
   ┆ ╭─────────────────╯
 3 │ │         name = 'hello',
-  ┆ │                       
+  ┆ │
 4 │ │     }
   ┆ │     ▲
   ┆ │     │

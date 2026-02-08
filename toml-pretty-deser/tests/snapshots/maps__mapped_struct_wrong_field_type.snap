@@ -6,8 +6,8 @@ expression: "errors[0].pretty(\"test.toml\")"
   ┆
 8 │         [mapped_struct]
 9 │             a = { n = 'not a number' }
-  ┆                       ───────┬──────  
-  ┆                              │        
+  ┆                       ───────┬──────
+  ┆                              │
   ┆                              ╰───────── Wrong type: expected u8, found string
 ──╯
 Hint: This value has the wrong type.
