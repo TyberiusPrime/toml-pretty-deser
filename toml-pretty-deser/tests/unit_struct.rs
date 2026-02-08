@@ -47,7 +47,7 @@ struct SegmentIndex(usize);
 impl VerifyFromToml for PartialReferenceTest {
     fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
         // Use the generated tpd_get_inner method to read the field as String
-        let str_inner: TomlValue<String> = self.tpd_get_inner(helper, true);
+        let str_inner: TomlValue<String> = self.tpd_get_inner(helper, true, true);
         match str_inner.as_ref() {
             Some(segment_name) => {
                 if let Some(segments) = self.segments.as_ref() {
@@ -152,7 +152,7 @@ struct ItemIndex(usize);
 
 impl VerifyFromToml for PartialAliasedAdaptTest {
     fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
-        let str_selected: TomlValue<String> = self.tpd_get_selected(helper, true);
+        let str_selected: TomlValue<String> = self.tpd_get_selected(helper, true, true);
         match str_selected.as_ref() {
             Some(item_name) => {
                 if let Some(items) = self.items.as_ref() {
@@ -278,7 +278,7 @@ struct ConvertedType2(i32);
 impl VerifyFromToml for PartialCalledGetterButForgotToSet {
     fn verify(self, helper: &mut TomlHelper<'_>) -> Self {
         // We call the getter (which registers the field as expected)
-        let _value: TomlValue<String> = self.tpd_get_converted(helper, true);
+        let _value: TomlValue<String> = self.tpd_get_converted(helper, true, true);
         // But we forget to set self.converted!
         self
     }
@@ -308,7 +308,7 @@ struct OptionalAdaptTest {
 
 impl VerifyFromToml for PartialOptionalAdaptTest {
     fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
-        let str_index: TomlValue<String> = self.tpd_get_maybe_index(helper, false);
+        let str_index: TomlValue<String> = self.tpd_get_maybe_index(helper, false, true);
         match str_index.as_ref() {
             Some(s) => match s.parse::<usize>() {
                 Ok(idx) => self.maybe_index = TomlValue::new_ok(Some(idx), str_index.span()),
@@ -355,5 +355,122 @@ fn test_adapt_optional_missing() {
     assert!(result.is_ok());
     if let Ok(output) = result {
         assert_eq!(output.maybe_index, None);
+    }
+}
+
+// Helper function to extract u8 from either a string (single byte char) or u8 value
+pub fn tpd_extract_u8_from_byte_or_char(
+    toml_value_str: TomlValue<String>,
+    toml_value_u8: TomlValue<u8>,
+) -> TomlValue<u8> {
+    fn err(span: std::ops::Range<usize>) -> TomlValue<u8> {
+        TomlValue::new_validation_failed(
+            span,
+            "Invalid value".to_string(),
+            Some("Use a single byte (number or char)".to_string()),
+        )
+    }
+
+    if toml_value_str.is_missing() && toml_value_u8.is_missing() {
+        return toml_value_u8;
+    }
+
+    match toml_value_str.as_ref() {
+        Some(s) => {
+            if s.as_bytes().len() != 1 {
+                err(toml_value_str.span())
+            } else {
+                TomlValue::new_ok(s.as_bytes()[0], toml_value_str.span())
+            }
+        }
+        None => match toml_value_u8.as_ref() {
+            Some(byte) => TomlValue::new_ok(*byte, toml_value_u8.span()),
+            None => err(toml_value_u8.span()),
+        },
+    }
+}
+
+// Test: adapt_in_verify with Option<u8> field using byte-or-char extraction
+#[tpd]
+#[derive(Debug)]
+struct ByteOrCharTest {
+    name: String,
+    #[tpd_adapt_in_verify]
+    delimiter: Option<u8>,
+}
+
+impl VerifyFromToml for PartialByteOrCharTest {
+    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self {
+        // Use tpd_get_delimiter with auto_register_type_errors=false to avoid registering
+        // WrongType errors when probing for multiple types
+        let str_val: TomlValue<String> = self.tpd_get_delimiter(helper, false, false);
+        let u8_val: TomlValue<u8> = self.tpd_get_delimiter(helper, false, false);
+        let extracted = tpd_extract_u8_from_byte_or_char(str_val, u8_val);
+        // Register error if the extraction failed (but not for missing - that's ok for optional)
+        if !extracted.is_ok() && !extracted.is_missing() {
+            extracted.register_error(&helper.col.errors);
+        }
+        self.delimiter = extracted.into_optional();
+        self
+    }
+}
+
+#[test]
+fn test_byte_or_char_with_char() {
+    let toml = r#"
+        name = "test"
+        delimiter = ","
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialByteOrCharTest, ByteOrCharTest>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.delimiter, Some(b','));
+    }
+}
+
+#[test]
+fn test_byte_or_char_with_number() {
+    let toml = r#"
+        name = "test"
+        delimiter = 44
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialByteOrCharTest, ByteOrCharTest>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.delimiter, Some(44)); // ASCII for ','
+    }
+}
+
+#[test]
+fn test_byte_or_char_missing() {
+    let toml = r#"
+        name = "test"
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialByteOrCharTest, ByteOrCharTest>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.delimiter, None);
+    }
+}
+
+#[test]
+fn test_byte_or_char_invalid_multi_char_string() {
+    let toml = r#"
+        name = "test"
+        delimiter = "abc"
+    "#;
+
+    let result: Result<_, _> = deserialize::<PartialByteOrCharTest, ByteOrCharTest>(toml);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(e) = result {
+        let err_str = format!("{:?}", e);
+        assert!(err_str.contains("Invalid value"));
     }
 }

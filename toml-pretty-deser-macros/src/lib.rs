@@ -1883,8 +1883,13 @@ mod codegen {
                         &self,
                         helper: &mut TomlHelper<'_>,
                         missing_is_error: bool,
+                        auto_register_type_errors: bool,
                     ) -> TomlValue<T> {
-                        helper.get_with_aliases(#name_str, &[#(#aliases),*], missing_is_error)
+                        if auto_register_type_errors {
+                            helper.get_with_aliases(#name_str, &[#(#aliases),*], missing_is_error)
+                        } else {
+                            helper.get_with_aliases_no_auto_error(#name_str, &[#(#aliases),*], missing_is_error)
+                        }
                     }
                 }
             })

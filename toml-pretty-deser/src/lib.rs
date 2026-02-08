@@ -1028,6 +1028,80 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
+    /// Like `get_with_aliases`, but does not automatically register errors for type mismatches.
+    /// This is useful when you want to try parsing a value as multiple types (e.g., either
+    /// a string or a number) and handle the error yourself.
+    ///
+    /// # Panics
+    /// Shouldn't.
+    pub fn get_with_aliases_no_auto_error<T>(
+        &mut self,
+        query_key: &str,
+        aliases: &'static [&'static str],
+        missing_is_error: bool,
+    ) -> TomlValue<T>
+    where
+        T: FromTomlItem + std::fmt::Debug,
+    {
+        let parent_span = if let Some(table) = self.table {
+            table.span().unwrap_or(0..0)
+        } else {
+            0..0
+        };
+
+        // Register this field as expected
+        self.expect_field(query_key, aliases);
+
+        // Try to find a matching key (considering aliases and match mode)
+        let found_keys = self.find_matching_keys(query_key, aliases);
+
+        match found_keys.len() {
+            0 => {
+                // No match found - return Missing, optionally registering error
+                let res = TomlValue {
+                    value: None,
+                    state: TomlValueState::Missing {
+                        key: query_key.to_string(),
+                        parent_span,
+                    },
+                };
+                if missing_is_error {
+                    res.register_error(&self.col.errors);
+                }
+                res
+            }
+            1 => {
+                let (matched_key, item) = found_keys.first().expect("can't fail");
+                let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, &self.col);
+                // Don't auto-register errors - let the caller handle them
+                self.observed
+                    .push(self.col.match_mode.normalize(matched_key));
+                res
+            }
+            _ => {
+                let spans = found_keys
+                    .iter()
+                    .map(|(matched_key, _item)| self.span_from_key(matched_key))
+                    .collect();
+                for (matched_key, _) in &found_keys {
+                    self.observed
+                        .push(self.col.match_mode.normalize(matched_key));
+                }
+
+                let res = TomlValue {
+                    value: None,
+                    state: TomlValueState::MultiDefined {
+                        key: query_key.to_string(),
+                        spans,
+                    },
+                };
+                // Still register multi-defined errors as those are always errors
+                res.register_error(&self.col.errors);
+                res
+            }
+        }
+    }
+
     fn span_from_key(&self, key: &str) -> Range<usize> {
         if let Some(table) = self.table {
             table
