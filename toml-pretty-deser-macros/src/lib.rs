@@ -866,8 +866,15 @@ mod codegen {
     ) -> Vec<TokenStream2> {
         fields
             .iter()
-            .filter(|f| !is_skipped_field(f))
             .map(|f| {
+                // Skipped fields are included as Option<T> so they can be set in verify()
+                if is_skipped_field(f) {
+                    let name = &f.ident;
+                    let ty = &f.ty;
+                    return quote! {
+                        #name: Option<#ty>
+                    };
+                }
                 let name = &f.ident;
                 let ty = &f.ty;
 
@@ -1090,8 +1097,9 @@ mod codegen {
                 let ty = &f.ty;
 
                 if is_skipped_field(f) {
+                    // Skipped fields use the value set in verify(), or Default::default() if not set
                     quote! {
-                        #name: <#ty as ::std::default::Default>::default()
+                        #name: self.#name.unwrap_or_default()
                     }
                 } else if is_absorb_remaining_field(f) {
                     // absorb_remaining fields extract their value or use empty map if None
@@ -1550,6 +1558,18 @@ mod codegen {
             })
             .collect();
 
+        // skipped fields are initialized with None (can be set in verify())
+        let skipped_fields: Vec<_> = fields
+            .iter()
+            .filter(|f| is_skipped_field(f))
+            .map(|f| {
+                let name = &f.ident;
+                quote! {
+                    #name: None
+                }
+            })
+            .collect();
+
         // absorb_remaining fields collect all keys not matched by other fields
         let absorb_remaining_fields: Vec<_> = fields
             .iter()
@@ -1629,6 +1649,7 @@ mod codegen {
                     #partial_name {
                         #(#from_toml_table_fields,)*
                         #(#adapt_in_verify_fields,)*
+                        #(#skipped_fields,)*
                         #(#absorb_remaining_fields,)*
                     }
                 }

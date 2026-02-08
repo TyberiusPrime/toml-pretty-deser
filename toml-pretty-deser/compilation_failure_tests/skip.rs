@@ -14,6 +14,8 @@ fn main() {
     dbg!(&result);
     assert!(!result.is_ok());
     if let Err(DeserError::DeserFailure(_errors, partial)) = result {
+        // Skipped fields now exist in the partial as Option<T>, not TomlValue<T>
+        // This test verifies they don't have .value (which would be TomlValue's field)
         assert_eq!(partial.skipped.value, None);
     }
 }
