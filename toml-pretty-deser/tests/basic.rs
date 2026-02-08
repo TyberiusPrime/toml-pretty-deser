@@ -1840,3 +1840,92 @@ fn test_nested_inline_default_enum_with_alias() {
         assert_eq!(inner.compression, CompressionFormat::Uncompressed);
     }
 }
+
+// =============================================================================
+// Test that inner enum with #[tpd_default] and invalid value creates only ONE error
+// =============================================================================
+
+/// A unit enum for testing error behavior with #[tpd_default]
+#[tpd]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Status {
+    #[default]
+    Active,
+    Inactive,
+    Pending,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct ConfigWithDefaultEnum {
+    name: String,
+    #[tpd_default]
+    status: Status,
+}
+
+#[test]
+fn test_inner_enum_with_tpd_default_invalid_value_single_error() {
+    // When an inner enum field with #[tpd_default] has an invalid value,
+    // we should get exactly ONE error, not two.
+    // The error should be about the invalid enum variant, not about a missing field.
+    let toml = r#"
+        name = "test"
+        status = "InvalidStatus"
+    "#;
+
+    let result = deserialize::<PartialConfigWithDefaultEnum, ConfigWithDefaultEnum>(toml);
+    dbg!(&result);
+
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        // Should have exactly ONE error
+        assert_eq!(
+            errors.len(),
+            1,
+            "Expected exactly 1 error for invalid enum value, got {}: {:?}",
+            errors.len(),
+            errors
+        );
+
+        // The error should be about invalid enum variant
+        assert!(
+            errors[0].inner.spans[0].msg.contains("Invalid enum variant"),
+            "Expected 'Invalid enum variant' error, got: {}",
+            errors[0].inner.spans[0].msg
+        );
+    } else {
+        panic!("Expected DeserFailure error, got: {:?}", result);
+    }
+}
+
+#[test]
+fn test_inner_enum_with_tpd_default_missing_uses_default() {
+    // When the inner enum field with #[tpd_default] is missing, it should use the default.
+    let toml = r#"
+        name = "test"
+    "#;
+
+    let result = deserialize::<PartialConfigWithDefaultEnum, ConfigWithDefaultEnum>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        assert_eq!(output.status, Status::Active); // Default value
+    }
+}
+
+#[test]
+fn test_inner_enum_with_tpd_default_valid_value() {
+    // When the inner enum field with #[tpd_default] has a valid value, it should be used.
+    let toml = r#"
+        name = "test"
+        status = "Pending"
+    "#;
+
+    let result = deserialize::<PartialConfigWithDefaultEnum, ConfigWithDefaultEnum>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        assert_eq!(output.status, Status::Pending);
+    }
+}

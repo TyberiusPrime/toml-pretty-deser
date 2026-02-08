@@ -4,7 +4,6 @@ expression: "errors[0].pretty(\"test.toml\")"
 ---
   ╭─test.toml
   ┆
-
 2 │       something = {
   ┆                   ▲
   ┆ ╭─────────────────╯

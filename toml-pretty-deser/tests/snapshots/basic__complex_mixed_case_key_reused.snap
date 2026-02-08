@@ -5,7 +5,6 @@ expression: "result.unwrap_err().pretty(\"test.toml\")"
 Error 1/2
   ╭─test.toml
   ┆
-
 2 │         API_KEY = 'shouty alias'
   ┆         ───┬───                 
   ┆            │                    

@@ -884,15 +884,14 @@ mod codegen {
                             // Check each variant using match_mode for case-insensitive matching
                             #(#match_arms)*
 
-                            // No match found
+                            // No match found - return validation error
+                            // Note: error registration is handled by the caller (get_with_aliases)
                             let help = ::toml_pretty_deser::suggest_enum_alternatives::<#enum_name>(s);
-                            let res = ::toml_pretty_deser::TomlValue::new_validation_failed(
+                            ::toml_pretty_deser::TomlValue::new_validation_failed(
                                 span,
                                 "Invalid enum variant.".to_string(),
                                 ::std::option::Option::Some(help),
-                            );
-                            res.register_error(col);
-                            res
+                            )
                         }
                         other => ::toml_pretty_deser::TomlValue::new_wrong_type(other, parent_span, "string"),
                     }

@@ -5,7 +5,6 @@ expression: "e.pretty(\"test.toml\")"
 Error 1/2
   ╭─test.toml
   ┆
-
 5 │         [level1.level2]
   ┆         ───────┬───────
   ┆                │       

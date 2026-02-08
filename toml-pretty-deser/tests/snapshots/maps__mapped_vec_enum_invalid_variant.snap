@@ -2,10 +2,9 @@
 source: toml-pretty-deser/tests/maps.rs
 expression: "e.pretty(\"test.toml\")"
 ---
-Error 1/9
+Error 1/8
   ╭─test.toml
   ┆
-
 1 │ 
   ┆ ┬
   ┆ │
@@ -13,10 +12,9 @@ Error 1/9
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
-Error 2/9
+Error 2/8
   ╭─test.toml
   ┆
-
 1 │ 
   ┆ ┬
   ┆ │
@@ -24,10 +22,9 @@ Error 2/9
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
-Error 3/9
+Error 3/8
   ╭─test.toml
   ┆
-
 1 │ 
   ┆ ┬
   ┆ │
@@ -35,10 +32,9 @@ Error 3/9
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
-Error 4/9
+Error 4/8
   ╭─test.toml
   ┆
-
 1 │ 
   ┆ ┬
   ┆ │
@@ -46,10 +42,9 @@ Error 4/9
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
-Error 5/9
+Error 5/8
   ╭─test.toml
   ┆
-
 1 │ 
   ┆ ┬
   ┆ │
@@ -57,7 +52,7 @@ Error 5/9
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
-Error 6/9
+Error 6/8
   ╭─test.toml
   ┆
 2 │         [mapped_vec_enum]
@@ -68,21 +63,9 @@ Error 6/9
 ──╯
 Hint: Did you mean: 'AlphaBeta' or 'GammaDelta'?
 
-Error 7/9
+Error 7/8
   ╭─test.toml
   ┆
-2 │         [mapped_vec_enum]
-3 │             a = ['AlphaBeta', 'InvalidVariant']
-  ┆                               ────────┬─────── 
-  ┆                                       │        
-  ┆                                       ╰───────── Invalid enum variant.
-──╯
-Hint: Did you mean: 'AlphaBeta' or 'GammaDelta'?
-
-Error 8/9
-  ╭─test.toml
-  ┆
-
 1 │ 
   ┆ ┬
   ┆ │
@@ -90,10 +73,9 @@ Error 8/9
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
-Error 9/9
+Error 8/8
   ╭─test.toml
   ┆
-
 1 │ 
   ┆ ┬
   ┆ │
