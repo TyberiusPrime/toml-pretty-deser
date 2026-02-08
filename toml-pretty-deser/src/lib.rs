@@ -1073,12 +1073,16 @@ impl<'a> TomlHelper<'a> {
     /// 
     /// The function iterates over all keys in the table, skips those that were
     /// already matched (in `self.observed`), and deserializes the remaining keys
-    /// into an `IndexMap<String, T>`.
+    /// into an `IndexMap<K, T>` where K implements `From<String>`.
     /// 
     /// The absorbed keys are marked as observed, so `deny_unknown()` won't report them.
     /// 
     /// Returns a `TomlValue` containing the map. The map preserves insertion order.
-    pub fn absorb_remaining<T: FromTomlItem>(&mut self) -> TomlValue<IndexMap<String, T>> {
+    pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, T>>
+    where
+        K: From<String> + std::hash::Hash + Eq,
+        T: FromTomlItem,
+    {
         // Build set of observed normalized names (keys that matched other fields)
         let observed_set: IndexSet<String> = self.observed.iter().cloned().collect();
 
@@ -1091,7 +1095,7 @@ impl<'a> TomlHelper<'a> {
             }
         };
 
-        let mut result_map: IndexMap<String, T> = IndexMap::new();
+        let mut result_map: IndexMap<K, T> = IndexMap::new();
         let mut all_ok = true;
         let mut first_span: Option<Range<usize>> = None;
 
@@ -1119,7 +1123,7 @@ impl<'a> TomlHelper<'a> {
             match &value_result.state {
                 TomlValueState::Ok { .. } => {
                     if let Some(value) = value_result.value {
-                        result_map.insert(key_str, value);
+                        result_map.insert(K::from(key_str), value);
                     }
                 }
                 _ => {

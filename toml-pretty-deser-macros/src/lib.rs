@@ -1700,10 +1700,16 @@ mod codegen {
                 let name = &f.ident;
                 let ty = &f.ty;
                 let is_optional = is_option_indexmap_type(ty);
-                let value_ty = if is_optional {
-                    extract_option_indexmap_value_type(ty).expect("Failed to extract option indexmap value type")
+                let (key_ty, value_ty) = if is_optional {
+                    (
+                        extract_option_indexmap_key_type(ty).expect("Failed to extract option indexmap key type"),
+                        extract_option_indexmap_value_type(ty).expect("Failed to extract option indexmap value type"),
+                    )
                 } else {
-                    extract_indexmap_value_type(ty).expect("Failed to extract indexmap value type")
+                    (
+                        extract_indexmap_key_type(ty).expect("Failed to extract indexmap key type"),
+                        extract_indexmap_value_type(ty).expect("Failed to extract indexmap value type"),
+                    )
                 };
                 
                 // Check if the value type needs to be a partial type (for nested)
@@ -1713,11 +1719,11 @@ mod codegen {
                     IndexMapValueKind::Nested(partial_type) => {
                         if is_optional {
                             quote! {
-                                #name: helper.absorb_remaining::<#partial_type>().into_optional()
+                                #name: helper.absorb_remaining::<#key_ty, #partial_type>().into_optional()
                             }
                         } else {
                             quote! {
-                                #name: helper.absorb_remaining::<#partial_type>()
+                                #name: helper.absorb_remaining::<#key_ty, #partial_type>()
                             }
                         }
                     }
@@ -1725,22 +1731,22 @@ mod codegen {
                         // For Vec<Nested>, we still need the partial type
                         if is_optional {
                             quote! {
-                                #name: helper.absorb_remaining::<Vec<#partial_type>>().into_optional()
+                                #name: helper.absorb_remaining::<#key_ty, Vec<#partial_type>>().into_optional()
                             }
                         } else {
                             quote! {
-                                #name: helper.absorb_remaining::<Vec<#partial_type>>()
+                                #name: helper.absorb_remaining::<#key_ty, Vec<#partial_type>>()
                             }
                         }
                     }
                     IndexMapValueKind::Primitive => {
                         if is_optional {
                             quote! {
-                                #name: helper.absorb_remaining::<#value_ty>().into_optional()
+                                #name: helper.absorb_remaining::<#key_ty, #value_ty>().into_optional()
                             }
                         } else {
                             quote! {
-                                #name: helper.absorb_remaining::<#value_ty>()
+                                #name: helper.absorb_remaining::<#key_ty, #value_ty>()
                             }
                         }
                     }
@@ -2504,35 +2510,16 @@ mod handlers {
             );
         }
 
-        // Validate absorb_remaining field type: must be IndexMap<String, T> or Option<IndexMap<String, T>>
+        // Validate absorb_remaining field type: must be IndexMap<K, T> or Option<IndexMap<K, T>>
+        // Key type K must implement From<String> (validated at trait bound level, not here)
         for f in &absorb_remaining_fields {
             let ty = &f.ty;
             let field_name = f.ident.as_ref().map_or_else(|| "unnamed".to_string(), |i| i.to_string());
 
-            if is_option_indexmap_type(ty) {
-                // Option<IndexMap<K, V>> - check key type is String
-                if let Some(key_ty) = extract_option_indexmap_key_type(ty) {
-                    if extract_type_name(&key_ty).map_or(true, |name| name != "String") {
-                        panic!(
-                            "#[tpd_absorb_remaining] on field '{}' requires IndexMap with String keys, found: {}",
-                            field_name, quote!(#key_ty)
-                        );
-                    }
-                }
-            } else if is_indexmap_type(ty) {
-                // IndexMap<K, V> - check key type is String
-                if let Some(key_ty) = extract_indexmap_key_type(ty) {
-                    if extract_type_name(&key_ty).map_or(true, |name| name != "String") {
-                        panic!(
-                            "#[tpd_absorb_remaining] on field '{}' requires IndexMap with String keys, found: {}",
-                            field_name, quote!(#key_ty)
-                        );
-                    }
-                }
-            } else {
+            if !is_option_indexmap_type(ty) && !is_indexmap_type(ty) {
                 // Wrong type entirely
                 panic!(
-                    "#[tpd_absorb_remaining] on field '{}' requires type IndexMap<String, T> or Option<IndexMap<String, T>>, found: {}",
+                    "#[tpd_absorb_remaining] on field '{}' requires type IndexMap<K, T> or Option<IndexMap<K, T>>, found: {}",
                     field_name, quote!(#ty)
                 );
             }

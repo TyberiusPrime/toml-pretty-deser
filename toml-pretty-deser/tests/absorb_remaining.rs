@@ -704,6 +704,213 @@ fn test_absorb_remaining_inline_table() {
 }
 
 // =============================================================================
+// Absorb remaining with BString key type
+// =============================================================================
+
+use bstr::BString;
+
+/// Basic struct with absorbing field using BString keys
+#[tpd]
+#[derive(Debug)]
+struct BStringAbsorb {
+    name: String,
+    count: u32,
+    #[tpd_absorb_remaining]
+    extra: IndexMap<BString, toml_edit::Item>,
+}
+
+#[test]
+fn test_absorb_remaining_bstring_key_basic() {
+    let toml = r#"
+        name = "test"
+        count = 42
+        unknown_field = "should be absorbed"
+        another_unknown = 123
+    "#;
+
+    let result = deserialize::<PartialBStringAbsorb, BStringAbsorb>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        assert_eq!(output.count, 42);
+        assert_eq!(output.extra.len(), 2);
+        assert!(output.extra.contains_key(&BString::from("unknown_field")));
+        assert!(output.extra.contains_key(&BString::from("another_unknown")));
+    }
+}
+
+#[test]
+fn test_absorb_remaining_bstring_key_empty() {
+    // When all fields are known, extra should be empty
+    let toml = r#"
+        name = "test"
+        count = 42
+    "#;
+
+    let result = deserialize::<PartialBStringAbsorb, BStringAbsorb>(toml);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        assert_eq!(output.count, 42);
+        assert!(output.extra.is_empty());
+    }
+}
+
+/// Optional IndexMap with BString keys
+#[tpd]
+#[derive(Debug)]
+struct OptionalBStringAbsorb {
+    name: String,
+    #[tpd_absorb_remaining]
+    extra: Option<IndexMap<BString, String>>,
+}
+
+#[test]
+fn test_absorb_remaining_bstring_key_optional_with_extras() {
+    let toml = r#"
+        name = "test"
+        foo = "bar"
+        baz = "qux"
+    "#;
+
+    let result = deserialize::<PartialOptionalBStringAbsorb, OptionalBStringAbsorb>(toml);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        assert!(output.extra.is_some());
+        let extra = output.extra.unwrap();
+        assert_eq!(extra.len(), 2);
+        assert_eq!(extra.get(&BString::from("foo")), Some(&"bar".to_string()));
+        assert_eq!(extra.get(&BString::from("baz")), Some(&"qux".to_string()));
+    }
+}
+
+#[test]
+fn test_absorb_remaining_bstring_key_optional_no_extras() {
+    let toml = r#"
+        name = "test"
+    "#;
+
+    let result = deserialize::<PartialOptionalBStringAbsorb, OptionalBStringAbsorb>(toml);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        // No extras absorbed, so Option should be Some with empty map
+        // (this matches behavior of regular absorb_remaining)
+        assert!(output.extra.is_some());
+        assert!(output.extra.unwrap().is_empty());
+    }
+}
+
+/// BString keys with typed values (u32)
+#[tpd]
+#[derive(Debug)]
+struct TypedBStringAbsorb {
+    name: String,
+    #[tpd_absorb_remaining]
+    extra: IndexMap<BString, u32>,
+}
+
+#[test]
+fn test_absorb_remaining_bstring_key_typed_values() {
+    let toml = r#"
+        name = "test"
+        score = 100
+        level = 5
+    "#;
+
+    let result = deserialize::<PartialTypedBStringAbsorb, TypedBStringAbsorb>(toml);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        assert_eq!(output.extra.len(), 2);
+        assert_eq!(output.extra.get(&BString::from("score")), Some(&100));
+        assert_eq!(output.extra.get(&BString::from("level")), Some(&5));
+    }
+}
+
+/// BString keys with nested struct values
+#[tpd]
+#[derive(Debug, Clone)]
+struct BStringNestedValue {
+    x: i32,
+    y: i32,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct BStringNestedAbsorb {
+    name: String,
+    #[tpd_absorb_remaining]
+    #[tpd_nested]
+    extra: IndexMap<BString, BStringNestedValue>,
+}
+
+#[test]
+fn test_absorb_remaining_bstring_key_nested_values() {
+    let toml = r#"
+        name = "test"
+        
+        [point_a]
+        x = 10
+        y = 20
+        
+        [point_b]
+        x = 30
+        y = 40
+    "#;
+
+    let result = deserialize::<PartialBStringNestedAbsorb, BStringNestedAbsorb>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "test");
+        assert_eq!(output.extra.len(), 2);
+
+        let point_a = output.extra.get(&BString::from("point_a")).unwrap();
+        assert_eq!(point_a.x, 10);
+        assert_eq!(point_a.y, 20);
+
+        let point_b = output.extra.get(&BString::from("point_b")).unwrap();
+        assert_eq!(point_b.x, 30);
+        assert_eq!(point_b.y, 40);
+    }
+}
+
+/// BString keys with aliases - absorbed keys should respect aliases
+#[tpd]
+#[derive(Debug)]
+struct BStringAbsorbWithAlias {
+    #[tpd_alias("identifier", "id")]
+    name: String,
+    #[tpd_absorb_remaining]
+    extra: IndexMap<BString, toml_edit::Item>,
+}
+
+#[test]
+fn test_absorb_remaining_bstring_key_respects_aliases() {
+    // Using alias - truly unknown keys should be absorbed
+    let toml = r#"
+        identifier = "using alias"
+        random_key = "absorbed"
+        another_key = 42
+    "#;
+
+    let result = deserialize::<PartialBStringAbsorbWithAlias, BStringAbsorbWithAlias>(toml);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.name, "using alias");
+        // "identifier" matched the field via alias, so not absorbed
+        assert!(!output.extra.contains_key(&BString::from("identifier")));
+        // Truly unknown keys should be absorbed
+        assert!(output.extra.contains_key(&BString::from("random_key")));
+        assert!(output.extra.contains_key(&BString::from("another_key")));
+        assert_eq!(output.extra.len(), 2);
+    }
+}
+
+// =============================================================================
 // Error cases - compile time checks are in compilation_failure_tests/
 // See: absorb_remaining_multiple.rs, absorb_remaining_wrong_type_*.rs
 // =============================================================================

@@ -1,15 +1,23 @@
-error: custom attribute panicked
- --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
-  |
-5 | #[tpd]
-  | ^^^^^^
-  |
-  = help: message: #[tpd_absorb_remaining] on field 'extra' requires IndexMap with String keys, found: i32
-
-warning: unused import: `indexmap::IndexMap`
- --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:2:5
-  |
-2 | use indexmap::IndexMap;
-  |     ^^^^^^^^^^^^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+error[E0277]: the trait bound `i32: From<std::string::String>` is not satisfied
+  --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:10:21
+   |
+ 5 | #[tpd]
+   | ------ required by a bound introduced by this call
+...
+10 |     extra: IndexMap<i32, String>,
+   |                     ^^^ the trait `From<std::string::String>` is not implemented for `i32`
+   |
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+note: required by a bound in `toml_pretty_deser::TomlHelper::<'a>::absorb_remaining`
+  --> src/lib.rs
+   |
+   |     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, T>>
+   |            ---------------- required by a bound in this associated function
+   |     where
+   |         K: From<String> + std::hash::Hash + Eq,
+   |            ^^^^^^^^^^^^ required by this bound in `TomlHelper::<'a>::absorb_remaining`

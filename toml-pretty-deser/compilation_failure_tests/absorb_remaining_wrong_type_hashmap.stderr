@@ -4,7 +4,7 @@ error: custom attribute panicked
 5 | #[tpd]
   | ^^^^^^
   |
-  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<String, T> or Option<IndexMap<String, T>>, found: HashMap < String, String >
+  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<K, T> or Option<IndexMap<K, T>>, found: HashMap < String, String >
 
 warning: unused import: `std::collections::HashMap`
  --> compilation_failure_tests/absorb_remaining_wrong_type_hashmap.rs:2:5
