@@ -188,10 +188,9 @@ fn test_absorb_remaining_unused_alias_names_not_absorbed() {
     if let Err(DeserError::DeserFailure(errors, _)) = result {
         // Should have multi-defined errors for title and label matching name
         let has_multi = errors.iter().any(|e| {
-            e.inner
-                .spans
-                .iter()
-                .any(|s| s.msg.contains("Multiple definitions"))
+            e.inner.spans.iter().any(|s| {
+                s.msg.contains("defined multiple times") || s.msg.contains("Key/alias conflict")
+            })
         });
         assert!(has_multi, "Expected multi-defined error");
     }
@@ -376,8 +375,8 @@ fn test_absorb_remaining_vec_strings_mixed_valid_invalid() {
         assert!(errors
             .iter()
             .any(|e| e.inner.spans[0].msg.contains("Wrong type")));
-        // Partial should still have the good ones
-        let lists = partial.lists.into_option();
+        // Partial should still have the good ones (access via .value, not .into_option())
+        let lists = partial.lists.value;
         assert!(lists.is_some());
         let lists = lists.unwrap();
         assert!(lists.contains_key("good"));

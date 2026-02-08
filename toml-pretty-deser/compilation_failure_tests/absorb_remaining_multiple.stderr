@@ -1,1 +1,15 @@
-error: Only one field can have #[tpd_absorb_remaining] attribute
+error: custom attribute panicked
+ --> compilation_failure_tests/absorb_remaining_multiple.rs:5:1
+  |
+5 | #[tpd]
+  | ^^^^^^
+  |
+  = help: message: Only one field can have #[tpd_absorb_remaining]. Found 2 fields with this attribute.
+
+warning: unused import: `indexmap::IndexMap`
+ --> compilation_failure_tests/absorb_remaining_multiple.rs:2:5
+  |
+2 | use indexmap::IndexMap;
+  |     ^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

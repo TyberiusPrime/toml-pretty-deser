@@ -1060,6 +1060,81 @@ impl<'a> TomlHelper<'a> {
         self.col.errors.borrow_mut().push(err);
     }
 
+    /// Absorb all remaining keys (not matched by other fields) into an `IndexMap`.
+    /// This is used by `#[tpd_absorb_remaining]` fields.
+    /// 
+    /// The function iterates over all keys in the table, skips those that were
+    /// already matched (in `self.observed`), and deserializes the remaining keys
+    /// into an `IndexMap<String, T>`.
+    /// 
+    /// The absorbed keys are marked as observed, so `deny_unknown()` won't report them.
+    /// 
+    /// Returns a `TomlValue` containing the map. The map preserves insertion order.
+    pub fn absorb_remaining<T: FromTomlItem>(&mut self) -> TomlValue<IndexMap<String, T>> {
+        // Build set of observed normalized names (keys that matched other fields)
+        let observed_set: IndexSet<String> = self.observed.iter().cloned().collect();
+
+        // Collect all keys from the table
+        let table = match self.table {
+            Some(t) => t,
+            None => {
+                // No table - return empty map
+                return TomlValue::new_ok(IndexMap::new(), 0..0);
+            }
+        };
+
+        let mut result_map: IndexMap<String, T> = IndexMap::new();
+        let mut all_ok = true;
+        let mut first_span: Option<Range<usize>> = None;
+
+        for (key, item) in table.iter() {
+            let key_str = key.to_string();
+            let normalized_key = self.col.match_mode.normalize(&key_str);
+
+            // Skip keys that were already matched by other fields
+            if observed_set.contains(&normalized_key) {
+                continue;
+            }
+
+            // Mark this key as observed (absorbed) so deny_unknown won't report it
+            self.observed.push(normalized_key);
+
+            // Get span for this item
+            let item_span = item.span().unwrap_or(0..0);
+            if first_span.is_none() {
+                first_span = Some(item_span.clone());
+            }
+
+            // Deserialize the value
+            let value_result = T::from_toml_item(item, item_span, &self.col);
+
+            match &value_result.state {
+                TomlValueState::Ok { .. } => {
+                    if let Some(value) = value_result.value {
+                        result_map.insert(key_str, value);
+                    }
+                }
+                _ => {
+                    // Error during deserialization - register the error
+                    value_result.register_error(&self.col.errors);
+                    all_ok = false;
+                }
+            }
+        }
+
+        let span = first_span.unwrap_or(0..0);
+
+        if all_ok {
+            TomlValue::new_ok(result_map, span)
+        } else {
+            // Return the partial map but indicate nested errors
+            TomlValue {
+                value: Some(result_map),
+                state: TomlValueState::Nested {},
+            }
+        }
+    }
+
     pub fn deny_unknown(&self) {
         // Build set of normalized expected names (including aliases)
         let mut expected_normalized: IndexSet<String> = IndexSet::new();

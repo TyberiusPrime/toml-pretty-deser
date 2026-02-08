@@ -1,1 +1,7 @@
-error: #[tpd_absorb_remaining] requires field type IndexMap<String, T> where T: FromTomlItem
+error: custom attribute panicked
+ --> compilation_failure_tests/absorb_remaining_wrong_type_vec.rs:4:1
+  |
+4 | #[tpd]
+  | ^^^^^^
+  |
+  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<String, T> or Option<IndexMap<String, T>>, found: Vec < String >

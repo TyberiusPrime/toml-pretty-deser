@@ -1,1 +1,15 @@
-error: #[tpd_absorb_remaining] requires field type IndexMap<String, T> where T: FromTomlItem
+error: custom attribute panicked
+ --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
+  |
+5 | #[tpd]
+  | ^^^^^^
+  |
+  = help: message: #[tpd_absorb_remaining] on field 'extra' requires IndexMap with String keys, found: i32
+
+warning: unused import: `indexmap::IndexMap`
+ --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:2:5
+  |
+2 | use indexmap::IndexMap;
+  |     ^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

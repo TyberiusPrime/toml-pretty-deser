@@ -196,6 +196,7 @@ fn clean_struct_input(input: &mut DeriveInput) {
                     && !attr.path().is_ident("tpd_skip")
                     && !attr.path().is_ident("tpd_adapt_in_verify")
                     && !attr.path().is_ident("tpd_with")
+                    && !attr.path().is_ident("tpd_absorb_remaining")
             });
         }
     }
@@ -240,6 +241,13 @@ mod type_analysis {
             .attrs
             .iter()
             .any(|attr| attr.path().is_ident("tpd_skip"))
+    }
+
+    pub fn is_absorb_remaining_field(field: &syn::Field) -> bool {
+        field
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("tpd_absorb_remaining"))
     }
 
     pub fn is_adapt_in_verify_field(field: &syn::Field) -> bool {
@@ -964,6 +972,11 @@ mod codegen {
                     quote! {
                         true
                     }
+                } else if is_absorb_remaining_field(f) {
+                    // absorb_remaining fields always pass can_concrete (empty map is valid)
+                    quote! {
+                        true
+                    }
                 } else if is_defaulted_field(f) && is_nested_field(f) {
                     // tpd_default + tpd_nested: true if missing (will use default) or if nested can_concrete
                     quote! {
@@ -1080,6 +1093,67 @@ mod codegen {
                     quote! {
                         #name: <#ty as ::std::default::Default>::default()
                     }
+                } else if is_absorb_remaining_field(f) {
+                    // absorb_remaining fields extract their value or use empty map if None
+                    // Need to handle nested types specially
+                    let is_optional = is_option_indexmap_type(ty);
+                    let value_ty = if is_optional {
+                        extract_option_indexmap_value_type(ty).expect("can't fail")
+                    } else {
+                        extract_indexmap_value_type(ty).expect("can't fail")
+                    };
+                    let kind = analyze_indexmap_value_type(&value_ty, f);
+                    
+                    match kind {
+                        IndexMapValueKind::Nested(_) => {
+                            // Convert each partial to concrete
+                            if is_optional {
+                                quote! {
+                                    #name: self.#name.value.flatten().map(|map| {
+                                        map.into_iter().filter_map(|(k, p)| p.to_concrete().map(|v| (k, v))).collect()
+                                    })
+                                }
+                            } else {
+                                quote! {
+                                    #name: self.#name.value.map(|map| {
+                                        map.into_iter().filter_map(|(k, p)| p.to_concrete().map(|v| (k, v))).collect()
+                                    }).unwrap_or_default()
+                                }
+                            }
+                        }
+                        IndexMapValueKind::VecNested(_) => {
+                            // Convert each Vec<partial> to Vec<concrete>
+                            if is_optional {
+                                quote! {
+                                    #name: self.#name.value.flatten().map(|map| {
+                                        map.into_iter().map(|(k, vec)| {
+                                            (k, vec.into_iter().filter_map(|p| p.to_concrete()).collect())
+                                        }).collect()
+                                    })
+                                }
+                            } else {
+                                quote! {
+                                    #name: self.#name.value.map(|map| {
+                                        map.into_iter().map(|(k, vec)| {
+                                            (k, vec.into_iter().filter_map(|p| p.to_concrete()).collect())
+                                        }).collect()
+                                    }).unwrap_or_default()
+                                }
+                            }
+                        }
+                        IndexMapValueKind::Primitive => {
+                            // Simple case - just extract the value
+                            if is_optional {
+                                quote! {
+                                    #name: self.#name.value.flatten()
+                                }
+                            } else {
+                                quote! {
+                                    #name: self.#name.value.unwrap_or_default()
+                                }
+                            }
+                        }
+                    }
                 } else if is_defaulted_field(f) && is_nested_field(f) {
                     // tpd_default + tpd_nested: use T::default() when missing, otherwise convert partial to concrete
                     quote! {
@@ -1190,7 +1264,7 @@ mod codegen {
 
         let from_toml_table_fields: Vec<_> = fields
             .iter()
-            .filter(|f| !is_skipped_field(f) && !is_adapt_in_verify_field(f))
+            .filter(|f| !is_skipped_field(f) && !is_adapt_in_verify_field(f) && !is_absorb_remaining_field(f))
             .map(|f| {
                 let name = &f.ident;
                 let name_str = name.as_ref().expect("failed to get field name").to_string();
@@ -1476,6 +1550,62 @@ mod codegen {
             })
             .collect();
 
+        // absorb_remaining fields collect all keys not matched by other fields
+        let absorb_remaining_fields: Vec<_> = fields
+            .iter()
+            .filter(|f| is_absorb_remaining_field(f))
+            .map(|f| {
+                let name = &f.ident;
+                let ty = &f.ty;
+                let is_optional = is_option_indexmap_type(ty);
+                let value_ty = if is_optional {
+                    extract_option_indexmap_value_type(ty).expect("Failed to extract option indexmap value type")
+                } else {
+                    extract_indexmap_value_type(ty).expect("Failed to extract indexmap value type")
+                };
+                
+                // Check if the value type needs to be a partial type (for nested)
+                let kind = analyze_indexmap_value_type(&value_ty, f);
+                
+                match kind {
+                    IndexMapValueKind::Nested(partial_type) => {
+                        if is_optional {
+                            quote! {
+                                #name: helper.absorb_remaining::<#partial_type>().into_optional()
+                            }
+                        } else {
+                            quote! {
+                                #name: helper.absorb_remaining::<#partial_type>()
+                            }
+                        }
+                    }
+                    IndexMapValueKind::VecNested(partial_type) => {
+                        // For Vec<Nested>, we still need the partial type
+                        if is_optional {
+                            quote! {
+                                #name: helper.absorb_remaining::<Vec<#partial_type>>().into_optional()
+                            }
+                        } else {
+                            quote! {
+                                #name: helper.absorb_remaining::<Vec<#partial_type>>()
+                            }
+                        }
+                    }
+                    IndexMapValueKind::Primitive => {
+                        if is_optional {
+                            quote! {
+                                #name: helper.absorb_remaining::<#value_ty>().into_optional()
+                            }
+                        } else {
+                            quote! {
+                                #name: helper.absorb_remaining::<#value_ty>()
+                            }
+                        }
+                    }
+                }
+            })
+            .collect();
+
         // Handle empty structs - when there are no fields, can_concrete should return true
         let can_concrete_body = if can_concrete_fields.is_empty() {
             quote! { true }
@@ -1499,6 +1629,7 @@ mod codegen {
                     #partial_name {
                         #(#from_toml_table_fields,)*
                         #(#adapt_in_verify_fields,)*
+                        #(#absorb_remaining_fields,)*
                     }
                 }
             }
@@ -1508,11 +1639,20 @@ mod codegen {
     pub fn gen_from_toml_item_for_struct(
         partial_name: &syn::Ident,
         generate_verify: bool,
+        has_absorb_remaining: bool,
     ) -> TokenStream2 {
         let verify_call = if generate_verify {
             quote! { .verify(&mut helper) }
         } else {
             quote! {}
+        };
+
+        // Only call deny_unknown if there's no absorb_remaining field
+        // (absorb_remaining handles unknown keys by absorbing them)
+        let deny_unknown_call = if has_absorb_remaining {
+            quote! {}
+        } else {
+            quote! { helper.deny_unknown(); }
         };
 
         quote! {
@@ -1526,7 +1666,7 @@ mod codegen {
                                 col.clone());
                             let partial = #partial_name::from_toml_table(&mut helper)
                                 #verify_call;
-                            helper.deny_unknown();
+                            #deny_unknown_call
 
                             if partial.can_concrete()  {
                                 TomlValue {
@@ -2215,6 +2355,55 @@ mod handlers {
         let mut cleaned_input = input.clone();
         clean_struct_input(&mut cleaned_input);
 
+        // Validate absorb_remaining field(s)
+        let absorb_remaining_fields: Vec<_> = fields
+            .iter()
+            .filter(|f| is_absorb_remaining_field(f))
+            .collect();
+
+        if absorb_remaining_fields.len() > 1 {
+            panic!(
+                "Only one field can have #[tpd_absorb_remaining]. Found {} fields with this attribute.",
+                absorb_remaining_fields.len()
+            );
+        }
+
+        // Validate absorb_remaining field type: must be IndexMap<String, T> or Option<IndexMap<String, T>>
+        for f in &absorb_remaining_fields {
+            let ty = &f.ty;
+            let field_name = f.ident.as_ref().map_or_else(|| "unnamed".to_string(), |i| i.to_string());
+
+            if is_option_indexmap_type(ty) {
+                // Option<IndexMap<K, V>> - check key type is String
+                if let Some(key_ty) = extract_option_indexmap_key_type(ty) {
+                    if extract_type_name(&key_ty).map_or(true, |name| name != "String") {
+                        panic!(
+                            "#[tpd_absorb_remaining] on field '{}' requires IndexMap with String keys, found: {}",
+                            field_name, quote!(#key_ty)
+                        );
+                    }
+                }
+            } else if is_indexmap_type(ty) {
+                // IndexMap<K, V> - check key type is String
+                if let Some(key_ty) = extract_indexmap_key_type(ty) {
+                    if extract_type_name(&key_ty).map_or(true, |name| name != "String") {
+                        panic!(
+                            "#[tpd_absorb_remaining] on field '{}' requires IndexMap with String keys, found: {}",
+                            field_name, quote!(#key_ty)
+                        );
+                    }
+                }
+            } else {
+                // Wrong type entirely
+                panic!(
+                    "#[tpd_absorb_remaining] on field '{}' requires type IndexMap<String, T> or Option<IndexMap<String, T>>, found: {}",
+                    field_name, quote!(#ty)
+                );
+            }
+        }
+
+        let has_absorb_remaining = !absorb_remaining_fields.is_empty();
+
         for f in fields {
             let ty = &f.ty;
             let is_indexmap = is_indexmap_type(ty) || is_option_indexmap_type(ty);
@@ -2247,7 +2436,7 @@ mod handlers {
         let partial_fields = gen_partial_struct_fields(fields);
         let from_toml_table_complete_impl =
             gen_from_toml_table_complete_impl(struct_name, &partial_name, fields, generics);
-        let from_toml_item_impl = gen_from_toml_item_for_struct(&partial_name, generate_verify);
+        let from_toml_item_impl = gen_from_toml_item_for_struct(&partial_name, generate_verify, has_absorb_remaining);
         let has_adapt_in_verify_fields = fields.iter().any(is_adapt_in_verify_field);
         let verify_from_toml_impl = gen_verify_from_toml_if_needed(
             &partial_name,
