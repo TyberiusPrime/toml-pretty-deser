@@ -842,7 +842,30 @@ mod codegen {
         impl_generics: &syn::ImplGenerics,
         ty_generics: &syn::TypeGenerics,
         where_clause: Option<&syn::WhereClause>,
+        variants: &[syn::Variant],
     ) -> TokenStream2 {
+        // Generate match arms for each variant, respecting match_mode
+        // Each arm checks if the input string matches the variant name or any alias
+        let match_arms = variants.iter().map(|v| {
+            let name = &v.ident;
+            let name_str = name.to_string();
+            let aliases = extract_variant_aliases(v);
+
+            if aliases.is_empty() {
+                quote! {
+                    if col.match_mode.matches(#name_str, s) {
+                        return ::toml_pretty_deser::TomlValue::new_ok(#enum_name::#name, span);
+                    }
+                }
+            } else {
+                quote! {
+                    if col.match_mode.matches(#name_str, s) #(|| col.match_mode.matches(#aliases, s))* {
+                        return ::toml_pretty_deser::TomlValue::new_ok(#enum_name::#name, span);
+                    }
+                }
+            }
+        });
+
         quote! {
             impl #impl_generics ::toml_pretty_deser::FromTomlItem for #enum_name #ty_generics #where_clause {
                 fn from_toml_item(
@@ -855,21 +878,19 @@ mod codegen {
                         ::toml_edit::Item::Value(::toml_edit::Value::String(formatted)) => {
                             let s = formatted.value();
                             let span = formatted.span().unwrap_or(parent_span.clone());
-                            match <#enum_name as ::toml_pretty_deser::StringNamedEnum>::from_str(s) {
-                                ::std::option::Option::Some(enum_val) => {
-                                    ::toml_pretty_deser::TomlValue::new_ok(enum_val, span)
-                                }
-                                ::std::option::Option::None => {
-                                    let help = ::toml_pretty_deser::suggest_enum_alternatives::<#enum_name>(s);
-                                    let res = ::toml_pretty_deser::TomlValue::new_validation_failed(
-                                        span,
-                                        "Invalid enum variant.".to_string(),
-                                        ::std::option::Option::Some(help),
-                                    );
-                                    res.register_error(&col.errors);
-                                    res
-                                }
-                            }
+
+                            // Check each variant using match_mode for case-insensitive matching
+                            #(#match_arms)*
+
+                            // No match found
+                            let help = ::toml_pretty_deser::suggest_enum_alternatives::<#enum_name>(s);
+                            let res = ::toml_pretty_deser::TomlValue::new_validation_failed(
+                                span,
+                                "Invalid enum variant.".to_string(),
+                                ::std::option::Option::Some(help),
+                            );
+                            res.register_error(&col.errors);
+                            res
                         }
                         other => ::toml_pretty_deser::TomlValue::new_wrong_type(other, parent_span, "string"),
                     }
@@ -2410,7 +2431,7 @@ mod handlers {
             &variants_slice,
         );
         let from_toml_item_impl =
-            gen_from_toml_item_for_unit_enum(enum_name, &impl_generics, &ty_generics, where_clause);
+            gen_from_toml_item_for_unit_enum(enum_name, &impl_generics, &ty_generics, where_clause, &variants_slice);
 
         let expanded = quote! {
             #cleaned_input

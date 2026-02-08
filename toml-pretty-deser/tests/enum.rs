@@ -104,11 +104,9 @@ fn test_enum_invalid_variant() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant"))
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg.contains("Invalid enum variant")));
     } else {
         panic!("Expected failure due to invalid enum variant")
     }
@@ -124,11 +122,9 @@ fn test_enum_missing_required() {
     let result: Result<_, _> = deserialize::<PartialEnumOutput, EnumOutput>(toml);
     dbg!(&result);
     if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg == "Missing required key: 'an_enum'."),
-        );
+        assert!(errors
+            .iter()
+            .any(|e| e.inner.spans[0].msg == "Missing required key: 'an_enum'."),);
     } else {
         panic!("Expected failure due to missing required enum field")
     }
@@ -206,4 +202,102 @@ fn test_enum_happy_path_multi() {
         assert!(matches!(opt_vec[0], Example::TwoThree));
         assert!(matches!(opt_vec[1], Example::One));
     }
+}
+
+// =============================================================================
+// Unit enum FieldMatchMode tests
+// =============================================================================
+
+#[tpd]
+#[derive(Debug)]
+struct EnumCaseInsensitive {
+    my_enum: Example,
+}
+
+#[test]
+fn test_unit_enum_upper_lower_mode() {
+    // In UpperLower mode, different casing of enum variants should work
+    let toml = "
+        my_enum = 'one'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialEnumCaseInsensitive,
+        EnumCaseInsensitive,
+    >(toml, FieldMatchMode::UpperLower, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(matches!(output.my_enum, Example::One));
+    }
+}
+
+#[test]
+fn test_unit_enum_upper_lower_mode_uppercase() {
+    // In UpperLower mode, uppercase variant should work
+    let toml = "
+        my_enum = 'ONE'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialEnumCaseInsensitive,
+        EnumCaseInsensitive,
+    >(toml, FieldMatchMode::UpperLower, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(matches!(output.my_enum, Example::One));
+    }
+}
+
+#[test]
+fn test_unit_enum_any_case_mode() {
+    // In AnyCase mode, different case variants should match
+    // TwoThree can be written as two_three, twoThree, TWOTHREE, etc.
+    let toml = "
+        my_enum = 'two_three'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialEnumCaseInsensitive,
+        EnumCaseInsensitive,
+    >(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(matches!(output.my_enum, Example::TwoThree));
+    }
+}
+
+#[test]
+fn test_unit_enum_any_case_mode_kebab() {
+    // In AnyCase mode, kebab-case should also work
+    let toml = "
+        my_enum = 'two-three'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialEnumCaseInsensitive,
+        EnumCaseInsensitive,
+    >(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert!(matches!(output.my_enum, Example::TwoThree));
+    }
+}
+
+#[test]
+fn test_unit_enum_exact_mode_fails_wrong_case() {
+    // In Exact mode (default), wrong case should fail
+    let toml = "
+        my_enum = 'one'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialEnumCaseInsensitive,
+        EnumCaseInsensitive,
+    >(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_err());
 }
