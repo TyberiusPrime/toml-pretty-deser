@@ -889,7 +889,7 @@ mod codegen {
                                 "Invalid enum variant.".to_string(),
                                 ::std::option::Option::Some(help),
                             );
-                            res.register_error_with_collector(col);
+                            res.register_error(col);
                             res
                         }
                         other => ::toml_pretty_deser::TomlValue::new_wrong_type(other, parent_span, "string"),
@@ -1495,14 +1495,14 @@ mod codegen {
                                             Ok(converted) => TomlValue::new_ok(Some(Box::new(converted)), span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
-                                                failed.register_error_with_collector(&helper.col);
+                                                failed.register_error(&helper.col);
                                                 failed
                                             }
                                         }
                                     }
                                     _ => {
                                         // Wrong type or other error - forward it
-                                        raw.register_error_with_collector(&helper.col);
+                                        raw.register_error(&helper.col);
                                         TomlValue {
                                             value: None,
                                             state: raw.state,
@@ -1546,14 +1546,14 @@ mod codegen {
                                             Ok(converted) => TomlValue::new_ok(Some(converted), span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
-                                                failed.register_error_with_collector(&helper.col);
+                                                failed.register_error(&helper.col);
                                                 failed
                                             }
                                         }
                                     }
                                     _ => {
                                         // Wrong type or other error - forward it
-                                        raw.register_error_with_collector(&helper.col);
+                                        raw.register_error(&helper.col);
                                         TomlValue {
                                             value: None,
                                             state: raw.state,
@@ -1611,14 +1611,14 @@ mod codegen {
                                             Ok(converted) => TomlValue::new_ok(#wrap_converted, span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
-                                                failed.register_error_with_collector(&helper.col);
+                                                failed.register_error(&helper.col);
                                                 failed
                                             }
                                         }
                                     }
                                     _ => {
                                         // Wrong type or other error - forward it
-                                        raw.register_error_with_collector(&helper.col);
+                                        raw.register_error(&helper.col);
                                         TomlValue {
                                             value: None,
                                             state: raw.state,
@@ -1638,14 +1638,14 @@ mod codegen {
                                             Ok(converted) => TomlValue::new_ok(#wrap_converted, span.clone()),
                                             Err((msg, help)) => {
                                                 let failed = TomlValue::new_validation_failed(span.clone(), msg, help);
-                                                failed.register_error_with_collector(&helper.col);
+                                                failed.register_error(&helper.col);
                                                 failed
                                             }
                                         }
                                     }
                                     _ => {
                                         // Missing, wrong type, or other error - forward it
-                                        raw.register_error_with_collector(&helper.col);
+                                        raw.register_error(&helper.col);
                                         TomlValue {
                                             value: None,
                                             state: raw.state,

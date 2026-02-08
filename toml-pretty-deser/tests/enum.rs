@@ -301,3 +301,100 @@ fn test_unit_enum_exact_mode_fails_wrong_case() {
     dbg!(&result);
     assert!(result.is_err());
 }
+
+// =============================================================================
+// Unit enum FieldMatchMode tests with aliases
+// =============================================================================
+
+/// Unit enum with aliases for testing FieldMatchMode interaction
+#[tpd]
+#[derive(Debug, Clone, PartialEq)]
+enum StatusWithAlias {
+    #[tpd_alias("on", "enabled")]
+    Active,
+    #[tpd_alias("off", "disabled")]
+    Inactive,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct StatusWithAliasConfig {
+    status: StatusWithAlias,
+}
+
+#[test]
+fn test_unit_enum_alias_with_anycase_mode() {
+    // Test that aliases work with AnyCase mode
+    // The alias is "on" (lowercase), but we use "ON" (uppercase)
+    // With AnyCase mode, this should match
+    let toml = "
+        status = 'ON'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialStatusWithAliasConfig,
+        StatusWithAliasConfig,
+    >(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.status, StatusWithAlias::Active);
+    }
+}
+
+#[test]
+fn test_unit_enum_alias_with_upperlower_mode() {
+    // Test that aliases work with UpperLower mode
+    // The alias is "enabled" (lowercase), but we use "ENABLED" (uppercase)
+    // With UpperLower mode, this should match
+    let toml = "
+        status = 'ENABLED'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialStatusWithAliasConfig,
+        StatusWithAliasConfig,
+    >(toml, FieldMatchMode::UpperLower, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.status, StatusWithAlias::Active);
+    }
+}
+
+#[test]
+fn test_unit_enum_alias_exact_mode_fails_wrong_case() {
+    // Test that aliases with wrong case fail in Exact mode
+    // The alias is "on" (lowercase), but we use "ON" (uppercase)
+    // With Exact mode, this should fail
+    let toml = "
+        status = 'ON'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialStatusWithAliasConfig,
+        StatusWithAliasConfig,
+    >(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_unit_enum_alias_with_anycase_mode_kebab_style() {
+    // Test that aliases work with AnyCase mode using kebab-case style
+    // The variant is "Inactive", we use "in-active" (kebab style)
+    // With AnyCase mode, this should match
+    let toml = "
+        status = 'In-Active'
+    ";
+
+    let result: Result<_, _> = deserialize_with_mode::<
+        PartialStatusWithAliasConfig,
+        StatusWithAliasConfig,
+    >(toml, FieldMatchMode::AnyCase, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.status, StatusWithAlias::Inactive);
+    }
+}

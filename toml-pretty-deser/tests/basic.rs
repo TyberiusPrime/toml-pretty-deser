@@ -1800,6 +1800,7 @@ fn test_nested_default_enum_with_anycase_mode() {
 // Test with non-optional nested
 #[tpd]
 #[derive(Debug)]
+#[allow(dead_code)]
 struct OuterWithRequiredNested {
     id: i32,
     #[tpd_nested]

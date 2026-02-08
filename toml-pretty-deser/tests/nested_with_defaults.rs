@@ -584,7 +584,7 @@ impl VerifyFromToml for PartialAppWithValidatedDefault {
                         "min_value cannot be greater than max_value".to_string(),
                         Some("Swap the values or adjust them".to_string()),
                     );
-                    error.register_error(&helper.col.errors);
+                    error.register_error(&helper.col);
                 }
             }
         }

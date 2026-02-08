@@ -402,6 +402,10 @@ mod tests {
         assert!(any_case.matches("field_name", "field-name"));
         assert!(any_case.matches("field_name", "FIELD_NAME"));
         assert!(any_case.matches("field_name", "Field-Name"));
+        assert!(any_case.matches("=>", "=>"));
+        assert!(!any_case.matches("=>", "=<"));
+        assert!(any_case.matches("something1.3", "Something1.3"));
+        assert!(any_case.matches("illumina1.3", "Illumina1.3"));
     }
 }
 
@@ -1022,7 +1026,7 @@ impl<'a> TomlHelper<'a> {
                     },
                 };
                 if missing_is_error {
-                    res.register_error_with_collector(&self.col);
+                    res.register_error(&self.col);
                 }
                 res
             }
@@ -1030,7 +1034,7 @@ impl<'a> TomlHelper<'a> {
                 let (matched_key, item) = found_keys.first().expect("can't fail");
                 let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, &self.col);
                 if !matches!(res.state, TomlValueState::Ok { .. }) {
-                    res.register_error_with_collector(&self.col);
+                    res.register_error(&self.col);
                 }
                 self.observed
                     .push(self.col.match_mode.normalize(matched_key));
@@ -1053,7 +1057,7 @@ impl<'a> TomlHelper<'a> {
                         spans,
                     },
                 };
-                res.register_error_with_collector(&self.col);
+                res.register_error(&self.col);
                 res
             }
         }
@@ -1097,7 +1101,7 @@ impl<'a> TomlHelper<'a> {
                     },
                 };
                 if missing_is_error {
-                    res.register_error_with_collector(&self.col);
+                    res.register_error(&self.col);
                 }
                 res
             }
@@ -1127,7 +1131,7 @@ impl<'a> TomlHelper<'a> {
                     },
                 };
                 // Still register multi-defined errors as those are always errors
-                res.register_error_with_collector(&self.col);
+                res.register_error(&self.col);
                 res
             }
         }
@@ -1233,7 +1237,7 @@ impl<'a> TomlHelper<'a> {
                 }
                 _ => {
                     // Error during deserialization - register the error
-                    value_result.register_error_with_collector(&self.col);
+                    value_result.register_error(&self.col);
                     all_ok = false;
                 }
             }
@@ -1633,7 +1637,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                             values.push(val);
                         }
                     } else {
-                        element.register_error_with_collector(col);
+                        element.register_error(col);
                         has_error = true;
                     }
                 }
@@ -1668,7 +1672,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                             values.push(val);
                         }
                     } else {
-                        element.register_error_with_collector(col);
+                        element.register_error(col);
                         has_error = true;
                     }
                 }
@@ -1694,7 +1698,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     if let TomlValueState::Ok { span } = &element.state {
                         TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
                     } else {
-                        element.register_error_with_collector(col);
+                        element.register_error(col);
                         TomlValue {
                             state: TomlValueState::Nested {},
                             value: None,
@@ -1717,7 +1721,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     if let TomlValueState::Ok { span } = &element.state {
                         TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
                     } else {
-                        element.register_error_with_collector(col);
+                        element.register_error(col);
                         TomlValue {
                             state: TomlValueState::Nested {},
                             value: None,
@@ -1882,18 +1886,14 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub fn register_error(&self, errors: &Rc<RefCell<Vec<AnnotatedError>>>) {
-        self.register_error_with_context(errors, &[]);
-    }
-
     /// Register an error using the context spans from the collector.
-    pub fn register_error_with_collector(&self, col: &TomlCollector) {
+    pub fn register_error(&self, col: &TomlCollector) {
         let context = col.get_context_spans();
         self.register_error_with_context(&col.errors, &context);
     }
 
     /// Register an error with additional context spans that will be appended to the error.
-    pub fn register_error_with_context(
+    fn register_error_with_context(
         &self,
         errors: &Rc<RefCell<Vec<AnnotatedError>>>,
         context_spans: &[SpannedMessage],
@@ -1968,7 +1968,7 @@ impl<T> TomlValue<T> {
                             help, //todo
                         },
                     };
-                    res.register_error_with_collector(&helper.col);
+                    res.register_error(&helper.col);
                     res
                 }
             },
@@ -2115,7 +2115,7 @@ where
                                     map.insert(K::from(key.to_string()), v);
                                 }
                             } else {
-                                val.register_error_with_collector(col);
+                                val.register_error(col);
                                 has_errors = true;
                             }
                         }
@@ -2191,7 +2191,7 @@ where
                                     Err((msg, help)) => {
                                         let failed: TomlValue<T> =
                                             TomlValue::new_validation_failed(item_span, msg, help);
-                                        failed.register_error_with_collector(col);
+                                        failed.register_error(col);
                                         has_errors = true;
                                     }
                                 },
@@ -2204,7 +2204,7 @@ where
                                             found: value.type_name(),
                                         },
                                     };
-                                    wrong_type.register_error_with_collector(col);
+                                    wrong_type.register_error(col);
                                     has_errors = true;
                                 }
                             }
@@ -2240,7 +2240,7 @@ where
                                                     msg,
                                                     help,
                                                 );
-                                            failed.register_error_with_collector(col);
+                                            failed.register_error(col);
                                             TomlValue {
                                                 value: None,
                                                 state: TomlValueState::Nested {},
@@ -2319,7 +2319,7 @@ where
                                     Err((msg, help)) => {
                                         let failed: TomlValue<T> =
                                             TomlValue::new_validation_failed(item_span, msg, help);
-                                        failed.register_error_with_collector(col);
+                                        failed.register_error(col);
                                         has_errors = true;
                                     }
                                 },
@@ -2332,7 +2332,7 @@ where
                                             found: value.type_name(),
                                         },
                                     };
-                                    wrong_type.register_error_with_collector(col);
+                                    wrong_type.register_error(col);
                                     has_errors = true;
                                 }
                             }

@@ -330,3 +330,110 @@ fn test_unit_enum_alias_suggestions_include_aliases() {
         _ => panic!("Expected DeserFailure"),
     }
 }
+
+// ============================================================================
+// Tests for enum with special character aliases like operators
+// ============================================================================
+
+/// Unit enum with operator symbols as aliases
+#[tpd]
+#[derive(Debug, Clone, PartialEq)]
+enum ComparisonOperator {
+    #[tpd_alias(">=")]
+    GreaterThanOrEqual,
+    #[tpd_alias("<=")]
+    LessThanOrEqual,
+    #[tpd_alias("==")]
+    Equal,
+    #[tpd_alias("!=")]
+    NotEqual,
+}
+
+#[tpd]
+#[derive(Debug)]
+struct ComparisonConfig {
+    operator: ComparisonOperator,
+    opt_operator: Option<ComparisonOperator>,
+    operators: Vec<ComparisonOperator>,
+}
+
+#[test]
+fn test_unit_enum_with_special_char_aliases() {
+    // Test that special character aliases work
+    let toml = "
+        operator = '>='
+        opt_operator = '<='
+        operators = ['>=', '==', '!=']
+    ";
+
+    let result: Result<ComparisonConfig, _> =
+        deserialize::<PartialComparisonConfig, ComparisonConfig>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+
+    let config = result.unwrap();
+    assert_eq!(config.operator, ComparisonOperator::GreaterThanOrEqual);
+    assert_eq!(
+        config.opt_operator,
+        Some(ComparisonOperator::LessThanOrEqual)
+    );
+    assert_eq!(
+        config.operators,
+        vec![
+            ComparisonOperator::GreaterThanOrEqual,
+            ComparisonOperator::Equal,
+            ComparisonOperator::NotEqual
+        ]
+    );
+}
+
+#[test]
+fn test_unit_enum_special_char_primary_name() {
+    // Test that primary variant names still work alongside special aliases
+    let toml = "
+        operator = 'GreaterThanOrEqual'
+        opt_operator = 'Equal'
+        operators = ['LessThanOrEqual', 'NotEqual']
+    ";
+
+    let result: Result<ComparisonConfig, _> =
+        deserialize::<PartialComparisonConfig, ComparisonConfig>(toml);
+    dbg!(&result);
+    assert!(result.is_ok());
+
+    let config = result.unwrap();
+    assert_eq!(config.operator, ComparisonOperator::GreaterThanOrEqual);
+    assert_eq!(config.opt_operator, Some(ComparisonOperator::Equal));
+    assert_eq!(
+        config.operators,
+        vec![
+            ComparisonOperator::LessThanOrEqual,
+            ComparisonOperator::NotEqual
+        ]
+    );
+}
+
+#[test]
+fn test_unit_enum_special_char_invalid() {
+    // Test that invalid operators produce errors
+    let toml = "
+        operator = '>'
+        operators = ['>=']
+    ";
+
+    let result: Result<ComparisonConfig, _> =
+        deserialize::<PartialComparisonConfig, ComparisonConfig>(toml);
+    dbg!(&result);
+
+    match result {
+        Err(DeserError::DeserFailure(errors, _)) => {
+            assert!(errors.iter().any(|e| {
+                e.inner
+                    .spans
+                    .iter()
+                    .any(|s| s.msg.contains("Invalid enum variant"))
+            }));
+        }
+        _ => panic!("Expected DeserFailure due to invalid enum variant"),
+    }
+}

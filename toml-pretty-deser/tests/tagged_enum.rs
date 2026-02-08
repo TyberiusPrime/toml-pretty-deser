@@ -878,6 +878,116 @@ fn test_tagged_enum_alias_in_vec_mixed() {
 }
 
 // ============================================================================
+// Tests for #[tpd_alias] with FieldMatchMode on tagged enum variants
+// ============================================================================
+
+#[test]
+fn test_tagged_enum_alias_with_anycase_mode() {
+    // Test that aliases work with AnyCase mode
+    // The alias is "config_a" but we use "CONFIG_A" (uppercase)
+    // With AnyCase mode, this should match
+    let toml = "
+    [config]
+        type = 'CONFIG_A'
+        value_a = 42
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterConfigType, OuterConfigType>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.config {
+            ConfigType::ConfigA(inner) => {
+                assert_eq!(inner.value_a, 42);
+            }
+            ConfigType::ConfigB(_) => {
+                panic!("expected ConfigA variant");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_alias_with_upperlower_mode() {
+    // Test that aliases work with UpperLower mode
+    // The alias is "typeA" but we use "TYPEA" (uppercase)
+    // With UpperLower mode, this should match
+    let toml = "
+    [config]
+        type = 'TYPEA'
+        value_a = 100
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterConfigType, OuterConfigType>(
+        toml,
+        FieldMatchMode::UpperLower,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.config {
+            ConfigType::ConfigA(inner) => {
+                assert_eq!(inner.value_a, 100);
+            }
+            ConfigType::ConfigB(_) => {
+                panic!("expected ConfigA variant");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_alias_exact_mode_fails_wrong_case() {
+    // Test that aliases with wrong case fail in Exact mode
+    // The alias is "config_a" but we use "CONFIG_A" (uppercase)
+    // With Exact mode, this should fail
+    let toml = "
+    [config]
+        type = 'CONFIG_A'
+        value_a = 42
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterConfigType, OuterConfigType>(
+        toml,
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_tagged_enum_primary_name_with_anycase_mode() {
+    // Test that primary variant names work with AnyCase mode
+    // The primary name is "ConfigA" but we use "config-a" (kebab-case)
+    // With AnyCase mode, this should match
+    let toml = "
+    [config]
+        type = 'config-a'
+        value_a = 200
+    ";
+    let result: Result<_, _> = deserialize_with_mode::<PartialOuterConfigType, OuterConfigType>(
+        toml,
+        FieldMatchMode::AnyCase,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        match output.config {
+            ConfigType::ConfigA(inner) => {
+                assert_eq!(inner.value_a, 200);
+            }
+            ConfigType::ConfigB(_) => {
+                panic!("expected ConfigA variant");
+            }
+        }
+    }
+}
+
+// ============================================================================
 // Tests for empty struct variants in tagged enums
 // ============================================================================
 

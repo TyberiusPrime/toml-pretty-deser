@@ -62,7 +62,7 @@ impl VerifyFromToml for PartialReferenceTest {
                                 "Not a valid segment".to_string(),
                                 Some("use one of the defined ones".to_string()),
                             );
-                            self.inner.register_error(&helper.col.errors);
+                            self.inner.register_error(&helper.col);
                         }
                     }
                 } else {
@@ -408,7 +408,7 @@ impl VerifyFromToml for PartialByteOrCharTest {
         let extracted = tpd_extract_u8_from_byte_or_char(str_val, u8_val);
         // Register error if the extraction failed (but not for missing - that's ok for optional)
         if !extracted.is_ok() && !extracted.is_missing() {
-            extracted.register_error(&helper.col.errors);
+            extracted.register_error(&helper.col);
         }
         self.delimiter = extracted.into_optional();
         self
