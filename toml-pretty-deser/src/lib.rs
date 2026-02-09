@@ -467,6 +467,9 @@ where
     let partial = partial.verify(&mut helper);
     helper.deny_unknown();
 
+    // Collect all errors after verify()
+    partial.collect_errors(&helper.col);
+
     if !errors.borrow().is_empty() {
         return Err(DeserError::DeserFailure(
             helper.into_inner(&source),
@@ -600,6 +603,11 @@ pub trait FromTomlTable<T> {
     /// An empty vector means all fields are valid and `to_concrete()` can be called.
     /// Nested field errors are prefixed with their parent field name (e.g., "parent.child").
     fn can_concrete(&self) -> Vec<String>;
+
+    /// Recursively collects all errors from this partial and its nested partials.
+    /// This method is called after verify() to gather all errors that occurred during deserialization.
+    fn collect_errors(&self, col: &TomlCollector);
+
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> Self
     where
         Self: Sized;
@@ -1034,17 +1042,11 @@ impl<'a> TomlHelper<'a> {
                         parent_span,
                     },
                 };
-                if missing_is_error {
-                    res.register_error(&self.col);
-                }
                 res
             }
             1 => {
                 let (matched_key, item) = found_keys.first().expect("can't fail");
                 let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, &self.col);
-                if !matches!(res.state, TomlValueState::Ok { .. }) {
-                    res.register_error(&self.col);
-                }
                 self.observed
                     .push(self.col.match_mode.normalize(matched_key));
                 res
@@ -1066,7 +1068,6 @@ impl<'a> TomlHelper<'a> {
                         spans,
                     },
                 };
-                res.register_error(&self.col);
                 res
             }
         }
@@ -1101,7 +1102,7 @@ impl<'a> TomlHelper<'a> {
 
         match found_keys.len() {
             0 => {
-                // No match found - return Missing, optionally registering error
+                // No match found
                 let res = TomlValue {
                     value: None,
                     state: TomlValueState::Missing {
@@ -1109,15 +1110,11 @@ impl<'a> TomlHelper<'a> {
                         parent_span,
                     },
                 };
-                if missing_is_error {
-                    res.register_error(&self.col);
-                }
                 res
             }
             1 => {
                 let (matched_key, item) = found_keys.first().expect("can't fail");
                 let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, &self.col);
-                // Don't auto-register errors - let the caller handle them
                 self.observed
                     .push(self.col.match_mode.normalize(matched_key));
                 res
@@ -1139,8 +1136,6 @@ impl<'a> TomlHelper<'a> {
                         spans,
                     },
                 };
-                // Still register multi-defined errors as those are always errors
-                res.register_error(&self.col);
                 res
             }
         }
@@ -1242,6 +1237,13 @@ impl<'a> TomlHelper<'a> {
                     if let Some(value) = value_result.value {
                         result_map.insert(K::from(key_str), value);
                     }
+                }
+                TomlValueState::Nested => {
+                    // Nested struct with errors - add the partial to the map so errors can be collected later
+                    if let Some(value) = value_result.value {
+                        result_map.insert(K::from(key_str), value);
+                    }
+                    all_ok = false;
                 }
                 _ => {
                     // Error during deserialization - register the error
@@ -1644,6 +1646,12 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                         if let Some(val) = element.value {
                             values.push(val);
                         }
+                    } else if matches!(&element.state, TomlValueState::Nested) {
+                        // Nested struct with errors - add the partial to the vec so errors can be collected later
+                        if let Some(val) = element.value {
+                            values.push(val);
+                        }
+                        has_error = true;
                     } else {
                         element.register_error(col);
                         has_error = true;
@@ -1652,7 +1660,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
 
                 if has_error {
                     TomlValue {
-                        value: None,
+                        value: Some(values),
                         state: TomlValueState::Nested {},
                     }
                 } else {
@@ -1679,6 +1687,12 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                         if let Some(val) = element.value {
                             values.push(val);
                         }
+                    } else if matches!(&element.state, TomlValueState::Nested) {
+                        // Nested struct with errors - add the partial to the vec so errors can be collected later
+                        if let Some(val) = element.value {
+                            values.push(val);
+                        }
+                        has_error = true;
                     } else {
                         element.register_error(col);
                         has_error = true;
@@ -1687,7 +1701,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
 
                 if has_error {
                     TomlValue {
-                        value: None,
+                        value: Some(values),
                         state: TomlValueState::Nested {},
                     }
                 } else {
@@ -1706,7 +1720,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     if let TomlValueState::Ok { span } = &element.state {
                         TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
                     } else {
-                        element.register_error(col);
                         TomlValue {
                             state: TomlValueState::Nested {},
                             value: None,
@@ -1729,7 +1742,6 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     if let TomlValueState::Ok { span } = &element.state {
                         TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
                     } else {
-                        element.register_error(col);
                         TomlValue {
                             state: TomlValueState::Nested {},
                             value: None,
@@ -1850,6 +1862,10 @@ impl<T> TomlValue<T> {
                 value: Some(None),
                 state: TomlValueState::Ok { span: parent_span },
             },
+            TomlValueState::Nested => TomlValue {
+                value: Some(self.value),
+                state: TomlValueState::Nested,
+            },
             _ => TomlValue {
                 value: None,
                 state: self.state,
@@ -1968,16 +1984,14 @@ impl<T> TomlValue<T> {
             ) {
                 Ok(()) => self,
                 Err((msg, help)) => {
-                    let res = Self {
+                    Self {
                         value: None,
                         state: TomlValueState::ValidationFailed {
                             span: span.clone(),
                             message: msg,
                             help, //todo
                         },
-                    };
-                    res.register_error(&helper.col);
-                    res
+                    }
                 }
             },
             _ => self,
@@ -2072,11 +2086,7 @@ where
             } else {
                 TomlValue {
                     value: Some(partial),
-                    state: TomlValueState::ValidationFailed {
-                        span: span.clone(),
-                        message: "Nested struct has errors".to_string(),
-                        help: None,
-                    },
+                    state: TomlValueState::Nested,
                 }
             }
         }
@@ -2122,6 +2132,12 @@ where
                                 if let Some(v) = val.value {
                                     map.insert(K::from(key.to_string()), v);
                                 }
+                            } else if matches!(&val.state, TomlValueState::Nested) {
+                                // Nested struct with errors - add the partial to the map so errors can be collected later
+                                if let Some(v) = val.value {
+                                    map.insert(K::from(key.to_string()), v);
+                                }
+                                has_errors = true;
                             } else {
                                 val.register_error(col);
                                 has_errors = true;
@@ -2197,8 +2213,7 @@ where
                                         values.push(converted);
                                     }
                                     Err((msg, help)) => {
-                                        let failed: TomlValue<T> =
-                                            TomlValue::new_validation_failed(item_span, msg, help);
+                                        let failed: TomlValue<T> = TomlValue::new_validation_failed(item_span.clone(), msg, help);
                                         failed.register_error(col);
                                         has_errors = true;
                                     }
@@ -2242,17 +2257,9 @@ where
                                             state: TomlValueState::Ok { span: span.clone() },
                                         },
                                         Err((msg, help)) => {
-                                            let failed: TomlValue<T> =
-                                                TomlValue::new_validation_failed(
-                                                    span.clone(),
-                                                    msg,
-                                                    help,
-                                                );
+                                            let failed: TomlValue<Vec<T>> = TomlValue::new_validation_failed(span.clone(), msg, help);
                                             failed.register_error(col);
-                                            TomlValue {
-                                                value: None,
-                                                state: TomlValueState::Nested {},
-                                            }
+                                            failed
                                         }
                                     },
                                     None => TomlValue {
@@ -2325,8 +2332,7 @@ where
                                         map.insert(K::from(key.to_string()), converted);
                                     }
                                     Err((msg, help)) => {
-                                        let failed: TomlValue<T> =
-                                            TomlValue::new_validation_failed(item_span, msg, help);
+                                        let failed: TomlValue<T> = TomlValue::new_validation_failed(item_span.clone(), msg, help);
                                         failed.register_error(col);
                                         has_errors = true;
                                     }

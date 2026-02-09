@@ -757,6 +757,11 @@ mod type_analysis {
         }
     }
 
+    /// Check if a type is the unit type ()
+    pub fn is_unit_type(ty: &Type) -> bool {
+        matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty())
+    }
+
     /// Extract the inner type from Option<Box<T>> and return a TokenStream for Partial{T}
     /// Handles both `Option<Box<Foo>>` and `Option<Box<module::Foo>>`.
     pub fn make_partial_option_box_inner_type(ty: &Type) -> Option<proc_macro2::TokenStream> {
@@ -1027,6 +1032,9 @@ mod codegen {
                 if is_skipped_field(f) {
                     // Skipped fields always pass - no check needed
                     quote! {}
+                } else if is_unit_type(ty) {
+                    // Unit type fields always pass - they're Ok by default unless set to error in verify
+                    quote! {}
                 } else if is_absorb_remaining_field(f) {
                     // absorb_remaining fields always pass can_concrete (empty map is valid)
                     quote! {}
@@ -1205,6 +1213,236 @@ mod codegen {
             })
             .collect();
 
+        // Generate code that collects errors from fields
+        // For nested fields, recursively collect errors
+        let collect_errors_checks: Vec<_> = fields
+            .iter()
+            .filter(|f| !is_skipped_field(f))
+            .map(|f| {
+                let name = &f.ident;
+                let ty = &f.ty;
+
+                if is_skipped_field(f) {
+                    // Skipped fields never have errors
+                    quote! {}
+                } else if is_unit_type(ty) {
+                    // Unit type fields: register error if set to error state in verify
+                    quote! {
+                        self.#name.register_error(col);
+                    }
+                } else if is_absorb_remaining_field(f) {
+                    // absorb_remaining fields can have nested errors
+                    let is_optional = is_option_indexmap_type(ty);
+                    let value_ty = if is_optional {
+                        extract_option_indexmap_value_type(ty).expect("can't fail")
+                    } else {
+                        extract_indexmap_value_type(ty).expect("can't fail")
+                    };
+                    let kind = analyze_indexmap_value_type(&value_ty, f);
+
+                    match kind {
+                        IndexMapValueKind::Nested(_) => {
+                            if is_optional {
+                                quote! {
+                                    if let Some(Some(map)) = self.#name.value.as_ref() {
+                                        for (_, p) in map.iter() {
+                                            p.collect_errors(col);
+                                        }
+                                    }
+                                }
+                            } else {
+                                quote! {
+                                    if let Some(map) = self.#name.value.as_ref() {
+                                        for (_, p) in map.iter() {
+                                            p.collect_errors(col);
+                                        }
+                                    } else {
+                                        self.#name.register_error(col);
+                                    }
+                                }
+                            }
+                        }
+                        IndexMapValueKind::VecNested(_) => {
+                            if is_optional {
+                                quote! {
+                                    if let Some(Some(map)) = self.#name.value.as_ref() {
+                                        for (_, vec) in map.iter() {
+                                            for p in vec.iter() {
+                                                p.collect_errors(col);
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                quote! {
+                                    if let Some(map) = self.#name.value.as_ref() {
+                                        for (_, vec) in map.iter() {
+                                            for p in vec.iter() {
+                                                p.collect_errors(col);
+                                            }
+                                        }
+                                    } else {
+                                        self.#name.register_error(col);
+                                    }
+                                }
+                            }
+                        }
+                        IndexMapValueKind::Primitive => {
+                            quote! {
+                                self.#name.register_error(col);
+                            }
+                        }
+                    }
+                } else if is_defaulted_field(f) && is_nested_field(f) {
+                    // tpd_default + tpd_nested: collect errors from nested if present
+                    quote! {
+                        if let Some(p) = self.#name.value.as_ref() {
+                            p.collect_errors(col);
+                        }
+                    }
+                } else if is_defaulted_field(f) {
+                    // tpd_default fields: only use default if Missing, otherwise register errors
+                    quote! {
+                        if !matches!(self.#name.state, TomlValueState::Missing { .. }) {
+                            self.#name.register_error(col);
+                        }
+                    }
+                } else if is_adapt_in_verify_field(f) {
+                    // adapt_in_verify fields: register errors if they're in an error state after verify
+                    // These fields read from TOML and might have type errors, validation errors, etc.
+                    quote! {
+                        self.#name.register_error(col);
+                    }
+                } else if is_defaulted_in_verify_field(f) {
+                    // default_in_verify fields: don't register errors
+                    // They should be set by user in verify(). If not set, can_concrete will catch them
+                    // and the "incomplete partial, no error" panic will guide the user to fix their verify implementation
+                    quote! {}
+                } else if is_indexmap_type(ty) || is_option_indexmap_type(ty) {
+                    let is_optional = is_option_indexmap_type(ty);
+                    let value_ty = if is_optional {
+                        extract_option_indexmap_value_type(ty).expect("can't fail")
+                    } else {
+                        extract_indexmap_value_type(ty).expect("can't fail")
+                    };
+                    let kind = analyze_indexmap_value_type(&value_ty, f);
+
+                    match kind {
+                        IndexMapValueKind::Nested(_) => {
+                            if is_optional {
+                                quote! {
+                                    if let Some(Some(map)) = self.#name.value.as_ref() {
+                                        for (_, p) in map.iter() {
+                                            p.collect_errors(col);
+                                        }
+                                    }
+                                }
+                            } else {
+                                quote! {
+                                    if let Some(map) = self.#name.value.as_ref() {
+                                        for (_, p) in map.iter() {
+                                            p.collect_errors(col);
+                                        }
+                                    } else {
+                                        self.#name.register_error(col);
+                                    }
+                                }
+                            }
+                        }
+                        IndexMapValueKind::VecNested(_) => {
+                            if is_optional {
+                                quote! {
+                                    if let Some(Some(map)) = self.#name.value.as_ref() {
+                                        for (_, vec) in map.iter() {
+                                            for p in vec.iter() {
+                                                p.collect_errors(col);
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                quote! {
+                                    if let Some(map) = self.#name.value.as_ref() {
+                                        for (_, vec) in map.iter() {
+                                            for p in vec.iter() {
+                                                p.collect_errors(col);
+                                            }
+                                        }
+                                    } else {
+                                        self.#name.register_error(col);
+                                    }
+                                }
+                            }
+                        }
+                        IndexMapValueKind::Primitive => {
+                            quote! {
+                                self.#name.register_error(col);
+                            }
+                        }
+                    }
+                } else if is_nested_field(f) {
+                    if is_option_vec_type(&f.ty) {
+                        // Option<Vec<nested>>
+                        quote! {
+                            if let Some(Some(vec)) = self.#name.value.as_ref() {
+                                for p in vec.iter() {
+                                    p.collect_errors(col);
+                                }
+                            }
+                        }
+                    } else if is_option_box_type(&f.ty) {
+                        // Option<Box<nested>>
+                        quote! {
+                            if let Some(Some(p)) = self.#name.value.as_ref() {
+                                p.collect_errors(col);
+                            }
+                        }
+                    } else if is_option_type(&f.ty) {
+                        // Option<nested>
+                        quote! {
+                            if let Some(Some(p)) = self.#name.value.as_ref() {
+                                p.collect_errors(col);
+                            }
+                        }
+                    } else if is_vec_type(&f.ty) {
+                        // Vec<nested>
+                        quote! {
+                            if let Some(vec) = self.#name.value.as_ref() {
+                                for p in vec.iter() {
+                                    p.collect_errors(col);
+                                }
+                            } else {
+                                self.#name.register_error(col);
+                            }
+                        }
+                    } else if is_box_type(&f.ty) {
+                        // Box<nested>
+                        quote! {
+                            if let Some(p) = self.#name.value.as_ref() {
+                                p.collect_errors(col);
+                            } else {
+                                self.#name.register_error(col);
+                            }
+                        }
+                    } else {
+                        // Regular nested struct
+                        quote! {
+                            if let Some(p) = self.#name.value.as_ref() {
+                                p.collect_errors(col);
+                            } else {
+                                self.#name.register_error(col);
+                            }
+                        }
+                    }
+                } else {
+                    // Regular field
+                    quote! {
+                        self.#name.register_error(col);
+                    }
+                }
+            })
+            .collect();
+
         let to_concrete_fields: Vec<_> = fields
             .iter()
             .map(|f| {
@@ -1222,6 +1460,11 @@ mod codegen {
                         quote! {
                             #name: <#ty as ::std::default::Default>::default()
                         }
+                    }
+                } else if is_unit_type(ty) {
+                    // Unit type fields just return ()
+                    quote! {
+                        #name: ()
                     }
                 } else if is_absorb_remaining_field(f) {
                     // absorb_remaining fields extract their value or use empty map if None
@@ -1394,7 +1637,7 @@ mod codegen {
 
         let from_toml_table_fields: Vec<_> = fields
             .iter()
-            .filter(|f| !is_skipped_field(f) && !is_adapt_in_verify_field(f) && !is_absorb_remaining_field(f))
+            .filter(|f| !is_skipped_field(f) && !is_adapt_in_verify_field(f) && !is_absorb_remaining_field(f) && !is_unit_type(&f.ty))
             .map(|f| {
                 let name = &f.ident;
                 let name_str = name.as_ref().expect("failed to get field name").to_string();
@@ -1700,6 +1943,22 @@ mod codegen {
             })
             .collect();
 
+        // unit fields are initialized with Ok((), 0..0) - they don't read from TOML
+        // Users can set them to error states in verify() for non-field-specific errors
+        let unit_fields: Vec<_> = fields
+            .iter()
+            .filter(|f| is_unit_type(&f.ty))
+            .map(|f| {
+                let name = &f.ident;
+                quote! {
+                    #name: TomlValue {
+                        value: Some(()),
+                        state: TomlValueState::Ok { span: 0..0 },
+                    }
+                }
+            })
+            .collect();
+
         // absorb_remaining fields collect all keys not matched by other fields
         let absorb_remaining_fields: Vec<_> = fields
             .iter()
@@ -1770,6 +2029,10 @@ mod codegen {
                     failing_fields
                 }
 
+                fn collect_errors(&self, col: &TomlCollector) {
+                    #(#collect_errors_checks)*
+                }
+
                 fn to_concrete(self) -> Option<#struct_name #ty_generics> {
                     Some(#struct_name {
                         #(#to_concrete_fields,)*
@@ -1780,6 +2043,7 @@ mod codegen {
                     #partial_name {
                         #(#from_toml_table_fields,)*
                         #(#adapt_in_verify_fields,)*
+                        #(#unit_fields,)*
                         #(#skipped_fields,)*
                         #(#absorb_remaining_fields,)*
                     }
@@ -2093,11 +2357,33 @@ mod codegen {
             })
             .collect();
 
+        let collect_errors_variants: Vec<_> = variants
+            .iter()
+            .map(|v| {
+                let variant_name = &v.ident;
+                let variant_name_str = variant_name.to_string();
+                quote_spanned! { v.span() =>
+                    #partial_name::#variant_name(inner) => {
+                        // Push context to indicate which variant we're collecting errors from
+                        let ctx_count = col.push_context(0..0, &format!("Involving variant '{}'", #variant_name_str));
+                        inner.collect_errors(col);
+                        col.pop_context_to(ctx_count);
+                    },
+                }
+            })
+            .collect();
+
         quote! {
             impl #impl_generics FromTomlTable<#enum_name> for #partial_name #ty_generics #where_clause {
                 fn can_concrete(&self) -> Vec<String> {
                     match self {
                         #(#can_concrete_variants)*
+                    }
+                }
+
+                fn collect_errors(&self, col: &::toml_pretty_deser::TomlCollector) {
+                    match self {
+                        #(#collect_errors_variants)*
                     }
                 }
 
@@ -2178,9 +2464,19 @@ mod codegen {
                                         col,
                                         &fields_to_ignore,
                                     ) {
-                                        Some(partial) => TomlValue {
-                                            value: Some(partial),
-                                            state: TomlValueState::Ok { span: tag_span.clone()},
+                                        Some(partial) => {
+                                            // Check if the partial has errors
+                                            if partial.can_concrete().is_empty() {
+                                                TomlValue {
+                                                    value: Some(partial),
+                                                    state: TomlValueState::Ok { span: tag_span.clone()},
+                                                }
+                                            } else {
+                                                TomlValue {
+                                                    value: Some(partial),
+                                                    state: TomlValueState::Nested,
+                                                }
+                                            }
                                         },
                                         None => TomlValue {
                                             value: None,

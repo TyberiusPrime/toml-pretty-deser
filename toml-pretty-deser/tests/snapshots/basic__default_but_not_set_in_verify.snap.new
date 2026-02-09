@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/basic.rs
+assertion_line: 1317
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │
+  ┆ ┬
+  ┆ │
+  ┆ ╰─ Missing required key: 'defaulted_i16'.
+──╯
+Hint: This key is required but was not found in the TOML document.

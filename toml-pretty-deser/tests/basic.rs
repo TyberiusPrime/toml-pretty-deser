@@ -1842,6 +1842,136 @@ fn test_nested_inline_default_enum_with_alias() {
 }
 
 // =============================================================================
+// Tests for unit type fields (for non-field-specific errors)
+// =============================================================================
+
+/// Unit type fields are initialized with Ok((), 0..0) and don't read from TOML.
+/// Users can set them to error states in verify() for non-field-specific errors.
+#[tpd(partial = false)]
+#[derive(Debug)]
+struct ConfigWithUnitFields {
+    name: String,
+    value: i32,
+    // Unit type fields for custom validation errors
+    validation_passed: (),
+    cross_field_check: (),
+}
+
+impl VerifyFromToml for PartialConfigWithUnitFields {
+    fn verify(mut self, _helper: &mut TomlHelper<'_>) -> Self {
+        // Custom cross-field validation
+        if let Some(value) = self.value.value {
+            if value < 0 {
+                // Set unit field to error state for non-field-specific error
+                self.validation_passed = TomlValue {
+                    value: None,
+                    state: TomlValueState::ValidationFailed {
+                        span: 0..0,
+                        message: "Value must be non-negative".to_string(),
+                        help: Some("Please use a positive number".to_string()),
+                    },
+                };
+            }
+        }
+
+        // Another cross-field check
+        if let Some(name) = self.name.value.as_ref() && let Some(value) = self.value.value {
+            if name == "special" && value != 42 {
+                self.cross_field_check = TomlValue {
+                    value: None,
+                    state: TomlValueState::ValidationFailed {
+                        span: 0..0,
+                        message: "When name is 'special', value must be 42".to_string(),
+                        help: None,
+                    },
+                };
+            }
+        }
+
+        self
+    }
+}
+
+#[test]
+fn test_unit_fields_success() {
+    // Valid configuration - no errors
+    let toml = r#"
+        name = "test"
+        value = 10
+    "#;
+
+    let result = deserialize::<PartialConfigWithUnitFields, ConfigWithUnitFields>(toml);
+    assert!(result.is_ok());
+    if let Ok(config) = result {
+        assert_eq!(config.name, "test");
+        assert_eq!(config.value, 10);
+        assert_eq!(config.validation_passed, ());
+        assert_eq!(config.cross_field_check, ());
+    }
+}
+
+#[test]
+fn test_unit_fields_validation_error() {
+    // Invalid configuration - negative value
+    let toml = r#"
+        name = "test"
+        value = -5
+    "#;
+
+    let result = deserialize::<PartialConfigWithUnitFields, ConfigWithUnitFields>(toml);
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].inner.spans[0].msg, "Value must be non-negative");
+        assert_eq!(
+            errors[0].inner.help,
+            Some("Please use a positive number".to_string())
+        );
+    }
+}
+
+#[test]
+fn test_unit_fields_cross_field_error() {
+    // Invalid configuration - name is 'special' but value is not 42
+    let toml = r#"
+        name = "special"
+        value = 10
+    "#;
+
+    let result = deserialize::<PartialConfigWithUnitFields, ConfigWithUnitFields>(toml);
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].inner.spans[0].msg,
+            "When name is 'special', value must be 42"
+        );
+    }
+}
+
+#[test]
+fn test_unit_fields_multiple_errors() {
+    // Invalid configuration - both errors should be reported
+    let toml = r#"
+        name = "special"
+        value = -5
+    "#;
+
+    let result = deserialize::<PartialConfigWithUnitFields, ConfigWithUnitFields>(toml);
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert_eq!(errors.len(), 2);
+        // Check that both errors are present
+        let error_messages: Vec<_> = errors
+            .iter()
+            .map(|e| e.inner.spans[0].msg.as_str())
+            .collect();
+        assert!(error_messages.contains(&"Value must be non-negative"));
+        assert!(error_messages.contains(&"When name is 'special', value must be 42"));
+    }
+}
+
+// =============================================================================
 // Test that inner enum with #[tpd_default] and invalid value creates only ONE error
 // =============================================================================
 

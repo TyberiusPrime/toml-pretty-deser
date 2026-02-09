@@ -5,12 +5,13 @@ expression: "e.pretty(\"test.toml\")"
 Error 1/8
   ╭─test.toml
   ┆
-1 │
-  ┆ ┬
-  ┆ │
-  ┆ ╰─ Missing required key: 'mapped_u8'.
+2 │         [mapped_vec_enum]
+3 │             a = ['AlphaBeta', 'InvalidVariant']
+  ┆                               ────────┬───────
+  ┆                                       │
+  ┆                                       ╰───────── Invalid enum variant.
 ──╯
-Hint: This key is required but was not found in the TOML document.
+Hint: Did you mean: 'AlphaBeta' or 'GammaDelta'?
 
 Error 2/8
   ╭─test.toml
@@ -18,7 +19,7 @@ Error 2/8
 1 │
   ┆ ┬
   ┆ │
-  ┆ ╰─ Missing required key: 'mapped_enum'.
+  ┆ ╰─ Missing required key: 'mapped_u8'.
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
@@ -28,7 +29,7 @@ Error 3/8
 1 │
   ┆ ┬
   ┆ │
-  ┆ ╰─ Missing required key: 'mapped_either'.
+  ┆ ╰─ Missing required key: 'mapped_enum'.
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
@@ -38,7 +39,7 @@ Error 4/8
 1 │
   ┆ ┬
   ┆ │
-  ┆ ╰─ Missing required key: 'mapped_struct'.
+  ┆ ╰─ Missing required key: 'mapped_either'.
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
@@ -48,20 +49,19 @@ Error 5/8
 1 │
   ┆ ┬
   ┆ │
-  ┆ ╰─ Missing required key: 'mapped_vec_string'.
+  ┆ ╰─ Missing required key: 'mapped_struct'.
 ──╯
 Hint: This key is required but was not found in the TOML document.
 
 Error 6/8
   ╭─test.toml
   ┆
-2 │         [mapped_vec_enum]
-3 │             a = ['AlphaBeta', 'InvalidVariant']
-  ┆                               ────────┬───────
-  ┆                                       │
-  ┆                                       ╰───────── Invalid enum variant.
+1 │
+  ┆ ┬
+  ┆ │
+  ┆ ╰─ Missing required key: 'mapped_vec_string'.
 ──╯
-Hint: Did you mean: 'AlphaBeta' or 'GammaDelta'?
+Hint: This key is required but was not found in the TOML document.
 
 Error 7/8
   ╭─test.toml
