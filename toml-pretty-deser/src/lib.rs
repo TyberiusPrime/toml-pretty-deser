@@ -1015,7 +1015,6 @@ impl<'a> TomlHelper<'a> {
         &mut self,
         query_key: &str,
         aliases: &'static [&'static str],
-        missing_is_error: bool,
     ) -> TomlValue<T>
     where
         T: FromTomlItem + std::fmt::Debug,
@@ -1083,7 +1082,6 @@ impl<'a> TomlHelper<'a> {
         &mut self,
         query_key: &str,
         aliases: &'static [&'static str],
-        missing_is_error: bool,
     ) -> TomlValue<T>
     where
         T: FromTomlItem + std::fmt::Debug,
@@ -1972,7 +1970,7 @@ impl<T> TomlValue<T> {
 
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
-    pub fn verify<F>(self, helper: &mut TomlHelper, verification_func: F) -> Self
+    pub fn verify<F>(self, _helper: &mut TomlHelper, verification_func: F) -> Self
     where
         F: FnOnce(&T) -> Result<(), (String, Option<String>)>,
     {

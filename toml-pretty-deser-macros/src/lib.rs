@@ -1655,14 +1655,14 @@ mod codegen {
                         if is_optional {
                             quote! {
                                 #name: {
-                                    let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                    let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                     ::toml_pretty_deser::toml_item_as_map_with(&item_result, &helper.col, #func).into_optional()
                                 }
                             }
                         } else {
                             quote! {
                                 #name: {
-                                    let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*], true);
+                                    let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                     ::toml_pretty_deser::toml_item_as_map_with(&item_result, &helper.col, #func)
                                 }
                             }
@@ -1670,29 +1670,28 @@ mod codegen {
                     } else if is_optional {
                         quote! {
                             #name: toml_item_as_map(
-                                    &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], false),
+                                    &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]),
                                     &helper.col).into_optional()
                         }
                     } else {
                         quote! {
                             #name: toml_item_as_map(
-                                    &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*], true),
+                                    &helper.get_with_aliases::<::toml_edit::Item>(#name_str, &[#(#aliases),*]),
                                     &helper.col)
                         }
                     }
                 } else if is_vec_type(ty) {
-                    let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
                     if let Some(func) = with_func {
                         // tpd_with on Vec<T>: apply converter to each element
                         quote! {
                             #name: {
-                                let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error);
+                                let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 ::toml_pretty_deser::toml_item_as_vec_with(&item_result, &helper.col, #func)
                             }
                         }
                     } else {
                         quote! {
-                            #name: helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error)
+                            #name: helper.get_with_aliases(#name_str, &[#(#aliases),*])
                         }
                     }
                 } else if is_option_vec_type(ty) {
@@ -1700,14 +1699,14 @@ mod codegen {
                         // tpd_with on Option<Vec<T>>: apply converter to each element
                         quote! {
                             #name: {
-                                let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                let item_result: TomlValue<::toml_edit::Item> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 ::toml_pretty_deser::toml_item_as_vec_with(&item_result, &helper.col, #func).into_optional()
                             }
                         }
                     } else {
                         quote! {
                             #name: {
-                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 if let TomlValueState::Missing {parent_span, ..} = t.state {
                                     TomlValue{
                                         value: Some(None),
@@ -1724,7 +1723,7 @@ mod codegen {
                         // tpd_with on Option<Box<T>>: if present, apply converter and wrap in Box; if missing, None
                         quote! {
                             #name: {
-                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 match &raw.state {
                                     TomlValueState::Missing { parent_span, .. } => {
                                         // Field is missing - Option is None
@@ -1758,7 +1757,7 @@ mod codegen {
                     } else {
                         quote! {
                             #name: {
-                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 if let TomlValueState::Missing {parent_span, ..} = t.state {
                                     TomlValue{
                                         value: Some(None),
@@ -1775,7 +1774,7 @@ mod codegen {
                         // tpd_with on Option<T>: if present, apply converter; if missing, None
                         quote! {
                             #name: {
-                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 match &raw.state {
                                     TomlValueState::Missing { parent_span, .. } => {
                                         // Field is missing - Option is None
@@ -1809,7 +1808,7 @@ mod codegen {
                     } else {
                         quote! {
                             #name: {
-                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*], false);
+                                let t: TomlValue<_> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 if let TomlValueState::Missing {parent_span, ..} = t.state {
                                     TomlValue{
                                         value: Some(None),
@@ -1824,7 +1823,6 @@ mod codegen {
                 } else if let Some(func) = with_func {
                     // Field has tpd_with converter
                     // The converter function takes &str and returns Result<T, (String, Option<String>)>
-                    let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
                     let has_default = is_defaulted_field(f) || is_defaulted_in_verify_field(f);
                     let needs_box = is_box_type(ty);
 
@@ -1839,7 +1837,7 @@ mod codegen {
                         // If field has default and is missing, use default instead of calling converter
                         quote! {
                             #name: {
-                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error);
+                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 match &raw.state {
                                     TomlValueState::Missing { .. } => {
                                         // Field is missing - keep the Missing state
@@ -1874,7 +1872,7 @@ mod codegen {
                     } else {
                         quote! {
                             #name: {
-                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error);
+                                let raw: TomlValue<String> = helper.get_with_aliases(#name_str, &[#(#aliases),*]);
                                 match &raw.state {
                                     TomlValueState::Ok { span } => {
                                         let s = raw.value.as_ref().expect("Ok state must have value");
@@ -1907,9 +1905,8 @@ mod codegen {
                         }
                     }
                 } else {
-                    let missing_is_error = !is_defaulted_field(f) && !is_defaulted_in_verify_field(f);
                     quote! {
-                        #name: helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error)
+                        #name: helper.get_with_aliases(#name_str, &[#(#aliases),*])
                     }
                 }
             })
@@ -2152,12 +2149,6 @@ mod codegen {
 
                 // If tpd_default or tpd_default_in_verify is also present,
                 // force missing_is_error to false regardless of what the caller passes
-                let has_default = is_defaulted_field(f) || is_defaulted_in_verify_field(f);
-                let missing_is_error_expr = if has_default {
-                    quote! { false }
-                } else {
-                    quote! { missing_is_error }
-                };
 
                 quote! {
                     pub fn #getter_name<T: FromTomlItem + std::fmt::Debug>(
@@ -2167,9 +2158,9 @@ mod codegen {
                         auto_register_type_errors: bool,
                     ) -> TomlValue<T> {
                         if auto_register_type_errors {
-                            helper.get_with_aliases(#name_str, &[#(#aliases),*], #missing_is_error_expr)
+                            helper.get_with_aliases(#name_str, &[#(#aliases),*])
                         } else {
-                            helper.get_with_aliases_no_auto_error(#name_str, &[#(#aliases),*], #missing_is_error_expr)
+                            helper.get_with_aliases_no_auto_error(#name_str, &[#(#aliases),*])
                         }
                     }
                 }
@@ -2422,7 +2413,7 @@ mod codegen {
                         let tag_key = #tag_key;
                         let tag_aliases = &[#(#tag_aliases),*];
                         let tag_result: TomlValue<String> =
-                                helper.get_with_aliases(tag_key, tag_aliases, false);
+                                helper.get_with_aliases(tag_key, tag_aliases);
                         let mut fields_to_ignore: Vec<&str> = vec![tag_key];
                         fields_to_ignore.extend(tag_aliases.iter().copied());
                         let span: std::ops::Range<usize> = table.span().unwrap_or(0..0);
@@ -2597,7 +2588,7 @@ mod codegen {
                         let tag_key = #tag_key;
                         let tag_aliases = &[#(#tag_aliases),*];
                         let tag_result: TomlValue<String> =
-                                helper.get_with_aliases(tag_key, tag_aliases, true);
+                                helper.get_with_aliases(tag_key, tag_aliases);
                         let mut fields_to_ignore: Vec<&str> = vec![tag_key];
                         fields_to_ignore.extend(tag_aliases.iter().copied());
                         let span: std::ops::Range<usize> = table.span().unwrap_or(0..0);
