@@ -1,18 +1,17 @@
 use indexmap::{IndexMap, IndexSet};
 use std::fmt::Write;
 use std::{cell::RefCell, ops::Range, rc::Rc};
-use toml_edit::{TomlError};
+use toml_edit::TomlError;
 
+mod from_item;
 /// Import `toml_pretty_deser::prelude::`* to make use of our macros
 pub mod prelude;
 mod tablelike;
-mod from_item;
-pub use tablelike::{AsTableLikePlus, TableLikePlus};
 pub use from_item::FromTomlItem;
+pub use tablelike::{AsTableLikePlus, TableLikePlus};
 mod case;
 
-pub use case::{FieldMatchMode,suggest_alternatives};
-
+pub use case::{FieldMatchMode, suggest_alternatives};
 
 /// The failure states of deserialization
 ///
@@ -408,13 +407,14 @@ impl<'a> TomlHelper<'a> {
         let field_info = FieldInfo::new(name).with_aliases(aliases);
         self.expected.push(field_info);
     }
-    /// Register a field with optional aliases
-    pub fn ignore_field(&mut self, name: impl Into<String>) {
-        let name: String = name.into();
-        let field_info = FieldInfo::new(name.clone());
-        self.expected.push(field_info);
-        self.observed.push(name);
-    }
+    ///
+    // /// Register a field with optional aliases
+    // pub fn ignore_field(&mut self, name: impl Into<String>) {
+    //     let name: String = name.into();
+    //     let field_info = FieldInfo::new(name.clone());
+    //     self.expected.push(field_info);
+    //     self.observed.push(name);
+    // }
 
     /// Find a key in the table that matches the given field name (considering aliases and match mode)
     fn find_matching_keys(
@@ -631,7 +631,7 @@ impl<'a> TomlHelper<'a> {
     /// The absorbed keys are marked as observed, so `deny_unknown()` won't report them.
     ///
     /// Returns a `TomlValue` containing the map. The map preserves insertion order.
-    pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, T>>
+    pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, TomlValue<T>>>
     where
         K: From<String> + std::hash::Hash + Eq,
         T: FromTomlItem,
@@ -648,7 +648,7 @@ impl<'a> TomlHelper<'a> {
             }
         };
 
-        let mut result_map: IndexMap<K, T> = IndexMap::new();
+        let mut result_map: IndexMap<K, TomlValue<T>> = IndexMap::new();
         let mut all_ok = true;
         let mut first_span: Option<Range<usize>> = None;
 
@@ -672,25 +672,10 @@ impl<'a> TomlHelper<'a> {
             // Deserialize the value
             let value_result = T::from_toml_item(item, item_span, &self.col);
 
-            match &value_result.state {
-                TomlValueState::Ok { .. } => {
-                    if let Some(value) = value_result.value {
-                        result_map.insert(K::from(key_str), value);
-                    }
-                }
-                TomlValueState::Nested => {
-                    // Nested struct with errors - add the partial to the map so errors can be collected later
-                    if let Some(value) = value_result.value {
-                        result_map.insert(K::from(key_str), value);
-                    }
-                    all_ok = false;
-                }
-                _ => {
-                    // Error during deserialization - register the error
-                    value_result.register_error(&self.col);
-                    all_ok = false;
-                }
+            if !value_result.is_ok() {
+                all_ok = false;
             }
+            result_map.insert(K::from(key_str), value_result);
         }
 
         let span = first_span.unwrap_or(0..0);
@@ -706,7 +691,7 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    pub fn no_unknown(&self) -> bool{
+    pub fn no_unknown(&self) -> bool {
         let mut expected_normalized: IndexSet<String> = IndexSet::new();
         for field_info in &self.expected {
             for normalized_name in field_info.all_normalized_names(&self.col.match_mode) {
@@ -729,10 +714,10 @@ impl<'a> TomlHelper<'a> {
 
             // Check if this key was observed (i.e., it matched an expected field)
             if !observed_set.contains(&normalized_key) {
-                return false
+                return false;
             }
         }
-        return true
+        return true;
     }
 
     pub fn register_unknown(&mut self) {
@@ -775,7 +760,6 @@ impl<'a> TomlHelper<'a> {
         }
     }
 }
-
 
 /// The internal representation of a value to-have-been-deserialized
 #[derive(Debug)]
@@ -854,16 +838,12 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub fn has_value(&self) -> bool {
-        matches!(self.state, TomlValueState::Ok { .. })
-    }
-
-    pub fn into_option(self) -> Option<T> {
-        match self.state {
-            TomlValueState::Ok { .. } => self.value,
-            _ => None,
-        }
-    }
+    // pub fn into_option(self) -> Option<T> {
+    //     match self.state {
+    //         TomlValueState::Ok { .. } => self.value,
+    //         _ => None,
+    //     }
+    // }
 
     pub fn into_optional(self) -> TomlValue<Option<T>> {
         match self.state {
@@ -878,9 +858,9 @@ impl<T> TomlValue<T> {
                 value: Some(None),
                 state: TomlValueState::Ok { span: parent_span },
             },
-            TomlValueState::Nested => TomlValue {
+            TomlValueState::Nested{} => TomlValue {
                 value: Some(self.value),
-                state: TomlValueState::Nested,
+                state: TomlValueState::Nested{},
             },
             _ => TomlValue {
                 value: None,
@@ -1044,7 +1024,6 @@ impl<T> TomlValue<T> {
             _ => self,
         }
     }
-
 }
 
 impl<T> Default for TomlValue<T> {

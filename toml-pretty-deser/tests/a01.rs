@@ -85,7 +85,8 @@ fn finalize_nested_field<T: FromTomlTable>(field: &mut TomlValue<T>, helper: &mu
     }
 }
 
-trait TpdDeserialize: Default {
+//what the #[tdp] marked structs implement
+trait TpdDeserializeStruct: Default {
     type Concrete;
     fn fill_fields(&mut self, helper: &mut TomlHelper<'_>);
     fn can_concrete(&self) -> bool;
@@ -93,7 +94,65 @@ trait TpdDeserialize: Default {
     fn register_errors(&self, col: &TomlCollector);
 }
 
-fn deserialize_toml<P: TpdDeserialize>(
+// what our internal Vec,IndexMap, etc implement
+trait TpdDeserialize: Default {
+    type Concrete;
+    //no can_concrete, rely on state: TomlValueState::Ok
+    fn to_concrete(self) -> Self::Concrete;
+    fn register_errors(&self, col: &TomlCollector);
+}
+
+impl<T> TpdDeserialize for Vec<TomlValue<T>> {
+    type Concrete = Vec<T>;
+
+    fn to_concrete(self) -> Self::Concrete {
+        self.into_iter().map(|item| item.value.unwrap()).collect()
+    }
+
+    fn register_errors(&self, col: &TomlCollector) {
+        for val in self.iter() {
+            val.register_error(col);
+        }
+    }
+}
+
+impl<T, S: std::hash::Hash + Eq> TpdDeserialize for IndexMap<S, TomlValue<T>> {
+    type Concrete = IndexMap<S, T>;
+
+    fn to_concrete(self) -> Self::Concrete {
+        self.into_iter()
+            .map(|(k, v)| (k, v.value.unwrap()))
+            .collect()
+    }
+
+    fn register_errors(&self, col: &TomlCollector) {
+        for val in self.values() {
+            val.register_error(col);
+        }
+    }
+}
+//
+// impl<T, S: std::hash::Hash + Eq> TpdDeserialize for IndexMap<S, Vec<TomlValue<T>>> {
+//     type Concrete = IndexMap<S, Vec<T>>;
+//
+//     fn can_concrete(&self) -> bool {
+//         self.values().all(|vec| vec.can_concrete())
+//     }
+//
+//     fn to_concrete(self) -> Self::Concrete {
+//         self.into_iter()
+//             .map(|(k, v)| (k, v.to_concrete()))
+//             .collect()
+//     }
+//
+//     fn register_errors(&self, col: &TomlCollector) {
+//         for vec in self.values() {
+//             vec.register_errors(col);
+//         }
+//     }
+// }
+
+fn deserialize_toml<P: TpdDeserializeStruct>(
     toml_str: &str,
     field_match_mode: toml_pretty_deser::FieldMatchMode,
     vec_mode: toml_pretty_deser::VecMode,
@@ -211,25 +270,12 @@ struct InnerB {
 struct PartialOuter {
     a_u8: TomlValue<u8>,
     opt_u8: TomlValue<Option<u8>>,
-    vec_u8: TomlValue<Vec<u8>>,
-    map_u8: TomlValue<IndexMap<String, u8>>,
+    vec_u8: TomlValue<Vec<TomlValue<u8>>>,
+    map_u8: TomlValue<IndexMap<String, TomlValue<u8>>>,
     nested_struct: TomlValue<PartialNestedStruct>,
     simple_enum: TomlValue<AnEnum>,
     // #[tpd_tag("kind")]
     nested_tagged_enum: TomlValue<PartialTaggedEnum>,
-    //to be done at a later time
-    //not shown: Box<u8>
-    //not shown: Vec<NestedStruct>,
-    //not shown: Vec<AnEnum>,
-    //not shown: Vec<TaggedEnum>,
-    //
-    //not shown: IndexMap<FromString, NestedStruct>,
-    //not shown: IndexMap<FromString, AnEnum>,
-    //not shown: IndexMap<FromString, TaggedEnum>,
-    //
-    //not shown: IndexMap<FromString, Vec<NestedStruct>>,
-    //not shown: IndexMap<FromString, Vec<AnEnum>>,
-    //not shown: IndexMap<FromString, Vec<TaggedEnum>>,
 }
 
 impl PartialOuter {
@@ -242,11 +288,14 @@ impl PartialOuter {
         straight.into_optional()
     }
 
-    fn tpd_get_vec_u8(&self, helper: &mut TomlHelper<'_>) -> TomlValue<Vec<u8>> {
+    fn tpd_get_vec_u8(&self, helper: &mut TomlHelper<'_>) -> TomlValue<Vec<TomlValue<u8>>> {
         helper.get_with_aliases("vec_u8", &[])
     }
 
-    fn tpd_get_map_u8(&self, helper: &mut TomlHelper<'_>) -> TomlValue<IndexMap<String, u8>> {
+    fn tpd_get_map_u8(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<IndexMap<String, TomlValue<u8>>> {
         helper.get_with_aliases("map_u8", &[])
     }
 
@@ -270,7 +319,7 @@ impl PartialOuter {
     }
 }
 
-impl TpdDeserialize for PartialOuter {
+impl TpdDeserializeStruct for PartialOuter {
     type Concrete = Outer;
 
     fn fill_fields(&mut self, helper: &mut TomlHelper<'_>) {
@@ -297,8 +346,8 @@ impl TpdDeserialize for PartialOuter {
         Outer {
             a_u8: self.a_u8.value.unwrap(),
             opt_u8: self.opt_u8.value.unwrap(),
-            vec_u8: self.vec_u8.value.unwrap(),
-            map_u8: self.map_u8.value.unwrap(),
+            vec_u8: self.vec_u8.value.unwrap().to_concrete(),
+            map_u8: self.map_u8.value.unwrap().to_concrete(),
             nested_struct: self.nested_struct.value.unwrap().to_concrete(),
             simple_enum: self.simple_enum.value.unwrap(),
             nested_tagged_enum: self.nested_tagged_enum.value.unwrap().to_concrete(),
@@ -309,16 +358,21 @@ impl TpdDeserialize for PartialOuter {
         self.a_u8.register_error(col);
         self.opt_u8.register_error(col);
         self.vec_u8.register_error(col);
+        if let TomlValueState::Nested = self.vec_u8.state {
+            self.vec_u8.value.as_ref().unwrap().register_errors(col);
+        }
         self.map_u8.register_error(col);
+        if let TomlValueState::Nested = self.map_u8.state {
+            self.map_u8.value.as_ref().unwrap().register_errors(col);
+        }
         self.nested_struct.register_error(col);
+        if let TomlValueState::Nested = self.nested_struct.state {
+            self.nested_struct.value.as_ref().unwrap().register_errors(col);
+        }
         self.simple_enum.register_error(col);
         self.nested_tagged_enum.register_error(col);
-
-        // Register nested errors for tagged enum variants
-        if matches!(self.nested_tagged_enum.state, TomlValueState::Nested) {
-            if let Some(inner) = &self.nested_tagged_enum.value {
-                inner.register_errors(col);
-            }
+        if let TomlValueState::Nested = self.nested_tagged_enum.state {
+            self.nested_tagged_enum.value.as_ref().unwrap().register_errors(col);
         }
     }
 }
@@ -337,6 +391,17 @@ impl PartialNestedStruct {
 
     fn tpd_get_double(&self, helper: &mut TomlHelper<'_>) -> TomlValue<PartialDoubleNestedStruct> {
         helper.get_with_aliases("double", &[])
+    }
+
+    fn register_errors(&self, col: &TomlCollector) {
+        self.other_u8.register_error(col);
+        self.double.register_error(col);
+
+        if matches!(self.double.state, TomlValueState::Nested) {
+            if let Some(inner) = &self.double.value {
+                inner.register_errors(col);
+            }
+        }
     }
 
     fn to_concrete(self) -> NestedStruct {
@@ -379,6 +444,10 @@ impl PartialDoubleNestedStruct {
         DoubleNestedStruct {
             double_u8: self.double_u8.value.unwrap(),
         }
+    }
+
+    fn register_errors(&self, col: &TomlCollector) {
+        self.double_u8.register_error(col);
     }
 }
 
@@ -598,10 +667,10 @@ mod other {
     //mod
     //
     use super::{
-        NestedStruct, PartialNestedStruct, TpdDeserialize, VerifyTomlItem,
-        deserialize_toml, verify_struct,
+        NestedStruct, PartialNestedStruct, TpdDeserializeStruct, VerifyTomlItem, deserialize_toml,
+        verify_struct,
     };
-    use toml_pretty_deser::{DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState};
+    use toml_pretty_deser::{DeserError, TomlCollector, TomlHelper, TomlValue};
     //User code
     // #tpd
     #[derive(Debug)]
@@ -627,12 +696,12 @@ mod other {
         }
     }
 
-    impl TpdDeserialize for PartialOtherOuter {
+    impl TpdDeserializeStruct for PartialOtherOuter {
         type Concrete = OtherOuter;
 
         fn fill_fields(&mut self, helper: &mut TomlHelper<'_>) {
-            let temp_nested = self.tpd_get_nested_struct(helper, 0..0);
-            self.nested_struct = verify_struct(temp_nested, helper, self);
+            self.nested_struct =
+                verify_struct(self.tpd_get_nested_struct(helper, 0..0), helper, self);
         }
 
         fn can_concrete(&self) -> bool {
@@ -752,7 +821,7 @@ fn test_basic_missing() {
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
         assert_eq!(inner.a_u8.value, None);
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
-        assert_eq!(inner.vec_u8.value, Some(vec![3]));
+        assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
         //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
@@ -788,8 +857,45 @@ fn test_basic_unknown() {
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
         assert_eq!(inner.a_u8.value, Some(1));
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
-        assert_eq!(inner.vec_u8.value, Some(vec![3]));
+        assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
+        insta::assert_snapshot!(errors[0].pretty("test.toml"));
+        //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
+        //assert_eq!(inner.value.nested_struct.other_u8, 6); //1 added in verify
+        //assert_eq!(inner.value.nested_struct.double.double_u8, 6);
+    }
+}
+#[test]
+fn test_basic_unknown_in_nested() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 =2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            shu = 23
+            other_u8 = 5
+        [nested_struct.double]
+            shu = 23
+        [nested_tagged_enum]
+            a = 10
+            kind = 'KindA'
+    ";
+    let parsed = deserialize(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(!parsed.is_ok());
+    if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
+        assert_eq!(inner.a_u8.value, Some(1));
+        assert_eq!(inner.opt_u8.value, Some(Some(2)));
+        assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
+        assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
+        assert!(!inner.nested_struct.is_ok());
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
         //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         //assert_eq!(inner.value.nested_struct.other_u8, 6); //1 added in verify
@@ -799,7 +905,7 @@ fn test_basic_unknown() {
 #[test]
 fn test_error_in_vec() {
     let toml = "
-        #a_u8 = 1
+        a_u8 = 1
         opt_u8 =2
         vec_u8 = ['a']
         simple_enum = 'TypeB'
@@ -809,6 +915,9 @@ fn test_error_in_vec() {
             other_u8 = 5
         [nested_struct.double]
             double_u8 = 6
+        [nested_tagged_enum]
+            a = 10
+            kind = 'KindA'
     ";
     let parsed = deserialize(
         toml,
@@ -819,7 +928,18 @@ fn test_error_in_vec() {
     assert!(!parsed.is_ok());
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
-        assert_eq!(inner.map_u8.value.as_ref().unwrap().get("a").unwrap(), &4);
+        assert_eq!(
+            inner
+                .map_u8
+                .value
+                .as_ref()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .as_ref()
+                .unwrap(),
+            &4
+        );
         assert_eq!(
             inner
                 .nested_struct
@@ -1028,23 +1148,24 @@ fn test_vec_of_tagged_enums() {
     };
 
     let items = parsed.get("items").unwrap();
-    let result: TomlValue<Vec<PartialTaggedEnum>> = FromTomlItem::from_toml_item(items, 0..0, &col);
+    let result: TomlValue<Vec<TomlValue<PartialTaggedEnum>>> =
+        FromTomlItem::from_toml_item(items, 0..0, &col);
 
     assert!(result.is_ok());
     let vec = result.value.unwrap();
     assert_eq!(vec.len(), 3);
 
-    match &vec[0] {
+    match &vec[0].value.as_ref().unwrap() {
         PartialTaggedEnum::KindA(inner) => assert_eq!(inner.a.value, Some(1)),
         _ => panic!("Expected KindA"),
     }
 
-    match &vec[1] {
+    match &vec[1].value.as_ref().unwrap() {
         PartialTaggedEnum::KindB(inner) => assert_eq!(inner.b.value, Some(2)),
         _ => panic!("Expected KindB"),
     }
 
-    match &vec[2] {
+    match &vec[2].value.as_ref().unwrap() {
         PartialTaggedEnum::KindA(inner) => assert_eq!(inner.a.value, Some(3)),
         _ => panic!("Expected KindA"),
     }
@@ -1079,28 +1200,52 @@ fn test_vec_of_nested_structs() {
     };
 
     let items = parsed.get("items").unwrap();
-    let result: TomlValue<Vec<PartialNestedStruct>> =
+    let result: TomlValue<Vec<TomlValue<PartialNestedStruct>>> =
         FromTomlItem::from_toml_item(items, 0..0, &col);
 
     assert!(result.is_ok());
     let vec = result.value.unwrap();
     assert_eq!(vec.len(), 3);
 
-    assert_eq!(vec[0].other_u8.value, Some(10));
+    assert_eq!(vec[0].as_ref().unwrap().other_u8.value, Some(10));
     assert_eq!(
-        vec[0].double.value.as_ref().unwrap().double_u8.value,
+        vec[0]
+            .as_ref()
+            .unwrap()
+            .double
+            .value
+            .as_ref()
+            .unwrap()
+            .double_u8
+            .value,
         Some(11)
     );
 
-    assert_eq!(vec[1].other_u8.value, Some(20));
+    assert_eq!(vec[1].as_ref().unwrap().other_u8.value, Some(20));
     assert_eq!(
-        vec[1].double.value.as_ref().unwrap().double_u8.value,
+        vec[1]
+            .as_ref()
+            .unwrap()
+            .double
+            .value
+            .as_ref()
+            .unwrap()
+            .double_u8
+            .value,
         Some(21)
     );
 
-    assert_eq!(vec[2].other_u8.value, Some(30));
+    assert_eq!(vec[2].as_ref().unwrap().other_u8.value, Some(30));
     assert_eq!(
-        vec[2].double.value.as_ref().unwrap().double_u8.value,
+        vec[2]
+            .as_ref()
+            .unwrap()
+            .double
+            .value
+            .as_ref()
+            .unwrap()
+            .double_u8
+            .value,
         Some(31)
     );
 }
@@ -1163,7 +1308,7 @@ fn test_map_of_nested_structs() {
     };
 
     let items = parsed.get("items").unwrap();
-    let result: TomlValue<IndexMap<String, PartialNestedStruct>> =
+    let result: TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>> =
         FromTomlItem::from_toml_item(items, 0..0, &col);
 
     assert!(result.is_ok());
@@ -1171,16 +1316,32 @@ fn test_map_of_nested_structs() {
     assert_eq!(map.len(), 2);
 
     let first = map.get("first").unwrap();
-    assert_eq!(first.other_u8.value, Some(100));
+    assert_eq!(first.as_ref().unwrap().other_u8.value, Some(100));
     assert_eq!(
-        first.double.value.as_ref().unwrap().double_u8.value,
+        first
+            .as_ref()
+            .unwrap()
+            .double
+            .value
+            .as_ref()
+            .unwrap()
+            .double_u8
+            .value,
         Some(101)
     );
 
     let second = map.get("second").unwrap();
-    assert_eq!(second.other_u8.value, Some(200));
+    assert_eq!(second.as_ref().unwrap().other_u8.value, Some(200));
     assert_eq!(
-        second.double.value.as_ref().unwrap().double_u8.value,
+        second
+            .as_ref()
+            .unwrap()
+            .double
+            .value
+            .as_ref()
+            .unwrap()
+            .double_u8
+            .value,
         Some(201)
     );
 }
@@ -1206,15 +1367,15 @@ struct AdvancedOuter {
 #[derive(Default, Debug)]
 struct PartialAdvancedOuter {
     boxed_u8: TomlValue<Box<u8>>,
-    vec_nested: TomlValue<Vec<PartialNestedStruct>>,
-    vec_enum: TomlValue<Vec<AnEnum>>,
-    vec_tagged: TomlValue<Vec<PartialTaggedEnum>>,
-    map_nested: TomlValue<IndexMap<String, PartialNestedStruct>>,
-    map_enum: TomlValue<IndexMap<String, AnEnum>>,
-    map_tagged: TomlValue<IndexMap<String, PartialTaggedEnum>>,
-    map_vec_nested: TomlValue<IndexMap<String, Vec<PartialNestedStruct>>>,
-    map_vec_enum: TomlValue<IndexMap<String, Vec<AnEnum>>>,
-    map_vec_tagged: TomlValue<IndexMap<String, Vec<PartialTaggedEnum>>>,
+    vec_nested: TomlValue<Vec<TomlValue<PartialNestedStruct>>>,
+    vec_enum: TomlValue<Vec<TomlValue<AnEnum>>>,
+    vec_tagged: TomlValue<Vec<TomlValue<PartialTaggedEnum>>>,
+    map_nested: TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>>,
+    map_enum: TomlValue<IndexMap<String, TomlValue<AnEnum>>>,
+    map_tagged: TomlValue<IndexMap<String, TomlValue<PartialTaggedEnum>>>,
+    map_vec_nested: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>,
+    map_vec_enum: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<AnEnum>>>>>,
+    map_vec_tagged: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>>,
 }
 
 impl PartialAdvancedOuter {
@@ -1239,45 +1400,74 @@ impl PartialAdvancedOuter {
                 .value
                 .unwrap()
                 .into_iter()
-                .map(|p| p.to_concrete())
+                .map(|p| p.expect("should be set").to_concrete())
                 .collect(),
-            vec_enum: self.vec_enum.value.unwrap(),
+            vec_enum: self.vec_enum.value.unwrap().to_concrete(),
             vec_tagged: self
                 .vec_tagged
                 .value
                 .unwrap()
                 .into_iter()
-                .map(|p| p.to_concrete())
+                .map(|p| p.expect("should be set").to_concrete())
                 .collect(),
             map_nested: self
                 .map_nested
                 .value
                 .unwrap()
                 .into_iter()
-                .map(|(k, v)| (k, v.to_concrete()))
+                .map(|(k, v)| (k, v.expect("should be set").to_concrete()))
                 .collect(),
-            map_enum: self.map_enum.value.unwrap(),
+            map_enum: self.map_enum.value.unwrap().to_concrete(),
             map_tagged: self
                 .map_tagged
                 .value
                 .unwrap()
                 .into_iter()
-                .map(|(k, v)| (k, v.to_concrete()))
+                .map(|(k, v)| (k, v.expect("should be set").to_concrete()))
                 .collect(),
             map_vec_nested: self
                 .map_vec_nested
                 .value
                 .unwrap()
                 .into_iter()
-                .map(|(k, vec)| (k, vec.into_iter().map(|p| p.to_concrete()).collect()))
+                .map(|(k, vec)| {
+                    (
+                        k,
+                        vec.expect("should be set")
+                            .into_iter()
+                            .map(|p| p.expect("should be set").to_concrete())
+                            .collect(),
+                    )
+                })
                 .collect(),
-            map_vec_enum: self.map_vec_enum.value.unwrap(),
+            map_vec_enum: self
+                .map_vec_enum
+                .value
+                .unwrap()
+                .into_iter()
+                .map(|(k, vec)| {
+                    (
+                        k,
+                        vec.expect("should be set")
+                            .into_iter()
+                            .map(|p| p.expect("should be set"))
+                            .collect(),
+                    )
+                })
+                .collect(),
             map_vec_tagged: self
                 .map_vec_tagged
                 .value
                 .unwrap()
                 .into_iter()
-                .map(|(k, vec)| (k, vec.into_iter().map(|p| p.to_concrete()).collect()))
+                .map(|(k, vec)| {
+                    (
+                        k,
+                        vec.expect("should be set").into_iter()
+                            .map(|p| p.expect("should be set").to_concrete())
+                            .collect(),
+                    )
+                })
                 .collect(),
         }
     }
@@ -1531,9 +1721,10 @@ a = 99
 mod absord {
     use std::{cell::RefCell, rc::Rc};
 
+    use super::TpdDeserialize;
     use indexmap::IndexMap;
     use toml_edit::Document;
-    use toml_pretty_deser::{DeserError, TomlCollector, TomlHelper, TomlValue};
+    use toml_pretty_deser::{DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState};
 
     //#[tdp]
     #[derive(Debug)]
@@ -1545,7 +1736,7 @@ mod absord {
     #[derive(Default, Debug)]
     struct PartialAbsorber {
         a_u8: TomlValue<u8>,
-        others: TomlValue<IndexMap<String, u8>>,
+        others: TomlValue<IndexMap<String, TomlValue<u8>>>,
     }
 
     impl PartialAbsorber {
@@ -1560,7 +1751,7 @@ mod absord {
         fn to_concrete(self) -> Absorber {
             Absorber {
                 a_u8: self.a_u8.value.unwrap(),
-                others: self.others.value.unwrap(),
+                others: self.others.value.unwrap().to_concrete(),
             }
         }
     }
@@ -1594,6 +1785,9 @@ mod absord {
             helper.register_unknown();
             partial.a_u8.register_error(&col);
             partial.others.register_error(&col);
+            if let TomlValueState::Nested = partial.others.state {
+                partial.others.value.as_ref().unwrap().register_errors(&col);
+            }
             Err(DeserError::DeserFailure(
                 helper.into_inner(&source),
                 partial,

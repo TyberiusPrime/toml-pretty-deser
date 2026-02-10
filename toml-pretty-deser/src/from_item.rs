@@ -1,6 +1,6 @@
-use std::ops::Range;
-use super::{TomlValue, TomlCollector, TomlValueState, VecMode,};
+use super::{TomlCollector, TomlValue, TomlValueState, VecMode};
 use indexmap::IndexMap;
+use std::ops::Range;
 /// Conversion for arbitrary types. Implement this for your custom types.
 pub trait FromTomlItem {
     fn from_toml_item(
@@ -11,7 +11,6 @@ pub trait FromTomlItem {
     where
         Self: Sized;
 }
-
 
 macro_rules! impl_from_toml_item_integer {
     ($ty:ty, $name:expr) => {
@@ -319,7 +318,7 @@ impl<T: FromTomlItem> FromTomlItem for Box<T> {
 // Blanket implementation for Vec<T> where T: FromTomlItem
 // This handles both regular arrays and ArrayOfTables (for Vec<toml_edit::Item> specifically)
 #[allow(clippy::too_many_lines)]
-impl<T: FromTomlItem> FromTomlItem for Vec<T> {
+impl<T: FromTomlItem> FromTomlItem for Vec<TomlValue<T>> {
     fn from_toml_item(
         item: &toml_edit::Item,
         parent_span: Range<usize>,
@@ -337,26 +336,16 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     let element: TomlValue<T> =
                         FromTomlItem::from_toml_item(&wrapped_item, item_span.clone(), col);
 
-                    if let TomlValueState::Ok { .. } = &element.state {
-                        if let Some(val) = element.value {
-                            values.push(val);
-                        }
-                    } else if matches!(&element.state, TomlValueState::Nested) {
-                        // Nested struct with errors - add the partial to the vec so errors can be collected later
-                        if let Some(val) = element.value {
-                            values.push(val);
-                        }
-                        has_error = true;
-                    } else {
-                        element.register_error(col);
+                    if !element.is_ok() {
                         has_error = true;
                     }
+                    values.push(element);
                 }
 
                 if has_error {
                     TomlValue {
                         value: Some(values),
-                        state: TomlValueState::Nested {},
+                        state: TomlValueState::Nested { },
                     }
                 } else {
                     TomlValue {
@@ -378,26 +367,16 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                     let element: TomlValue<T> =
                         FromTomlItem::from_toml_item(&wrapped_item, table_span.clone(), col);
 
-                    if let TomlValueState::Ok { .. } = &element.state {
-                        if let Some(val) = element.value {
-                            values.push(val);
-                        }
-                    } else if matches!(&element.state, TomlValueState::Nested) {
-                        // Nested struct with errors - add the partial to the vec so errors can be collected later
-                        if let Some(val) = element.value {
-                            values.push(val);
-                        }
-                        has_error = true;
-                    } else {
-                        element.register_error(col);
+                    if !element.is_ok() {
                         has_error = true;
                     }
+                    values.push(element);
                 }
 
                 if has_error {
                     TomlValue {
                         value: Some(values),
-                        state: TomlValueState::Nested {},
+                        state: TomlValueState::Nested { },
                     }
                 } else {
                     TomlValue {
@@ -412,13 +391,15 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                 VecMode::SingleOk => {
                     let element: TomlValue<T> =
                         FromTomlItem::from_toml_item(item, parent_span, col);
-                    if let TomlValueState::Ok { span } = &element.state {
-                        TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
-                    } else {
-                        TomlValue {
-                            state: TomlValueState::Nested {},
-                            value: None,
-                        }
+                    TomlValue {
+                        state: if element.is_ok() {
+                            TomlValueState::Ok {
+                                span: element.span(),
+                            }
+                        } else {
+                            TomlValueState::Nested { }
+                        },
+                        value: Some(vec![element]),
                     }
                 }
                 VecMode::Strict => TomlValue {
@@ -434,20 +415,22 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
                 VecMode::SingleOk => {
                     let element: TomlValue<T> =
                         FromTomlItem::from_toml_item(item, parent_span, col);
-                    if let TomlValueState::Ok { span } = &element.state {
-                        TomlValue::new_ok(vec![element.value.expect("unreachable")], span.clone())
-                    } else {
-                        TomlValue {
-                            state: TomlValueState::Nested {},
-                            value: None,
-                        }
+                    TomlValue {
+                        state: if element.is_ok() {
+                            TomlValueState::Ok {
+                                span: element.span(),
+                            }
+                        } else {
+                            TomlValueState::Nested { }
+                        },
+                        value: Some(vec![element]),
                     }
                 }
                 VecMode::Strict => TomlValue {
                     value: None,
                     state: TomlValueState::WrongType {
                         span: value.span().unwrap_or(parent_span),
-                        expected: "array (maybe of tables)",
+                        expected: "array",
                         found: "table",
                     },
                 },
@@ -457,7 +440,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
 }
 
 #[allow(clippy::too_many_lines)]
-impl<S, T> FromTomlItem for IndexMap<S, T>
+impl<S, T> FromTomlItem for IndexMap<S, TomlValue<T>>
 where
     S: From<String> + std::hash::Hash + Eq,
     T: FromTomlItem,
@@ -479,26 +462,16 @@ where
                     let val: TomlValue<T> =
                         FromTomlItem::from_toml_item(&wrapped_item, item_span.clone(), col);
 
-                    if let TomlValueState::Ok { .. } = &val.state {
-                        if let Some(v) = val.value {
-                            map.insert(S::from(key.to_string()), v);
-                        }
-                    } else if matches!(&val.state, TomlValueState::Nested) {
-                        // Nested struct with errors - add the partial to the map so errors can be collected later
-                        if let Some(v) = val.value {
-                            map.insert(S::from(key.to_string()), v);
-                        }
-                        has_errors = true;
-                    } else {
-                        val.register_error(col);
+                    if !val.is_ok() {
                         has_errors = true;
                     }
+                    map.insert(S::from(key.to_string()), val);
                 }
 
                 if has_errors {
                     TomlValue {
                         value: Some(map),
-                        state: TomlValueState::Nested {},
+                        state: TomlValueState::Nested { },
                     }
                 } else {
                     TomlValue {
@@ -518,20 +491,10 @@ where
                     let val: TomlValue<T> =
                         FromTomlItem::from_toml_item(value, item_span.clone(), col);
 
-                    if let TomlValueState::Ok { .. } = &val.state {
-                        if let Some(v) = val.value {
-                            map.insert(S::from(key.to_string()), v);
-                        }
-                    } else if matches!(&val.state, TomlValueState::Nested) {
-                        // Nested struct with errors - add the partial to the map so errors can be collected later
-                        if let Some(v) = val.value {
-                            map.insert(S::from(key.to_string()), v);
-                        }
-                        has_errors = true;
-                    } else {
-                        val.register_error(col);
+                    if !val.is_ok() {
                         has_errors = true;
                     }
+                    map.insert(S::from(key.to_string()), val);
                 }
 
                 if has_errors {
@@ -567,4 +530,3 @@ where
         }
     }
 }
-
