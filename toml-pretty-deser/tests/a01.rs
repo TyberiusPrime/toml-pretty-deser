@@ -32,7 +32,7 @@ struct Outer {
     map_u8: IndexMap<String, u8>,
     //#tpd[nested] // we might need to tag these structs
     nested_struct: NestedStruct,
-    //nested_simple_enum: AnEnum,
+    simple_enum: AnEnum,
     // #[tpd_tag("kind")]
     //nested_tagged_enum: TaggedEnum,
 }
@@ -64,10 +64,11 @@ struct DoubleNestedStruct {
 
 // #[tpd]
 #[derive(Debug)]
+#[derive(PartialEq, Eq)]
 enum AnEnum {
-    typeA,
+    TypeA,
     // #[tpd_alias(Bbb)]
-    typeB,
+    TypeB,
 }
 
 // #[tpd]
@@ -93,7 +94,7 @@ struct PartialOuter {
     vec_u8: TomlValue<Vec<u8>>,
     map_u8: TomlValue<IndexMap<String, u8>>,
     nested_struct: TomlValue<PartialNestedStruct>,
-    //nested_simple_enum: TomlValue<AnEnum>,
+    simple_enum: TomlValue<AnEnum>,
     // #[tpd_tag("kind")]
     //nested_tagged_enum: TomlValue<PartialTaggedEnum>,
     //to be done at a later time
@@ -147,9 +148,9 @@ impl PartialOuter {
         }
     }
 
-    // fn tpd_get_nested_simple_enum(&self, helper: &mut TomlHelper<'_>) -> TomlValue<AnEnum> {
-    //     helper.get_with_aliases("nested_simple_enum", &[])
-    // }
+    fn tpd_get_simple_enum(&self, helper: &mut TomlHelper<'_>) -> TomlValue<AnEnum> {
+        helper.get_with_aliases("simple_enum", &[])
+    }
 
     // fn tpd_get_nested_tagged_enum(
     //     &self,
@@ -165,7 +166,7 @@ impl PartialOuter {
             && self.vec_u8.is_ok()
             && self.map_u8.is_ok()
             && self.nested_struct.is_ok()
-        //&& self.nested_simple_enum.is_ok()
+            && self.simple_enum.is_ok()
         //&& self.nested_tagged_enum.is_ok()
     }
 
@@ -176,7 +177,7 @@ impl PartialOuter {
             vec_u8: self.vec_u8.value.unwrap(),
             map_u8: self.map_u8.value.unwrap(),
             nested_struct: self.nested_struct.value.unwrap().to_concrete(),
-            //nested_simple_enum: self.nested_simple_enum.value.unwrap(),
+            simple_enum: self.simple_enum.value.unwrap(),
             //nested_tagged_enum: self.nested_tagged_enum.value.unwrap().to_concrete(),
         }
     }
@@ -275,17 +276,17 @@ impl FromTomlItem for AnEnum {
     fn from_toml_item(
         item: &toml_edit::Item,
         parent_span: std::ops::Range<usize>,
-        col: &TomlCollector,
+        _col: &TomlCollector,
     ) -> TomlValue<Self>
     where
         Self: Sized,
     {
         if let Some(str) = item.as_str() {
             //macro todo: alias matching for enums in a generic way.
-            if str == "typeA" {
-                TomlValue::new_ok(AnEnum::typeA, parent_span)
-            } else if str == "typeB" || str == "Bbb" {
-                TomlValue::new_ok(AnEnum::typeB, parent_span)
+            if str == "TypeA" {
+                TomlValue::new_ok(AnEnum::TypeA, parent_span)
+            } else if str == "TypeB" || str == "Bbb" {
+                TomlValue::new_ok(AnEnum::TypeB, parent_span)
             } else {
                 TomlValue::new_validation_failed(
                     item.span().unwrap_or(parent_span.clone()),
@@ -358,6 +359,7 @@ fn deserialize(
     partial.opt_u8 = partial.tpd_get_opt_u8(&mut helper);
     partial.vec_u8 = partial.tpd_get_vec_u8(&mut helper);
     partial.map_u8 = partial.tpd_get_map_u8(&mut helper);
+    partial.simple_enum = partial.tpd_get_simple_enum(&mut helper);
 
     let temp_nested = partial.tpd_get_nested_struct(&mut helper, 0..0);
     if temp_nested.value.is_some() && matches!(temp_nested.state, TomlValueState::Nested) {
@@ -369,7 +371,7 @@ fn deserialize(
         partial.nested_struct = temp_nested
     }
 
-    //partial.nested_enum = partial.tpd_get_nested_simple_enum(&mut helper);
+    //partial.nested_enum = partial.tpd_get_simple_enum(&mut helper);
     //partial.nested_tagged_enum = partial.tpd_get_nested_tagged_enum(&mut helper);
 
     helper.deny_unknown();
@@ -447,8 +449,6 @@ mod other {
 
         fn can_concrete(&self) -> bool {
             self.nested_struct.is_ok()
-            //&& self.nested_simple_enum.is_ok()
-            //&& self.nested_tagged_enum.is_ok()
         }
 
         fn to_concrete(self) -> OtherOuter {
@@ -505,11 +505,12 @@ mod other {
 }
 
 #[test]
-fn test_basic() {
+fn test_basic_happy() {
     let toml = "
         a_u8 = 1
         opt_u8 =2
         vec_u8 = [3]
+        simple_enum = 'TypeA'
         [map_u8]
             a = 4
         [nested_struct]
@@ -528,6 +529,7 @@ fn test_basic() {
         assert_eq!(inner.a_u8, 1);
         assert_eq!(inner.opt_u8, Some(2));
         assert_eq!(inner.vec_u8, vec![3]);
+        assert_eq!(inner.simple_enum, AnEnum::TypeA);
         assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
         assert_eq!(inner.nested_struct.double.double_u8, 6);
@@ -539,6 +541,7 @@ fn test_basic_alias() {
         u8 = 1
         opt_u8 =2
         vec_u8 = [3]
+        simple_enum = 'TypeB'
         [map_u8]
             a = 4
         [nested_struct]
@@ -557,6 +560,7 @@ fn test_basic_alias() {
         assert_eq!(inner.a_u8, 1);
         assert_eq!(inner.opt_u8, Some(2));
         assert_eq!(inner.vec_u8, vec![3]);
+        assert_eq!(inner.simple_enum, AnEnum::TypeB);
         //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
         assert_eq!(inner.nested_struct.double.double_u8, 6);
@@ -569,6 +573,7 @@ fn test_basic_missing() {
         #a_u8 = 1
         opt_u8 =2
         vec_u8 = [3]
+        simple_enum = 'TypeA'
         [map_u8]
             a = 4
         [nested_struct]
@@ -587,6 +592,7 @@ fn test_basic_missing() {
         assert_eq!(inner.a_u8.value, None);
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
         assert_eq!(inner.vec_u8.value, Some(vec![3]));
+        assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
         //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         //assert_eq!(inner.value.nested_struct.other_u8, 6); //1 added in verify
@@ -599,6 +605,7 @@ fn test_error_in_vec() {
         #a_u8 = 1
         opt_u8 =2
         vec_u8 = ['a']
+        simple_enum = 'TypeB'
         [map_u8]
             a = 4
         [nested_struct]
