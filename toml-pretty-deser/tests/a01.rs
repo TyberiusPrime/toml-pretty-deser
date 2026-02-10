@@ -63,8 +63,7 @@ struct DoubleNestedStruct {
 }
 
 // #[tpd]
-#[derive(Debug)]
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum AnEnum {
     TypeA,
     // #[tpd_alias(Bbb)]
@@ -152,13 +151,12 @@ impl PartialOuter {
         helper.get_with_aliases("simple_enum", &[])
     }
 
-    // fn tpd_get_nested_tagged_enum(
-    //     &self,
-    //     tag_key: &'static str,
-    //     tag_aliases: &'static [&'static str],
-    //     helper: &mut TomlHelper<'_>,
-    // ) -> TomlValue<Box<dyn AsTableLikePlus>> {
-    // }
+    fn tpd_get_nested_tagged_enum(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<PartialTaggedEnum> {
+        todo!();
+    }
 
     fn can_concrete(&self) -> bool {
         self.a_u8.is_ok()
@@ -300,6 +298,11 @@ impl FromTomlItem for AnEnum {
         }
     }
 }
+// #[tpd]
+enum PartialTaggedEnum {
+    KindA(PartialInnerA),
+    KindB(PartialInnerB),
+}
 
 #[derive(Default)]
 struct PartialInnerA {
@@ -309,31 +312,6 @@ struct PartialInnerA {
 #[derive(Default)]
 struct PartialInnerB {
     b: TomlValue<u8>,
-}
-impl TaggedEnum {
-    fn from_table_like(
-        kind: &str,
-        helper: TomlHelper<'_>,
-        parent_span: std::ops::Range<usize>,
-        kind_span: std::ops::Range<usize>,
-    ) -> TomlValue<Box<dyn AsTableLikePlus>> {
-        match kind {
-            "KindA" => {
-                let partial = PartialInnerA::default();
-                //todo
-                TomlValue::new_nested()
-            }
-            "KindB" => {
-                //todo
-                TomlValue::new_nested()
-            }
-            _ => TomlValue::new_validation_failed(
-                kind_span,
-                format!("Invalid tag value: {}", kind),
-                Some(suggest_alternatives(kind, &["KindA", "KindB"])),
-            ),
-        }
-    }
 }
 
 fn deserialize(
@@ -371,8 +349,7 @@ fn deserialize(
         partial.nested_struct = temp_nested
     }
 
-    //partial.nested_enum = partial.tpd_get_simple_enum(&mut helper);
-    //partial.nested_tagged_enum = partial.tpd_get_nested_tagged_enum(&mut helper);
+    partial.nested_tagged_enum = partial.tpd_get_nested_tagged_enum(&mut helper);
 
     helper.deny_unknown();
 
