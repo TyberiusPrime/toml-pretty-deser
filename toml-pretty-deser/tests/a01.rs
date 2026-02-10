@@ -2,11 +2,129 @@ use std::{cell::RefCell, rc::Rc};
 
 use indexmap::IndexMap;
 use toml_edit::Document;
+use toml_pretty_deser::AsTableLikePlus;
 use toml_pretty_deser::{
-    AsTableLikePlus, DeserError, FromTomlItem, TomlCollector, TomlHelper, TomlValue,
-    TomlValueState, suggest_alternatives,
+    DeserError, FromTomlItem, TomlCollector, TomlHelper, TomlValue, TomlValueState,
+    suggest_alternatives,
 };
 //library code
+
+trait FromTomlTable: Default + Sized {
+    fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self>;
+    fn can_concrete(&self) -> bool;
+}
+
+fn from_toml_item_via_table<T: FromTomlTable>(
+    item: &toml_edit::Item,
+    parent_span: std::ops::Range<usize>,
+    col: &TomlCollector,
+) -> TomlValue<T> {
+    if let Some(table) = item.as_table_like_plus() {
+        let mut helper = TomlHelper::from_table(table, col.clone());
+        let mut result = T::from_toml_table(&mut helper);
+
+        if let Some(ref inner) = result.value {
+            if inner.can_concrete() {
+                if helper.no_unknown() {
+                    result.state = TomlValueState::Ok {
+                        span: item.span().unwrap_or(parent_span),
+                    };
+                } else {
+                    helper.register_unknown();
+                }
+            }
+        }
+
+        result
+    } else {
+        TomlValue::new_wrong_type(item, parent_span, "table or inline table")
+    }
+}
+
+fn verify_struct<T: VerifyTomlItem<R> + FromTomlTable + std::fmt::Debug, R>(
+    temp: TomlValue<T>,
+    helper: &mut TomlHelper<'_>,
+    parent: &R,
+) -> TomlValue<T> {
+    if temp.value.is_some() {
+        let mut res = temp.value.unwrap().verify_struct(helper, parent);
+        if !res.value.as_ref().unwrap().can_concrete() {
+            res.state = TomlValueState::Nested;
+        }
+        res
+    } else {
+        temp
+    }
+}
+
+macro_rules! impl_from_toml_item_for_table {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl FromTomlItem for $ty {
+                fn from_toml_item(
+                    item: &toml_edit::Item,
+                    parent_span: std::ops::Range<usize>,
+                    col: &TomlCollector,
+                ) -> TomlValue<Self> {
+                    from_toml_item_via_table(item, parent_span, col)
+                }
+            }
+        )+
+    };
+}
+
+fn finalize_nested_field<T: FromTomlTable>(field: &mut TomlValue<T>, helper: &mut TomlHelper<'_>) {
+    if let Some(inner) = field.value.as_ref() {
+        if inner.can_concrete() {
+            if helper.no_unknown() {
+                field.state = TomlValueState::Ok { span: field.span() };
+            } else {
+                helper.register_unknown();
+            }
+        }
+    }
+}
+
+trait TpdDeserialize: Default {
+    type Concrete;
+    fn fill_fields(&mut self, helper: &mut TomlHelper<'_>);
+    fn can_concrete(&self) -> bool;
+    fn to_concrete(self) -> Self::Concrete;
+    fn register_errors(&self, col: &TomlCollector);
+}
+
+fn deserialize_toml<P: TpdDeserialize>(
+    toml_str: &str,
+    field_match_mode: toml_pretty_deser::FieldMatchMode,
+    vec_mode: toml_pretty_deser::VecMode,
+) -> Result<P::Concrete, DeserError<P>> {
+    let parsed_toml = toml_str
+        .parse::<Document<String>>()
+        .map_err(|toml_err| DeserError::ParsingFailure(toml_err, toml_str.to_string()))?;
+    let source = Rc::new(RefCell::new(toml_str.to_string()));
+
+    let col = TomlCollector {
+        errors: Rc::new(RefCell::new(Vec::new())),
+        match_mode: field_match_mode,
+        vec_mode,
+        context_spans: Rc::new(RefCell::new(Vec::new())),
+    };
+    let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col.clone());
+
+    let mut partial = P::default();
+    partial.fill_fields(&mut helper);
+
+    if helper.no_unknown() && partial.can_concrete() {
+        Ok(partial.to_concrete())
+    } else {
+        helper.register_unknown();
+        partial.register_errors(&col);
+        Err(DeserError::DeserFailure(
+            helper.into_inner(&source),
+            partial,
+        ))
+    }
+}
 
 trait VerifyTomlItem<R> {
     #[allow(unused_mut)]
@@ -150,6 +268,20 @@ impl PartialOuter {
     ) -> TomlValue<PartialTaggedEnum> {
         helper.get_with_aliases("nested_tagged_enum", &[])
     }
+}
+
+impl TpdDeserialize for PartialOuter {
+    type Concrete = Outer;
+
+    fn fill_fields(&mut self, helper: &mut TomlHelper<'_>) {
+        self.a_u8 = self.tpd_get_a_u8(helper);
+        self.opt_u8 = self.tpd_get_opt_u8(helper);
+        self.vec_u8 = self.tpd_get_vec_u8(helper);
+        self.map_u8 = self.tpd_get_map_u8(helper);
+        self.simple_enum = self.tpd_get_simple_enum(helper);
+        self.nested_struct = verify_struct(self.tpd_get_nested_struct(helper, 0..0), helper, self);
+        self.nested_tagged_enum = self.tpd_get_nested_tagged_enum(helper);
+    }
 
     fn can_concrete(&self) -> bool {
         self.a_u8.is_ok()
@@ -172,6 +304,23 @@ impl PartialOuter {
             nested_tagged_enum: self.nested_tagged_enum.value.unwrap().to_concrete(),
         }
     }
+
+    fn register_errors(&self, col: &TomlCollector) {
+        self.a_u8.register_error(col);
+        self.opt_u8.register_error(col);
+        self.vec_u8.register_error(col);
+        self.map_u8.register_error(col);
+        self.nested_struct.register_error(col);
+        self.simple_enum.register_error(col);
+        self.nested_tagged_enum.register_error(col);
+
+        // Register nested errors for tagged enum variants
+        if matches!(self.nested_tagged_enum.state, TomlValueState::Nested) {
+            if let Some(inner) = &self.nested_tagged_enum.value {
+                inner.register_errors(col);
+            }
+        }
+    }
 }
 
 //macro derived
@@ -190,21 +339,20 @@ impl PartialNestedStruct {
         helper.get_with_aliases("double", &[])
     }
 
+    fn to_concrete(self) -> NestedStruct {
+        NestedStruct {
+            other_u8: self.other_u8.value.unwrap(),
+            double: self.double.value.unwrap().to_concrete(),
+        }
+    }
+}
+
+impl FromTomlTable for PartialNestedStruct {
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<PartialNestedStruct> {
         let mut partial = PartialNestedStruct::default();
         partial.other_u8 = partial.tpd_get_other_u8(helper);
         partial.double = partial.tpd_get_double(helper);
-        if let Some(inner) = partial.double.value.as_ref()
-            && inner.can_concrete()
-        {
-            if helper.no_unknown() {
-                partial.double.state = TomlValueState::Ok {
-                    span: partial.double.span(),
-                };
-            } else {
-                helper.register_unknown();
-            }
-        }
+        finalize_nested_field(&mut partial.double, helper);
 
         TomlValue {
             value: Some(partial),
@@ -214,39 +362,6 @@ impl PartialNestedStruct {
 
     fn can_concrete(&self) -> bool {
         self.other_u8.is_ok() && self.double.is_ok()
-    }
-
-    fn to_concrete(self) -> NestedStruct {
-        NestedStruct {
-            other_u8: self.other_u8.value.unwrap(),
-            double: self.double.value.unwrap().to_concrete(),
-        }
-    }
-}
-
-impl FromTomlItem for PartialNestedStruct {
-    fn from_toml_item(
-        item: &toml_edit::Item,
-        parent_span: std::ops::Range<usize>,
-        col: &TomlCollector,
-    ) -> TomlValue<Self> {
-        if let Some(table) = item.as_table_like_plus() {
-            let mut helper = TomlHelper::from_table(table, col.clone());
-            let mut result = Self::from_toml_table(&mut helper);
-
-            // If all fields are concrete, mark the whole thing as Ok
-            if let Some(ref inner) = result.value {
-                if inner.can_concrete() {
-                    result.state = TomlValueState::Ok {
-                        span: item.span().unwrap_or(parent_span),
-                    };
-                }
-            }
-
-            result
-        } else {
-            TomlValue::new_wrong_type(item, parent_span, "table or inline table")
-        }
     }
 }
 
@@ -260,16 +375,14 @@ impl PartialDoubleNestedStruct {
         helper.get_with_aliases("double_u8", &[])
     }
 
-    fn can_concrete(&self) -> bool {
-        self.double_u8.is_ok()
-    }
-
     fn to_concrete(self) -> DoubleNestedStruct {
         DoubleNestedStruct {
             double_u8: self.double_u8.value.unwrap(),
         }
     }
+}
 
+impl FromTomlTable for PartialDoubleNestedStruct {
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<PartialDoubleNestedStruct> {
         let mut partial = PartialDoubleNestedStruct::default();
         partial.double_u8 = partial.get_double_u8(helper);
@@ -279,37 +392,18 @@ impl PartialDoubleNestedStruct {
             state: TomlValueState::Nested,
         }
     }
-}
 
-impl FromTomlItem for PartialDoubleNestedStruct {
-    fn from_toml_item(
-        item: &toml_edit::Item,
-        parent_span: std::ops::Range<usize>,
-        col: &TomlCollector,
-    ) -> TomlValue<Self> {
-        if let Some(table) = item.as_table_like_plus() {
-            let mut helper = TomlHelper::from_table(table, col.clone());
-            let mut result = Self::from_toml_table(&mut helper);
-
-            // If all fields are concrete, mark the whole thing as Ok
-            if let Some(ref inner) = result.value {
-                if inner.can_concrete() {
-                    if helper.no_unknown() {
-                        result.state = TomlValueState::Ok {
-                            span: item.span().unwrap_or(parent_span),
-                        };
-                    } else {
-                        helper.register_unknown();
-                    }
-                }
-            }
-
-            result
-        } else {
-            TomlValue::new_wrong_type(item, parent_span, "table or inline table")
-        }
+    fn can_concrete(&self) -> bool {
+        self.double_u8.is_ok()
     }
 }
+
+impl_from_toml_item_for_table!(
+    PartialNestedStruct,
+    PartialDoubleNestedStruct,
+    PartialInnerA,
+    PartialInnerB,
+);
 
 //
 
@@ -354,6 +448,14 @@ struct PartialInnerA {
 }
 
 impl PartialInnerA {
+    fn to_concrete(self) -> InnerA {
+        InnerA {
+            a: self.a.value.unwrap(),
+        }
+    }
+}
+
+impl FromTomlTable for PartialInnerA {
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         let mut partial = Self::default();
         partial.a = helper.get_with_aliases("a", &[]);
@@ -366,12 +468,6 @@ impl PartialInnerA {
     fn can_concrete(&self) -> bool {
         self.a.is_ok()
     }
-
-    fn to_concrete(self) -> InnerA {
-        InnerA {
-            a: self.a.value.unwrap(),
-        }
-    }
 }
 
 #[derive(Default, Debug)]
@@ -380,6 +476,14 @@ struct PartialInnerB {
 }
 
 impl PartialInnerB {
+    fn to_concrete(self) -> InnerB {
+        InnerB {
+            b: self.b.value.unwrap(),
+        }
+    }
+}
+
+impl FromTomlTable for PartialInnerB {
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         let mut partial = Self::default();
         partial.b = helper.get_with_aliases("b", &[]);
@@ -392,22 +496,9 @@ impl PartialInnerB {
     fn can_concrete(&self) -> bool {
         self.b.is_ok()
     }
-
-    fn to_concrete(self) -> InnerB {
-        InnerB {
-            b: self.b.value.unwrap(),
-        }
-    }
 }
 
 impl PartialTaggedEnum {
-    fn can_concrete(&self) -> bool {
-        match self {
-            Self::KindA(inner) => inner.can_concrete(),
-            Self::KindB(inner) => inner.can_concrete(),
-        }
-    }
-
     fn to_concrete(self) -> TaggedEnum {
         match self {
             Self::KindA(inner) => TaggedEnum::KindA(inner.to_concrete()),
@@ -499,93 +590,25 @@ fn deserialize(
     field_match_mode: toml_pretty_deser::FieldMatchMode,
     vec_mode: toml_pretty_deser::VecMode,
 ) -> Result<Outer, DeserError<PartialOuter>> {
-    let parsed_toml = toml_str
-        .parse::<Document<String>>()
-        .map_err(|toml_err| DeserError::ParsingFailure(toml_err, toml_str.to_string()))?;
-    let source = Rc::new(RefCell::new(toml_str.to_string()));
-
-    let col = TomlCollector {
-        errors: Rc::new(RefCell::new(Vec::new())),
-        match_mode: field_match_mode,
-        vec_mode,
-        context_spans: Rc::new(RefCell::new(Vec::new())),
-    };
-    let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col.clone());
-
-    let mut partial = PartialOuter::default();
-    partial.a_u8 = partial.tpd_get_a_u8(&mut helper);
-    partial.opt_u8 = partial.tpd_get_opt_u8(&mut helper);
-    partial.vec_u8 = partial.tpd_get_vec_u8(&mut helper);
-    partial.map_u8 = partial.tpd_get_map_u8(&mut helper);
-    partial.simple_enum = partial.tpd_get_simple_enum(&mut helper);
-
-    let temp_nested = partial.tpd_get_nested_struct(&mut helper, 0..0);
-    if temp_nested.value.is_some()
-        && (matches!(temp_nested.state, TomlValueState::Nested)
-            || matches!(temp_nested.state, TomlValueState::Ok { .. }))
-    {
-        partial.nested_struct = temp_nested
-            .value
-            .unwrap()
-            .verify_struct(&mut helper, &partial);
-    } else {
-        partial.nested_struct = temp_nested
-    }
-
-    partial.nested_tagged_enum = partial.tpd_get_nested_tagged_enum(&mut helper);
-
-    if helper.no_unknown() && partial.can_concrete() {
-        Ok(partial.to_concrete())
-    } else {
-        //descend into the error tree
-        helper.register_unknown();
-        partial.a_u8.register_error(&col);
-        partial.opt_u8.register_error(&col);
-        partial.vec_u8.register_error(&col);
-        partial.map_u8.register_error(&col);
-        partial.nested_struct.register_error(&col);
-        partial.simple_enum.register_error(&col);
-        partial.nested_tagged_enum.register_error(&col);
-
-        // Register nested errors for tagged enum variants
-        if matches!(partial.nested_tagged_enum.state, TomlValueState::Nested) {
-            if let Some(inner) = &partial.nested_tagged_enum.value {
-                inner.register_errors(&col);
-            }
-        }
-        Err(DeserError::DeserFailure(
-            helper.into_inner(&source),
-            partial,
-        ))
-    }
+    deserialize_toml::<PartialOuter>(toml_str, field_match_mode, vec_mode)
 }
 
 mod other {
     //to deserialize into another structure, we need the deserialize function to be in it's own
     //mod
     //
-    use super::{NestedStruct, PartialNestedStruct, VerifyTomlItem};
-    use std::{cell::RefCell, rc::Rc};
-    use toml_edit::Document;
-    use toml_pretty_deser::{
-        AsTableLikePlus, DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState,
+    use super::{
+        NestedStruct, PartialNestedStruct, TpdDeserialize, VerifyTomlItem,
+        deserialize_toml, verify_struct,
     };
+    use toml_pretty_deser::{DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState};
     //User code
     // #tpd
     #[derive(Debug)]
     pub struct OtherOuter {
         pub nested_struct: NestedStruct,
     }
-    impl VerifyTomlItem<PartialOtherOuter> for PartialNestedStruct {
-        #[allow(unused_mut)]
-        fn verify_struct(
-            mut self,
-            _helper: &mut TomlHelper<'_>,
-            _partial: &PartialOtherOuter,
-        ) -> TomlValue<Self> {
-            TomlValue::new_ok(self, 0..0) // we loose the span here.
-        }
-    }
+    impl VerifyTomlItem<PartialOtherOuter> for PartialNestedStruct {}
 
     //macro code
     //
@@ -598,19 +621,18 @@ mod other {
         fn tpd_get_nested_struct(
             &self,
             helper: &mut TomlHelper<'_>,
-            parent_span: std::ops::Range<usize>,
+            _parent_span: std::ops::Range<usize>,
         ) -> TomlValue<PartialNestedStruct> {
-            let item: TomlValue<toml_edit::Item> = helper.get_with_aliases("nested_struct", &[]);
-            if item.is_ok() {
-                if let Some(table) = item.value.as_ref().unwrap().as_table_like_plus() {
-                    let mut helper = TomlHelper::from_table(table, helper.col.clone());
-                    PartialNestedStruct::from_toml_table(&mut helper)
-                } else {
-                    item.convert_failed_type()
-                }
-            } else {
-                TomlValue::new_empty_missing(parent_span)
-            }
+            helper.get_with_aliases("nested_struct", &[])
+        }
+    }
+
+    impl TpdDeserialize for PartialOtherOuter {
+        type Concrete = OtherOuter;
+
+        fn fill_fields(&mut self, helper: &mut TomlHelper<'_>) {
+            let temp_nested = self.tpd_get_nested_struct(helper, 0..0);
+            self.nested_struct = verify_struct(temp_nested, helper, self);
         }
 
         fn can_concrete(&self) -> bool {
@@ -622,6 +644,10 @@ mod other {
                 nested_struct: self.nested_struct.value.unwrap().to_concrete(),
             }
         }
+
+        fn register_errors(&self, col: &TomlCollector) {
+            self.nested_struct.register_error(col);
+        }
     }
 
     pub fn deserialize(
@@ -629,43 +655,7 @@ mod other {
         field_match_mode: toml_pretty_deser::FieldMatchMode,
         vec_mode: toml_pretty_deser::VecMode,
     ) -> Result<OtherOuter, DeserError<PartialOtherOuter>> {
-        let parsed_toml = toml_str
-            .parse::<Document<String>>()
-            .map_err(|toml_err| DeserError::ParsingFailure(toml_err, toml_str.to_string()))?;
-        let source = Rc::new(RefCell::new(toml_str.to_string()));
-
-        let col = TomlCollector {
-            errors: Rc::new(RefCell::new(Vec::new())),
-            match_mode: field_match_mode,
-            vec_mode,
-            context_spans: Rc::new(RefCell::new(Vec::new())),
-        };
-        let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col.clone());
-
-        let mut partial = PartialOtherOuter::default();
-        let temp_nested = partial.tpd_get_nested_struct(&mut helper, 0..0);
-        if temp_nested.value.is_some() && matches!(temp_nested.state, TomlValueState::Nested) {
-            partial.nested_struct = temp_nested
-                .value
-                .unwrap()
-                .verify_struct(&mut helper, &partial);
-            if !partial.nested_struct.value.as_ref().unwrap().can_concrete() {
-                partial.nested_struct.state = TomlValueState::Nested;
-            }
-        } else {
-            partial.nested_struct = temp_nested
-        }
-
-        if helper.no_unknown() && partial.can_concrete() {
-            Ok(partial.to_concrete())
-        } else {
-            helper.register_unknown();
-            partial.nested_struct.register_error(&col);
-            Err(DeserError::DeserFailure(
-                helper.into_inner(&source),
-                partial,
-            ))
-        }
+        deserialize_toml::<PartialOtherOuter>(toml_str, field_match_mode, vec_mode)
     }
 }
 
