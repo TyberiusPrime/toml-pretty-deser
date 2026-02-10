@@ -47,11 +47,16 @@ fn verify_struct<T: VerifyTomlItem<R> + FromTomlTable + std::fmt::Debug, R>(
     parent: &R,
 ) -> TomlValue<T> {
     if temp.value.is_some() {
-        let mut res = temp.value.unwrap().verify_struct(helper, parent);
-        if !res.value.as_ref().unwrap().can_concrete() {
-            res.state = TomlValueState::Nested;
+        let span = temp.span();
+        let res = temp.value.unwrap().verify_struct(helper, parent);
+        if !res.can_concrete() {
+            TomlValue {
+                value: Some(res),
+                state: TomlValueState::Nested,
+            }
+        } else {
+            TomlValue::new_ok(res, span)
         }
-        res
     } else {
         temp
     }
@@ -132,7 +137,7 @@ impl<T, S: std::hash::Hash + Eq> TpdDeserialize for IndexMap<S, TomlValue<T>> {
     }
 }
 
-fn deserialize_toml<P: TpdDeserializeStruct>(
+fn deserialize_toml<P: TpdDeserializeStruct + VerifyTomlItem<()>>(
     toml_str: &str,
     field_match_mode: toml_pretty_deser::FieldMatchMode,
     vec_mode: toml_pretty_deser::VecMode,
@@ -152,6 +157,7 @@ fn deserialize_toml<P: TpdDeserializeStruct>(
 
     let mut partial = P::default();
     partial.fill_fields(&mut helper);
+    let partial = partial.verify_struct(&mut helper, &());
 
     if helper.no_unknown() && partial.can_concrete() {
         Ok(partial.to_concrete())
@@ -168,11 +174,11 @@ fn deserialize_toml<P: TpdDeserializeStruct>(
 trait VerifyTomlItem<R> {
     #[allow(unused_mut)]
     #[allow(unused_variables)]
-    fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &R) -> TomlValue<Self>
+    fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &R) -> Self
     where
         Self: Sized,
     {
-        TomlValue::new_ok(self, 0..0) // we loose the span here.
+        self
     }
 }
 
@@ -193,6 +199,8 @@ struct Outer {
     // #[tpd_tag("kind")]
     nested_tagged_enum: TaggedEnum,
 }
+
+impl VerifyTomlItem<()> for PartialOuter {}
 // #[tpd]
 #[derive(Debug)]
 struct NestedStruct {
@@ -202,17 +210,13 @@ struct NestedStruct {
 
 impl VerifyTomlItem<PartialOuter> for PartialNestedStruct {
     #[allow(unused_variables)]
-    fn verify_struct(
-        mut self,
-        helper: &mut TomlHelper<'_>,
-        partial: &PartialOuter,
-    ) -> TomlValue<Self> {
+    fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &PartialOuter) -> Self {
         if let Some(value) = self.other_u8.as_mut()
             && let Some(parent_value) = partial.a_u8.value
         {
             *value += parent_value;
         }
-        TomlValue::new_ok(self, helper.span())
+        self
     }
 }
 
@@ -667,6 +671,7 @@ mod other {
     pub struct OtherOuter {
         pub nested_struct: NestedStruct,
     }
+    impl VerifyTomlItem<()> for PartialOtherOuter {}
     impl VerifyTomlItem<PartialOtherOuter> for PartialNestedStruct {}
 
     //macro code
@@ -1861,6 +1866,7 @@ mod with {
         // #tdp_with = adapt_double
         double: i64,
     }
+    impl VerifyTomlItem<()> for PartialFunky {}
 
     fn adapt_from_string(input: TomlValue<String>) -> TomlValue<i64> {
         if input.is_ok() {
@@ -1982,7 +1988,7 @@ mod with {
 mod skip_and_default {
     use toml_pretty_deser::{DeserError, TomlHelper, TomlValue};
 
-    use crate::{TpdDeserializeStruct, deserialize_toml};
+    use crate::{TpdDeserializeStruct, VerifyTomlItem, deserialize_toml};
 
     //user code.
     #[derive(Debug)]
@@ -1999,16 +2005,24 @@ mod skip_and_default {
         a_u32: u32,
         //#[tdp_defaul]
         default_u32: u32,
+        default_in_verify_u32: u32,
         //#[tdp_skip]
         skipped_u32: DefaultTo100,
     }
-
+    impl VerifyTomlItem<()> for PartialWithDefaults {
+        #[allow(unused_variables)]
+        fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &()) -> Self {
+            self.default_in_verify_u32 = self.default_in_verify_u32.or_default(39);
+            self
+        }
+    }
 
     //macro code
     #[derive(Debug, Default)]
     struct PartialWithDefaults {
         a_u32: TomlValue<u32>,
         default_u32: TomlValue<Option<u32>>, // we need to distinguish.
+        default_in_verify_u32: TomlValue<u32>,
     }
 
     impl PartialWithDefaults {
@@ -2018,6 +2032,10 @@ mod skip_and_default {
         fn tdp_get_default_u32(&self, helper: &mut TomlHelper<'_>) -> TomlValue<u32> {
             helper.get_with_aliases("default_u32", &[])
         }
+
+        fn tdp_get_default_in_verify_u32(&self, helper: &mut TomlHelper<'_>) -> TomlValue<u32> {
+            helper.get_with_aliases("default_in_verify_u32", &[])
+        }
     }
 
     impl TpdDeserializeStruct for PartialWithDefaults {
@@ -2026,11 +2044,12 @@ mod skip_and_default {
         fn fill_fields(&mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>) {
             self.a_u32 = self.tdp_get_a_u32(helper);
             self.default_u32 = self.tdp_get_default_u32(helper).into_optional();
+            self.default_in_verify_u32 = self.tdp_get_default_in_verify_u32(helper);
             //defaults don't get filled.
         }
 
         fn can_concrete(&self) -> bool {
-            self.a_u32.is_ok() && self.default_u32.is_ok()
+            self.a_u32.is_ok() && self.default_u32.is_ok() && self.default_in_verify_u32.is_ok()
         }
 
         fn to_concrete(self) -> Self::Concrete {
@@ -2041,6 +2060,7 @@ mod skip_and_default {
                     Some(None) => Default::default(),
                     None => unreachable!(),
                 },
+                default_in_verify_u32: self.default_in_verify_u32.value.unwrap_or(39),
                 skipped_u32: Default::default(),
             }
         }
@@ -2073,6 +2093,7 @@ mod skip_and_default {
         if let Ok(inner) = parsed {
             assert_eq!(inner.a_u32, 1230000000);
             assert_eq!(inner.default_u32, 0); //default value
+            assert_eq!(inner.default_in_verify_u32, 39); //default value
             assert_eq!(inner.skipped_u32.0, 100); //default for skipped field
         }
     }

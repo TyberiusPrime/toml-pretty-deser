@@ -838,12 +838,12 @@ impl<T> TomlValue<T> {
         }
     }
 
-    // pub fn into_option(self) -> Option<T> {
-    //     match self.state {
-    //         TomlValueState::Ok { .. } => self.value,
-    //         _ => None,
-    //     }
-    // }
+    pub fn into_option(self) -> Option<T> {
+        match self.state {
+            TomlValueState::Ok { .. } => self.value,
+            _ => None,
+        }
+    }
 
     pub fn into_optional(self) -> TomlValue<Option<T>> {
         match self.state {
