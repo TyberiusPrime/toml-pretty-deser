@@ -167,6 +167,12 @@ impl PartialNestedStruct {
         let mut partial = PartialNestedStruct::default();
         partial.other_u8 = partial.tpd_get_other_u8(helper);
         partial.double = partial.tpd_get_double(helper);
+        dbg!(&partial.double);
+        if let Some(inner) = partial.double.value.as_ref()
+            && inner.can_concrete()
+        {
+            partial.double.state = TomlValueState::Ok { span: 0..0 };
+        }
 
         TomlValue {
             value: Some(partial),
@@ -382,6 +388,115 @@ fn deserialize(
     }
 }
 
+mod other {
+    use super::{NestedStruct, PartialNestedStruct, VerifyTomlItem};
+    use std::{cell::RefCell, rc::Rc};
+    use toml_edit::Document;
+    use toml_pretty_deser::{
+        AsTableLikePlus, DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState,
+    };
+    // #tpd
+    #[derive(Debug)]
+    pub struct OtherOuter {
+        pub nested_struct: NestedStruct,
+    }
+
+    #[derive(Debug, Default)]
+    pub struct PartialOtherOuter {
+        nested_struct: TomlValue<PartialNestedStruct>,
+    }
+
+    impl VerifyTomlItem<PartialOtherOuter> for PartialNestedStruct {
+        fn verify_struct(
+            mut self,
+            helper: &mut TomlHelper<'_>,
+            partial: &PartialOtherOuter,
+        ) -> TomlValue<Self> {
+            // if let Some(value) = self.other_u8.as_mut() {
+            //     *value += 1;
+            // }
+            TomlValue::new_ok(self, 0..0) // we loose the span here.
+        }
+    }
+
+    impl PartialOtherOuter {
+        fn tpd_get_nested_struct(
+            &self,
+            helper: &mut TomlHelper<'_>,
+            parent_span: std::ops::Range<usize>,
+        ) -> TomlValue<PartialNestedStruct> {
+            let item: TomlValue<toml_edit::Item> = helper.get_with_aliases("nested_struct", &[]);
+            if item.is_ok() {
+                if let Some(table) = item.value.as_ref().unwrap().as_table_like_plus() {
+                    let mut helper = TomlHelper::from_table(table, helper.col.clone());
+                    PartialNestedStruct::from_toml_table(&mut helper)
+                } else {
+                    item.convert_failed_type()
+                }
+            } else {
+                TomlValue::new_empty_missing(parent_span)
+            }
+        }
+
+        fn can_concrete(&self) -> bool {
+            self.nested_struct.is_ok()
+            //&& self.nested_simple_enum.is_ok()
+            //&& self.nested_tagged_enum.is_ok()
+        }
+
+        fn to_concrete(self) -> OtherOuter {
+            OtherOuter {
+                nested_struct: self.nested_struct.value.unwrap().to_concrete(),
+            }
+        }
+    }
+
+    pub fn deserialize(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<OtherOuter, DeserError<PartialOtherOuter>> {
+        let parsed_toml = toml_str
+            .parse::<Document<String>>()
+            .map_err(|toml_err| DeserError::ParsingFailure(toml_err, toml_str.to_string()))?;
+        let source = Rc::new(RefCell::new(toml_str.to_string()));
+
+        let col = TomlCollector {
+            errors: Rc::new(RefCell::new(Vec::new())),
+            match_mode: field_match_mode,
+            vec_mode,
+            context_spans: Rc::new(RefCell::new(Vec::new())),
+        };
+        let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col.clone());
+
+        let mut partial = PartialOtherOuter::default();
+        let temp_nested = partial.tpd_get_nested_struct(&mut helper, 0..0);
+        if temp_nested.value.is_some() && matches!(temp_nested.state, TomlValueState::Nested) {
+            partial.nested_struct = temp_nested
+                .value
+                .unwrap()
+                .verify_struct(&mut helper, &partial);
+            if !partial.nested_struct.value.as_ref().unwrap().can_concrete() {
+                partial.nested_struct.state = TomlValueState::Nested;
+            }
+        } else {
+            partial.nested_struct = temp_nested
+        }
+
+        helper.deny_unknown();
+
+        if partial.can_concrete() {
+            Ok(partial.to_concrete())
+        } else {
+            partial.nested_struct.register_error(&col);
+            Err(DeserError::DeserFailure(
+                helper.into_inner(&source),
+                partial,
+            ))
+        }
+    }
+}
+
 #[test]
 fn test_basic() {
     let toml = "
@@ -408,6 +523,28 @@ fn test_basic() {
         assert_eq!(inner.vec_u8, vec![3]);
         //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
+        assert_eq!(inner.nested_struct.double.double_u8, 6);
+    }
+}
+#[test]
+fn test_2nd_type() {
+    let toml = "
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+
+
+    ";
+    let parsed = other::deserialize(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.nested_struct.other_u8, 5); // no add 1 here
         assert_eq!(inner.nested_struct.double.double_u8, 6);
     }
 }
