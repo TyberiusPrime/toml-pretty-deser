@@ -1,0 +1,12 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "errors[0].pretty(\"test.toml\")"
+---
+  ╭─test.toml
+  ┆
+2 │         shu = 23
+  ┆         ─┬─
+  ┆          │
+  ┆          ╰─────── Unknown key.
+──╯
+Hint: Did you mean: 'u8'?

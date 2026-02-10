@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: pretty
+---
+  ╭─test.toml
+  ┆
+1 │ 
+2 │             a_u8 = 123
+3 │             something = 'shu'
+  ┆                         ──┬──
+  ┆                           │
+  ┆                           ╰─── Wrong type: expected u8, found string
+──╯
+Hint: This value has the wrong type.

@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: pretty
+---
+   ╭─test.toml
+   ┆
+12 │         [nested_tagged_enum]
+13 │             kind = 'KindA'
+14 │             b = 10
+   ┆             ┬
+   ┆             │
+   ┆             ╰────── Unknown key.
+───╯
+Hint: Did you mean: 'a'?
