@@ -34,7 +34,7 @@ struct Outer {
     nested_struct: NestedStruct,
     simple_enum: AnEnum,
     // #[tpd_tag("kind")]
-    //nested_tagged_enum: TaggedEnum,
+    nested_tagged_enum: TaggedEnum,
 }
 // #[tpd]
 #[derive(Debug)]
@@ -71,16 +71,19 @@ enum AnEnum {
 }
 
 // #[tpd]
+#[derive(Debug)]
 enum TaggedEnum {
     KindA(InnerA),
     KindB(InnerB),
 }
 // #[tpd]
+#[derive(Debug)]
 struct InnerA {
     a: u8,
 }
 
 // #[tpd]
+#[derive(Debug)]
 struct InnerB {
     b: u8,
 }
@@ -95,7 +98,7 @@ struct PartialOuter {
     nested_struct: TomlValue<PartialNestedStruct>,
     simple_enum: TomlValue<AnEnum>,
     // #[tpd_tag("kind")]
-    //nested_tagged_enum: TomlValue<PartialTaggedEnum>,
+    nested_tagged_enum: TomlValue<PartialTaggedEnum>,
     //to be done at a later time
     //not shown: Box<u8>
     //not shown: Vec<NestedStruct>,
@@ -155,7 +158,7 @@ impl PartialOuter {
         &self,
         helper: &mut TomlHelper<'_>,
     ) -> TomlValue<PartialTaggedEnum> {
-        todo!();
+        helper.get_with_aliases("nested_tagged_enum", &[])
     }
 
     fn can_concrete(&self) -> bool {
@@ -165,7 +168,7 @@ impl PartialOuter {
             && self.map_u8.is_ok()
             && self.nested_struct.is_ok()
             && self.simple_enum.is_ok()
-        //&& self.nested_tagged_enum.is_ok()
+            && self.nested_tagged_enum.is_ok()
     }
 
     fn to_concrete(self) -> Outer {
@@ -176,7 +179,7 @@ impl PartialOuter {
             map_u8: self.map_u8.value.unwrap(),
             nested_struct: self.nested_struct.value.unwrap().to_concrete(),
             simple_enum: self.simple_enum.value.unwrap(),
-            //nested_tagged_enum: self.nested_tagged_enum.value.unwrap().to_concrete(),
+            nested_tagged_enum: self.nested_tagged_enum.value.unwrap().to_concrete(),
         }
     }
 }
@@ -299,19 +302,155 @@ impl FromTomlItem for AnEnum {
     }
 }
 // #[tpd]
+#[derive(Debug)]
 enum PartialTaggedEnum {
     KindA(PartialInnerA),
     KindB(PartialInnerB),
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct PartialInnerA {
     a: TomlValue<u8>,
 }
 
-#[derive(Default)]
+impl PartialInnerA {
+    fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut partial = Self::default();
+        partial.a = helper.get_with_aliases("a", &[]);
+        TomlValue {
+            value: Some(partial),
+            state: TomlValueState::Nested,
+        }
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.a.is_ok()
+    }
+
+    fn to_concrete(self) -> InnerA {
+        InnerA {
+            a: self.a.value.unwrap(),
+        }
+    }
+}
+
+#[derive(Default, Debug)]
 struct PartialInnerB {
     b: TomlValue<u8>,
+}
+
+impl PartialInnerB {
+    fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut partial = Self::default();
+        partial.b = helper.get_with_aliases("b", &[]);
+        TomlValue {
+            value: Some(partial),
+            state: TomlValueState::Nested,
+        }
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.b.is_ok()
+    }
+
+    fn to_concrete(self) -> InnerB {
+        InnerB {
+            b: self.b.value.unwrap(),
+        }
+    }
+}
+
+impl PartialTaggedEnum {
+    fn can_concrete(&self) -> bool {
+        match self {
+            Self::KindA(inner) => inner.can_concrete(),
+            Self::KindB(inner) => inner.can_concrete(),
+        }
+    }
+
+    fn to_concrete(self) -> TaggedEnum {
+        match self {
+            Self::KindA(inner) => TaggedEnum::KindA(inner.to_concrete()),
+            Self::KindB(inner) => TaggedEnum::KindB(inner.to_concrete()),
+        }
+    }
+
+    fn register_errors(&self, col: &TomlCollector) {
+        match self {
+            Self::KindA(inner) => {
+                inner.a.register_error(col);
+            }
+            Self::KindB(inner) => {
+                inner.b.register_error(col);
+            }
+        }
+    }
+}
+
+impl FromTomlItem for PartialTaggedEnum {
+    fn from_toml_item(
+        item: &toml_edit::Item,
+        parent_span: std::ops::Range<usize>,
+        col: &TomlCollector,
+    ) -> TomlValue<Self> {
+        // Tagged enums must be tables with a tag field
+        if let Some(table) = item.as_table_like_plus() {
+            // Get the tag key ("kind")
+            let mut tag_helper = TomlHelper::from_table(table, col.clone());
+            let tag_value: TomlValue<String> = tag_helper.get_with_aliases("kind", &[]);
+
+            if !tag_value.is_ok() {
+                return TomlValue {
+                    value: None,
+                    state: tag_value.state,
+                };
+            }
+
+            let tag = tag_value.value.as_ref().unwrap();
+            let tag_span = tag_value.span();
+
+            // Deserialize based on tag
+            match tag.as_str() {
+                "KindA" => {
+                    let partial_inner = PartialInnerA::from_toml_table(&mut tag_helper);
+                    if let Some(inner) = partial_inner.value {
+                        if inner.can_concrete() {
+                            TomlValue::new_ok(PartialTaggedEnum::KindA(inner), parent_span)
+                        } else {
+                            TomlValue {
+                                value: Some(PartialTaggedEnum::KindA(inner)),
+                                state: TomlValueState::Nested,
+                            }
+                        }
+                    } else {
+                        partial_inner.convert_failed_type()
+                    }
+                }
+                "KindB" => {
+                    let partial_inner = PartialInnerB::from_toml_table(&mut tag_helper);
+                    if let Some(inner) = partial_inner.value {
+                        if inner.can_concrete() {
+                            TomlValue::new_ok(PartialTaggedEnum::KindB(inner), parent_span)
+                        } else {
+                            TomlValue {
+                                value: Some(PartialTaggedEnum::KindB(inner)),
+                                state: TomlValueState::Nested,
+                            }
+                        }
+                    } else {
+                        partial_inner.convert_failed_type()
+                    }
+                }
+                _ => TomlValue::new_validation_failed(
+                    tag_span,
+                    format!("Invalid tag value: {}", tag),
+                    Some(suggest_alternatives(tag, &["KindA", "KindB"])),
+                ),
+            }
+        } else {
+            TomlValue::new_wrong_type(item, parent_span, "table or inline table")
+        }
+    }
 }
 
 fn deserialize(
@@ -362,8 +501,15 @@ fn deserialize(
         partial.vec_u8.register_error(&col);
         partial.map_u8.register_error(&col);
         partial.nested_struct.register_error(&col);
-        //partial.nested_enum.register_error(&col);
-        //partial.nested_tagged_enum.register_error(&col);
+        partial.simple_enum.register_error(&col);
+        partial.nested_tagged_enum.register_error(&col);
+
+        // Register nested errors for tagged enum variants
+        if matches!(partial.nested_tagged_enum.state, TomlValueState::Nested) {
+            if let Some(inner) = &partial.nested_tagged_enum.value {
+                inner.register_errors(&col);
+            }
+        }
         Err(DeserError::DeserFailure(
             helper.into_inner(&source),
             partial,
@@ -494,6 +640,9 @@ fn test_basic_happy() {
             other_u8 = 5
         [nested_struct.double]
             double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindA'
+            a = 100
     ";
     let parsed = deserialize(
         toml,
@@ -525,6 +674,9 @@ fn test_basic_alias() {
             other_u8 = 5
         [nested_struct.double]
             double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindB'
+            b = 200
     ";
     let parsed = deserialize(
         toml,
@@ -649,5 +801,155 @@ fn test_2nd_type() {
     if let Ok(inner) = parsed {
         assert_eq!(inner.nested_struct.other_u8, 5); // no add 1 here
         assert_eq!(inner.nested_struct.double.double_u8, 6);
+    }
+}
+
+#[test]
+fn test_tagged_enum_kind_a() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 = 2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindA'
+            a = 10
+    ";
+    let parsed = deserialize(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.a_u8, 1);
+        match inner.nested_tagged_enum {
+            TaggedEnum::KindA(ref a) => {
+                assert_eq!(a.a, 10);
+            }
+            _ => panic!("Expected KindA variant"),
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_kind_b() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 = 2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindB'
+            b = 20
+    ";
+    let parsed = deserialize(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.a_u8, 1);
+        match inner.nested_tagged_enum {
+            TaggedEnum::KindB(ref b) => {
+                assert_eq!(b.b, 20);
+            }
+            _ => panic!("Expected KindB variant"),
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_invalid_kind() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 = 2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'InvalidKind'
+            a = 10
+    ";
+    let parsed = deserialize(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_err());
+    if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
+        assert!(!errors.is_empty());
+        let error_str = errors[0].pretty("test.toml");
+        assert!(error_str.contains("Invalid tag value"));
+    }
+}
+
+#[test]
+fn test_vec_of_tagged_enums() {
+    // Demonstrate that FromTomlItem works with Vec<TaggedEnum>
+    let toml_str = "
+        [[items]]
+        kind = 'KindA'
+        a = 1
+
+        [[items]]
+        kind = 'KindB'
+        b = 2
+
+        [[items]]
+        kind = 'KindA'
+        a = 3
+    ";
+
+    let parsed = toml_str.parse::<toml_edit::Document<String>>().unwrap();
+    let col = TomlCollector {
+        errors: Rc::new(RefCell::new(Vec::new())),
+        match_mode: toml_pretty_deser::FieldMatchMode::Exact,
+        vec_mode: toml_pretty_deser::VecMode::Strict,
+        context_spans: Rc::new(RefCell::new(Vec::new())),
+    };
+
+    let items = parsed.get("items").unwrap();
+    let result: TomlValue<Vec<PartialTaggedEnum>> =
+        FromTomlItem::from_toml_item(items, 0..0, &col);
+
+    assert!(result.is_ok());
+    let vec = result.value.unwrap();
+    assert_eq!(vec.len(), 3);
+
+    match &vec[0] {
+        PartialTaggedEnum::KindA(inner) => assert_eq!(inner.a.value, Some(1)),
+        _ => panic!("Expected KindA"),
+    }
+
+    match &vec[1] {
+        PartialTaggedEnum::KindB(inner) => assert_eq!(inner.b.value, Some(2)),
+        _ => panic!("Expected KindB"),
+    }
+
+    match &vec[2] {
+        PartialTaggedEnum::KindA(inner) => assert_eq!(inner.a.value, Some(3)),
+        _ => panic!("Expected KindA"),
     }
 }
