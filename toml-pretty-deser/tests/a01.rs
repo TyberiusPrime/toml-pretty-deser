@@ -207,8 +207,10 @@ impl VerifyTomlItem<PartialOuter> for PartialNestedStruct {
         helper: &mut TomlHelper<'_>,
         partial: &PartialOuter,
     ) -> TomlValue<Self> {
-        if let Some(value) = self.other_u8.as_mut() {
-            *value += 1;
+        if let Some(value) = self.other_u8.as_mut()
+            && let Some(parent_value) = partial.a_u8.value
+        {
+            *value += parent_value;
         }
         TomlValue::new_ok(self, helper.span())
     }
