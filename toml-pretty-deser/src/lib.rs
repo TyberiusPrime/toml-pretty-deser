@@ -1770,6 +1770,17 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
         }
     }
 }
+#[allow(clippy::too_many_lines)]
+
+impl<T: FromTomlItem, S: ToString> FromTomlItem for IndexMap<S, T> {
+    fn from_toml_item(
+        item: &toml_edit::Item,
+        parent_span: Range<usize>,
+        col: &TomlCollector,
+    ) -> TomlValue<Self> {
+        todo!()
+    }
+}
 
 /// The internal representation of a value to-have-been-deserialized
 #[derive(Debug)]

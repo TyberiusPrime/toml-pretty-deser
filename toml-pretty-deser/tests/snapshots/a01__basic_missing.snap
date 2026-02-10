@@ -1,0 +1,12 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "errors[0].pretty(\"test.toml\")"
+---
+  ╭─test.toml
+  ┆
+1 │
+  ┆ ┬
+  ┆ │
+  ┆ ╰─ Missing required key: 'a_u8'.
+──╯
+Hint: This key is required but was not found in the TOML document.

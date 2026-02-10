@@ -1,6 +1,5 @@
 ---
 source: toml-pretty-deser/tests/basic.rs
-assertion_line: 1317
 expression: "e.pretty(\"test.toml\")"
 ---
 Error 1/1
