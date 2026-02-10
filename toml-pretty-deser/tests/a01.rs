@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use indexmap::IndexMap;
-use toml_edit::{Document};
+use toml_edit::Document;
 use toml_pretty_deser::{
     AsTableLikePlus, DeserError, FromTomlItem, TomlCollector, TomlHelper, TomlValue,
     TomlValueState, suggest_alternatives,
@@ -126,7 +126,7 @@ impl PartialOuter {
     }
 
     fn tpd_get_map_u8(&self, helper: &mut TomlHelper<'_>) -> TomlValue<IndexMap<String, u8>> {
-        helper.get_with_aliases("map_u8", &[]) 
+        helper.get_with_aliases("map_u8", &[])
     }
 
     fn tpd_get_nested_struct(
@@ -615,9 +615,33 @@ fn test_error_in_vec() {
     assert!(!parsed.is_ok());
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
-        //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
-        //assert_eq!(inner.value.nested_struct.other_u8, 6); //1 added in verify
-        //assert_eq!(inner.value.nested_struct.double.double_u8, 6);
+        assert_eq!(inner.map_u8.value.as_ref().unwrap().get("a").unwrap(), &4);
+        assert_eq!(
+            inner
+                .nested_struct
+                .value
+                .as_ref()
+                .unwrap()
+                .other_u8
+                .value
+                .as_ref(),
+            Some(&6)
+        ); //1 added in verify
+        assert_eq!(
+            inner
+                .nested_struct
+                .value
+                .as_ref()
+                .unwrap()
+                .double
+                .as_ref()
+                .unwrap()
+                .double_u8
+                .value
+                .as_ref()
+                .unwrap(),
+            &6
+        );
     }
 }
 

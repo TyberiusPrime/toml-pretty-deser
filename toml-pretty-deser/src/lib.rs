@@ -1772,13 +1772,114 @@ impl<T: FromTomlItem> FromTomlItem for Vec<T> {
 }
 #[allow(clippy::too_many_lines)]
 
-impl<T: FromTomlItem, S: ToString> FromTomlItem for IndexMap<S, T> {
+impl<S, T> FromTomlItem for IndexMap<S, T>
+where
+    S: From<String> + std::hash::Hash + Eq,
+    T: FromTomlItem,
+{
     fn from_toml_item(
         item: &toml_edit::Item,
         parent_span: Range<usize>,
         col: &TomlCollector,
     ) -> TomlValue<Self> {
-        todo!()
+        match item {
+            toml_edit::Item::None => unreachable!(),
+            toml_edit::Item::Value(toml_edit::Value::InlineTable(inline_table)) => {
+                let mut map = IndexMap::new();
+                let mut has_errors = false;
+
+                for (key, value) in inline_table.iter() {
+                    let item_span = value.span().unwrap_or(parent_span.clone());
+                    let wrapped_item = toml_edit::Item::Value(value.clone());
+                    let val: TomlValue<T> =
+                        FromTomlItem::from_toml_item(&wrapped_item, item_span.clone(), col);
+
+                    if let TomlValueState::Ok { .. } = &val.state {
+                        if let Some(v) = val.value {
+                            map.insert(S::from(key.to_string()), v);
+                        }
+                    } else if matches!(&val.state, TomlValueState::Nested) {
+                        // Nested struct with errors - add the partial to the map so errors can be collected later
+                        if let Some(v) = val.value {
+                            map.insert(S::from(key.to_string()), v);
+                        }
+                        has_errors = true;
+                    } else {
+                        val.register_error(col);
+                        has_errors = true;
+                    }
+                }
+
+                if has_errors {
+                    TomlValue {
+                        value: Some(map),
+                        state: TomlValueState::Nested {},
+                    }
+                } else {
+                    TomlValue {
+                        value: Some(map),
+                        state: TomlValueState::Ok {
+                            span: inline_table.span().unwrap_or(parent_span),
+                        },
+                    }
+                }
+            }
+            toml_edit::Item::Table(table) => {
+                let mut map = IndexMap::new();
+                let mut has_errors = false;
+
+                for (key, value) in table.iter() {
+                    let item_span = value.span().unwrap_or(parent_span.clone());
+                    let val: TomlValue<T> =
+                        FromTomlItem::from_toml_item(value, item_span.clone(), col);
+
+                    if let TomlValueState::Ok { .. } = &val.state {
+                        if let Some(v) = val.value {
+                            map.insert(S::from(key.to_string()), v);
+                        }
+                    } else if matches!(&val.state, TomlValueState::Nested) {
+                        // Nested struct with errors - add the partial to the map so errors can be collected later
+                        if let Some(v) = val.value {
+                            map.insert(S::from(key.to_string()), v);
+                        }
+                        has_errors = true;
+                    } else {
+                        val.register_error(col);
+                        has_errors = true;
+                    }
+                }
+
+                if has_errors {
+                    TomlValue {
+                        value: Some(map),
+                        state: TomlValueState::Nested {},
+                    }
+                } else {
+                    TomlValue {
+                        value: Some(map),
+                        state: TomlValueState::Ok {
+                            span: table.span().unwrap_or(parent_span),
+                        },
+                    }
+                }
+            }
+            toml_edit::Item::Value(value) => TomlValue {
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: value.span().unwrap_or(parent_span),
+                    expected: "table or inline table",
+                    found: value.type_name(),
+                },
+            },
+            toml_edit::Item::ArrayOfTables(array) => TomlValue {
+                value: None,
+                state: TomlValueState::WrongType {
+                    span: array.span().unwrap_or(parent_span),
+                    expected: "table or inline table",
+                    found: "array of tables",
+                },
+            },
+        }
     }
 }
 
