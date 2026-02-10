@@ -1355,7 +1355,17 @@ struct AdvancedOuter {
     map_vec_nested: IndexMap<String, Vec<NestedStruct>>,
     map_vec_enum: IndexMap<String, Vec<AnEnum>>,
     map_vec_tagged: IndexMap<String, Vec<TaggedEnum>>,
+
+    opt_vec_nested: Option<Vec<NestedStruct>>,
+    opt_vec_enum: Option<Vec<AnEnum>>,
+    opt_vec_tagged: Option<Vec<TaggedEnum>>,
+    opt_map_nested: Option<IndexMap<String, NestedStruct>>,
+    opt_map_enum: Option<IndexMap<String, AnEnum>>,
+    opt_map_tagged: Option<IndexMap<String, TaggedEnum>>,
+    opt_map_vec_nested: Option<IndexMap<String, Vec<NestedStruct>>>,
 }
+
+impl VerifyTomlItem<()> for PartialAdvancedOuter {}
 
 //macro code
 
@@ -1371,9 +1381,154 @@ struct PartialAdvancedOuter {
     map_vec_nested: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>,
     map_vec_enum: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<AnEnum>>>>>,
     map_vec_tagged: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>>,
+
+    opt_vec_nested: TomlValue<Option<Vec<TomlValue<PartialNestedStruct>>>>,
+    opt_vec_enum: TomlValue<Option<Vec<TomlValue<AnEnum>>>>,
+    opt_vec_tagged: TomlValue<Option<Vec<TomlValue<PartialTaggedEnum>>>>,
+    opt_map_nested: TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>>,
+    opt_map_enum: TomlValue<Option<IndexMap<String, TomlValue<AnEnum>>>>,
+    opt_map_tagged: TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>>,
+    opt_map_vec_nested:
+        TomlValue<Option<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>>,
 }
 
 impl PartialAdvancedOuter {
+    // Example of a custom getter that could be used in fill_fields
+    fn tpd_get_boxed_u8(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Box<u8>> {
+        helper.get_with_aliases("boxed_u8", &[])
+    }
+
+    fn tpd_get_vec_nested(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Vec<TomlValue<PartialNestedStruct>>> {
+        helper.get_with_aliases("vec_nested", &[])
+    }
+    fn tpd_get_vec_enum(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Vec<TomlValue<AnEnum>>> {
+        helper.get_with_aliases("vec_enum", &[])
+    }
+    fn tpd_get_vec_tagged(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Vec<TomlValue<PartialTaggedEnum>>> {
+        helper.get_with_aliases("vec_tagged", &[])
+    }
+    fn tpd_get_map_nested(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>> {
+        helper.get_with_aliases("map_nested", &[])
+    }
+    fn tpd_get_map_enum(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<IndexMap<String, TomlValue<AnEnum>>> {
+        helper.get_with_aliases("map_enum", &[])
+    }
+
+    fn tpd_get_map_tagged(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<IndexMap<String, TomlValue<PartialTaggedEnum>>> {
+        helper.get_with_aliases("map_tagged", &[])
+    }
+
+    fn tpd_get_map_vec_nested(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>> {
+        helper.get_with_aliases("map_vec_nested", &[])
+    }
+
+    fn tpd_get_map_vec_enum(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<AnEnum>>>>> {
+        helper.get_with_aliases("map_vec_enum", &[])
+    }
+
+    fn tpd_get_map_vec_tagged(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>> {
+        helper.get_with_aliases("map_vec_tagged", &[])
+    }
+
+    fn tpd_get_opt_vec_nested(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Option<Vec<TomlValue<PartialNestedStruct>>>> {
+        helper.get_with_aliases("opt_vec_nested", &[]).into_optional()
+    }
+
+    fn tpd_get_opt_vec_enum(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Option<Vec<TomlValue<AnEnum>>>> {
+        helper.get_with_aliases("opt_vec_enum", &[]).into_optional()
+    }
+
+    fn tpd_get_opt_vec_tagged(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Option<Vec<TomlValue<PartialTaggedEnum>>>> {
+        helper.get_with_aliases("opt_vec_tagged", &[]).into_optional()
+    }
+
+    fn tpd_get_opt_map_nested(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>> {
+        helper.get_with_aliases("opt_map_nested", &[]).into_optional()
+    }
+
+    fn tpd_get_opt_map_enum(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Option<IndexMap<String, TomlValue<AnEnum>>>> {
+        helper.get_with_aliases("opt_map_enum", &[]).into_optional()
+    }
+
+    fn tpd_get_opt_map_tagged(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>> {
+        helper.get_with_aliases("opt_map_tagged", &[]).into_optional()
+    }
+    fn tpd_get_opt_map_vec_nested(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Option<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>> {
+        helper.get_with_aliases("opt_map_vec_nested", &[]).into_optional()
+    }
+
+}
+
+impl TpdDeserializeStruct for PartialAdvancedOuter {
+    type Concrete = AdvancedOuter;
     fn can_concrete(&self) -> bool {
         self.boxed_u8.is_ok()
             && self.vec_nested.is_ok()
@@ -1385,6 +1540,13 @@ impl PartialAdvancedOuter {
             && self.map_vec_nested.is_ok()
             && self.map_vec_enum.is_ok()
             && self.map_vec_tagged.is_ok()
+            && self.opt_vec_nested.is_ok()
+            && self.opt_vec_enum.is_ok()
+            && self.opt_vec_tagged.is_ok()
+            && self.opt_map_nested.is_ok()
+            && self.opt_map_enum.is_ok()
+            && self.opt_map_tagged.is_ok()
+            && self.opt_map_vec_nested.is_ok()
     }
 
     fn to_concrete(self) -> AdvancedOuter {
@@ -1465,7 +1627,90 @@ impl PartialAdvancedOuter {
                     )
                 })
                 .collect(),
+            opt_vec_nested: self.opt_vec_nested.value.unwrap().map(|vec| {
+                vec.into_iter()
+                    .map(|p| p.expect("should be set").to_concrete())
+                    .collect()
+            }),
+            opt_vec_enum: self
+                .opt_vec_enum
+                .value
+                .unwrap()
+                .map(|vec| vec.into_iter().map(|p| p.expect("should be set")).collect()),
+            opt_vec_tagged: self.opt_vec_tagged.value.unwrap().map(|vec| {
+                vec.into_iter()
+                    .map(|p| p.expect("should be set").to_concrete())
+                    .collect()
+            }),
+            opt_map_nested: self.opt_map_nested.value.unwrap().map(|map| {
+                map.into_iter()
+                    .map(|(k, v)| (k, v.expect("should be set").to_concrete()))
+                    .collect()
+            }),
+            opt_map_enum: self.opt_map_enum.value.unwrap().map(|map| {
+                map.into_iter()
+                    .map(|(k, v)| (k, v.expect("should be set")))
+                    .collect()
+            }),
+            opt_map_tagged: self.opt_map_tagged.value.unwrap().map(|map| {
+                map.into_iter()
+                    .map(|(k, v)| (k, v.expect("should be set").to_concrete()))
+                    .collect()
+            }),
+            opt_map_vec_nested: self.opt_map_vec_nested.value.unwrap().map(|map| {
+                map.into_iter()
+                    .map(|(k, vec)| {
+                        (
+                            k,
+                            vec.expect("should be set")
+                                .into_iter()
+                                .map(|p| p.expect("should be set").to_concrete())
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            }),
         }
+    }
+
+    fn fill_fields(&mut self, helper: &mut TomlHelper<'_>) {
+        self.boxed_u8 = self.tpd_get_boxed_u8(helper, 0..0);
+        self.vec_nested = self.tpd_get_vec_nested(helper, 0..0);
+        self.vec_enum = self.tpd_get_vec_enum(helper, 0..0);
+        self.vec_tagged = self.tpd_get_vec_tagged(helper, 0..0);
+        self.map_nested = self.tpd_get_map_nested(helper, 0..0);
+        self.map_enum = self.tpd_get_map_enum(helper, 0..0);
+        self.map_tagged = self.tpd_get_map_tagged(helper, 0..0);
+        self.map_vec_nested = self.tpd_get_map_vec_nested(helper, 0..0);
+        self.map_vec_enum = self.tpd_get_map_vec_enum(helper, 0..0);
+        self.map_vec_tagged = self.tpd_get_map_vec_tagged(helper, 0..0);
+        self.opt_vec_nested = self.tpd_get_opt_vec_nested(helper, 0..0);
+        self.opt_vec_enum = self.tpd_get_opt_vec_enum(helper, 0..0);
+        self.opt_vec_tagged = self.tpd_get_opt_vec_tagged(helper, 0..0);
+        self.opt_map_nested = self.tpd_get_opt_map_nested(helper, 0..0);
+        self.opt_map_enum = self.tpd_get_opt_map_enum(helper, 0..0);
+        self.opt_map_tagged = self.tpd_get_opt_map_tagged(helper, 0..0);
+        self.opt_map_vec_nested = self.tpd_get_opt_map_vec_nested(helper, 0..0);
+    }
+
+    fn register_errors(&self, col: &TomlCollector) {
+        self.boxed_u8.register_error(col);
+        self.vec_nested.register_error(col);
+        self.vec_enum.register_error(col);
+        self.vec_tagged.register_error(col);
+        self.map_nested.register_error(col);
+        self.map_enum.register_error(col);
+        self.map_tagged.register_error(col);
+        self.map_vec_nested.register_error(col);
+        self.map_vec_enum.register_error(col);
+        self.map_vec_tagged.register_error(col);
+        self.opt_vec_nested.register_error(col);
+        self.opt_vec_enum.register_error(col);
+        self.opt_vec_tagged.register_error(col);
+        self.opt_map_nested.register_error(col);
+        self.opt_map_enum.register_error(col);
+        self.opt_map_tagged.register_error(col);
+        self.opt_map_vec_nested.register_error(col);
     }
 }
 
@@ -1474,51 +1719,7 @@ fn deserialize_advanced(
     field_match_mode: toml_pretty_deser::FieldMatchMode,
     vec_mode: toml_pretty_deser::VecMode,
 ) -> Result<AdvancedOuter, DeserError<PartialAdvancedOuter>> {
-    let parsed_toml = toml_str
-        .parse::<Document<String>>()
-        .map_err(|toml_err| DeserError::ParsingFailure(toml_err, toml_str.to_string()))?;
-    let source = Rc::new(RefCell::new(toml_str.to_string()));
-
-    let col = TomlCollector {
-        errors: Rc::new(RefCell::new(Vec::new())),
-        match_mode: field_match_mode,
-        vec_mode,
-        context_spans: Rc::new(RefCell::new(Vec::new())),
-    };
-    let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col.clone());
-
-    let mut partial = PartialAdvancedOuter::default();
-    partial.boxed_u8 = helper.get_with_aliases("boxed_u8", &[]);
-    partial.vec_nested = helper.get_with_aliases("vec_nested", &[]);
-    partial.vec_enum = helper.get_with_aliases("vec_enum", &[]);
-    partial.vec_tagged = helper.get_with_aliases("vec_tagged", &[]);
-    partial.map_nested = helper.get_with_aliases("map_nested", &[]);
-    partial.map_enum = helper.get_with_aliases("map_enum", &[]);
-    partial.map_tagged = helper.get_with_aliases("map_tagged", &[]);
-    partial.map_vec_nested = helper.get_with_aliases("map_vec_nested", &[]);
-    partial.map_vec_enum = helper.get_with_aliases("map_vec_enum", &[]);
-    partial.map_vec_tagged = helper.get_with_aliases("map_vec_tagged", &[]);
-
-    if helper.no_unknown() && partial.can_concrete() {
-        Ok(partial.to_concrete())
-    } else {
-        helper.register_unknown();
-        partial.boxed_u8.register_error(&col);
-        partial.vec_nested.register_error(&col);
-        partial.vec_enum.register_error(&col);
-        partial.vec_tagged.register_error(&col);
-        partial.map_nested.register_error(&col);
-        partial.map_enum.register_error(&col);
-        partial.map_tagged.register_error(&col);
-        partial.map_vec_nested.register_error(&col);
-        partial.map_vec_enum.register_error(&col);
-        partial.map_vec_tagged.register_error(&col);
-
-        Err(DeserError::DeserFailure(
-            helper.into_inner(&source),
-            partial,
-        ))
-    }
+    deserialize_toml::<PartialAdvancedOuter>(toml_str, field_match_mode, vec_mode)
 }
 
 #[test]
@@ -1526,6 +1727,13 @@ fn test_advanced_all_types() {
     let toml = "
 boxed_u8 = 42
 vec_enum = ['TypeA', 'TypeB', 'TypeA']
+
+opt_vec_enum = ['TypeA','TypeB']
+
+opt_map_nested = {
+    a = {other_u8 = 13, double = {double_u8 = 14}},
+}
+opt_map_tagged.delta = {kind = 'KindB', b = 222}
 
 [[vec_nested]]
 other_u8 = 10
@@ -1597,6 +1805,23 @@ b = 88
 [[map_vec_tagged.set2]]
 kind = 'KindA'
 a = 99
+
+[[opt_vec_nested]]
+    other_u8 = 12
+    double.double_u8 = 12
+
+
+[[opt_vec_tagged]]
+    kind = 'KindB'
+    b = 111
+
+[opt_map_enum]
+    c = 'TypeA'
+
+
+[[opt_map_vec_nested.two]]
+    other_u8 = 222
+    double.double_u8 = 255
     ";
 
     let result = deserialize_advanced(
@@ -1711,6 +1936,64 @@ a = 99
             TaggedEnum::KindA(inner) => assert_eq!(inner.a, 99),
             _ => panic!("Expected KindA"),
         }
+
+        assert!(outer.opt_vec_nested.is_some());
+        assert_eq!(outer.opt_vec_nested.as_ref().unwrap().len(), 1);
+        assert_eq!(outer.opt_vec_nested.as_ref().unwrap()[0].other_u8, 12);
+        assert_eq!(
+            outer.opt_vec_nested.as_ref().unwrap()[0].double.double_u8,
+            12
+        );
+        assert!(outer.opt_vec_enum.is_some());
+        assert_eq!(outer.opt_vec_enum.as_ref().unwrap().len(), 2);
+        assert_eq!(outer.opt_vec_enum.as_ref().unwrap()[0], AnEnum::TypeA);
+        assert_eq!(outer.opt_vec_enum.as_ref().unwrap()[1], AnEnum::TypeB);
+        assert!(outer.opt_vec_tagged.is_some());
+        assert_eq!(outer.opt_vec_tagged.as_ref().unwrap().len(), 1);
+        assert!(matches!(
+            &outer.opt_vec_tagged.as_ref().unwrap()[0],
+            TaggedEnum::KindB(inner) if inner.b == 111
+        ));
+        assert!(outer.opt_map_nested.is_some());
+        assert_eq!(outer.opt_map_nested.as_ref().unwrap().len(), 1);
+        assert!(outer.opt_map_nested.as_ref().unwrap().contains_key("a"));
+        assert_eq!(
+            outer.opt_map_nested.as_ref().unwrap().get("a").unwrap().other_u8,
+            13
+        );
+        assert_eq!(
+            outer.opt_map_nested.as_ref().unwrap().get("a").unwrap().double.double_u8,
+            14
+        );
+        assert!(outer.opt_map_enum.is_some());
+        assert_eq!(outer.opt_map_enum.as_ref().unwrap().len(), 1);
+        assert!(outer.opt_map_enum.as_ref().unwrap().contains_key("c"));
+        assert_eq!(
+            outer.opt_map_enum.as_ref().unwrap().get("c").unwrap(),
+            &AnEnum::TypeA
+        );
+        assert!(outer.opt_map_tagged.is_some());
+        assert_eq!(outer.opt_map_tagged.as_ref().unwrap().len(), 1);
+        assert!(outer.opt_map_tagged.as_ref().unwrap().contains_key("delta"));
+        assert!(matches!(
+            outer.opt_map_tagged.as_ref().unwrap().get("delta").unwrap(),
+            TaggedEnum::KindB(inner) if inner.b == 222
+        ));
+        assert!(outer.opt_map_vec_nested.is_some());
+        assert_eq!(outer.opt_map_vec_nested.as_ref().unwrap().len(), 1);
+        assert!(outer.opt_map_vec_nested.as_ref().unwrap().contains_key("two"));
+        assert_eq!(
+            outer.opt_map_vec_nested.as_ref().unwrap().get("two").unwrap().len(),
+            1
+        );
+        assert_eq!(
+            outer.opt_map_vec_nested.as_ref().unwrap().get("two").unwrap()[0].other_u8,
+            222
+        );
+        assert_eq!(
+            outer.opt_map_vec_nested.as_ref().unwrap().get("two").unwrap()[0].double.double_u8,
+            255
+        );
     }
 }
 
