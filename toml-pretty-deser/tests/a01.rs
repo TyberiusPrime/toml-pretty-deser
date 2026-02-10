@@ -1978,3 +1978,102 @@ mod with {
         }
     }
 }
+
+mod skip_and_default {
+    use toml_pretty_deser::{DeserError, TomlHelper, TomlValue};
+
+    use crate::{TpdDeserializeStruct, deserialize_toml};
+
+    //user code.
+    #[derive(Debug)]
+    struct DefaultTo100(u32);
+
+    impl Default for DefaultTo100 {
+        fn default() -> Self {
+            DefaultTo100(100)
+        }
+    }
+
+    #[derive(Debug)]
+    struct WithDefaults {
+        a_u32: u32,
+        //#[tdp_defaul]
+        default_u32: u32,
+        //#[tdp_skip]
+        skipped_u32: DefaultTo100,
+    }
+
+
+    //macro code
+    #[derive(Debug, Default)]
+    struct PartialWithDefaults {
+        a_u32: TomlValue<u32>,
+        default_u32: TomlValue<Option<u32>>, // we need to distinguish.
+    }
+
+    impl PartialWithDefaults {
+        fn tdp_get_a_u32(&self, helper: &mut TomlHelper<'_>) -> TomlValue<u32> {
+            helper.get_with_aliases("a_u32", &[])
+        }
+        fn tdp_get_default_u32(&self, helper: &mut TomlHelper<'_>) -> TomlValue<u32> {
+            helper.get_with_aliases("default_u32", &[])
+        }
+    }
+
+    impl TpdDeserializeStruct for PartialWithDefaults {
+        type Concrete = WithDefaults;
+
+        fn fill_fields(&mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>) {
+            self.a_u32 = self.tdp_get_a_u32(helper);
+            self.default_u32 = self.tdp_get_default_u32(helper).into_optional();
+            //defaults don't get filled.
+        }
+
+        fn can_concrete(&self) -> bool {
+            self.a_u32.is_ok() && self.default_u32.is_ok()
+        }
+
+        fn to_concrete(self) -> Self::Concrete {
+            Self::Concrete {
+                a_u32: self.a_u32.value.unwrap(),
+                default_u32: match self.default_u32.value {
+                    Some(Some(value)) => value,
+                    Some(None) => Default::default(),
+                    None => unreachable!(),
+                },
+                skipped_u32: Default::default(),
+            }
+        }
+
+        fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+            self.a_u32.register_error(col);
+            self.default_u32.register_error(col);
+        }
+    }
+
+    fn deserialize(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<WithDefaults, DeserError<PartialWithDefaults>> {
+        deserialize_toml::<PartialWithDefaults>(toml_str, field_match_mode, vec_mode)
+    }
+
+    #[test]
+    fn test_skiped() {
+        let toml = "
+            a_u32 = 1230000000
+            ";
+        let parsed = deserialize(
+            toml,
+            toml_pretty_deser::FieldMatchMode::Exact,
+            toml_pretty_deser::VecMode::Strict,
+        );
+        assert!(parsed.is_ok());
+        if let Ok(inner) = parsed {
+            assert_eq!(inner.a_u32, 1230000000);
+            assert_eq!(inner.default_u32, 0); //default value
+            assert_eq!(inner.skipped_u32.0, 100); //default for skipped field
+        }
+    }
+}
