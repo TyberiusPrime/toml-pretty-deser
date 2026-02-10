@@ -85,7 +85,7 @@ fn finalize_nested_field<T: FromTomlTable>(field: &mut TomlValue<T>, helper: &mu
     }
 }
 
-//what the #[tdp] marked structs implement
+//what the #[tdp] marked PartialT structs implement
 trait TpdDeserializeStruct: Default {
     type Concrete;
     fn fill_fields(&mut self, helper: &mut TomlHelper<'_>);
@@ -131,26 +131,6 @@ impl<T, S: std::hash::Hash + Eq> TpdDeserialize for IndexMap<S, TomlValue<T>> {
         }
     }
 }
-//
-// impl<T, S: std::hash::Hash + Eq> TpdDeserialize for IndexMap<S, Vec<TomlValue<T>>> {
-//     type Concrete = IndexMap<S, Vec<T>>;
-//
-//     fn can_concrete(&self) -> bool {
-//         self.values().all(|vec| vec.can_concrete())
-//     }
-//
-//     fn to_concrete(self) -> Self::Concrete {
-//         self.into_iter()
-//             .map(|(k, v)| (k, v.to_concrete()))
-//             .collect()
-//     }
-//
-//     fn register_errors(&self, col: &TomlCollector) {
-//         for vec in self.values() {
-//             vec.register_errors(col);
-//         }
-//     }
-// }
 
 fn deserialize_toml<P: TpdDeserializeStruct>(
     toml_str: &str,
@@ -367,12 +347,20 @@ impl TpdDeserializeStruct for PartialOuter {
         }
         self.nested_struct.register_error(col);
         if let TomlValueState::Nested = self.nested_struct.state {
-            self.nested_struct.value.as_ref().unwrap().register_errors(col);
+            self.nested_struct
+                .value
+                .as_ref()
+                .unwrap()
+                .register_errors(col);
         }
         self.simple_enum.register_error(col);
         self.nested_tagged_enum.register_error(col);
         if let TomlValueState::Nested = self.nested_tagged_enum.state {
-            self.nested_tagged_enum.value.as_ref().unwrap().register_errors(col);
+            self.nested_tagged_enum
+                .value
+                .as_ref()
+                .unwrap()
+                .register_errors(col);
         }
     }
 }
@@ -1463,7 +1451,8 @@ impl PartialAdvancedOuter {
                 .map(|(k, vec)| {
                     (
                         k,
-                        vec.expect("should be set").into_iter()
+                        vec.expect("should be set")
+                            .into_iter()
                             .map(|p| p.expect("should be set").to_concrete())
                             .collect(),
                     )
@@ -1839,6 +1828,139 @@ mod absord {
             a_u8 = 123
             something = 'shu'
             else = 'shi'
+        ";
+        let parsed = deserialize(
+            toml,
+            toml_pretty_deser::FieldMatchMode::Exact,
+            toml_pretty_deser::VecMode::Strict,
+        );
+        dbg!(&parsed);
+        assert!(!parsed.is_ok());
+        if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
+            assert!(!errors.is_empty());
+            let pretty = errors[0].pretty("test.toml");
+            insta::assert_snapshot!(pretty);
+        }
+    }
+}
+
+mod with {
+    use toml_pretty_deser::{DeserError, TomlHelper, TomlValue, TomlValueState};
+
+    use crate::{TpdDeserializeStruct, VerifyTomlItem, deserialize_toml};
+
+    //user code
+
+    //#[tdp]
+    #[derive(Debug)]
+    struct Funky {
+        // #[tdp_with = "adapt_from_string"]
+        value: i64,
+        // #tdp_with = adapt_double
+        double: i64,
+    }
+
+    fn adapt_from_string(input: TomlValue<String>) -> TomlValue<i64> {
+        if input.is_ok() {
+            match input.value.as_ref().unwrap().parse::<i64>() {
+                Ok(num) => TomlValue {
+                    value: Some(num),
+                    state: TomlValueState::Ok { span: input.span() },
+                },
+                Err(_) => TomlValue::new_validation_failed(
+                    input.span(),
+                    "Could not be understood as integer".to_string(),
+                    None,
+                ),
+            }
+        } else {
+            input.convert_failed_type()
+        }
+    }
+
+    fn adapt_double(input: TomlValue<i64>) -> TomlValue<i64> {
+        if input.is_ok() {
+            TomlValue {
+                value: Some(input.value.unwrap() * 2),
+                state: TomlValueState::Ok { span: input.span() },
+            }
+        } else {
+            input
+        }
+    }
+
+    // macro code
+    #[derive(Debug, Default)]
+    struct PartialFunky {
+        value: TomlValue<i64>,
+        double: TomlValue<i64>,
+    }
+
+    impl PartialFunky {
+        fn tpd_get_value(&self, helper: &mut TomlHelper<'_>) -> TomlValue<i64> {
+            adapt_from_string(helper.get_with_aliases("value", &[]))
+        }
+
+        fn tpd_get_double(&self, helper: &mut TomlHelper<'_>) -> TomlValue<i64> {
+            adapt_double(helper.get_with_aliases("double", &[]))
+        }
+    }
+    impl TpdDeserializeStruct for PartialFunky {
+        type Concrete = Funky;
+
+        fn fill_fields(&mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>) {
+            self.value = self.tpd_get_value(helper);
+            self.double = self.tpd_get_double(helper);
+        }
+
+        fn can_concrete(&self) -> bool {
+            self.value.is_ok() && self.double.is_ok()
+        }
+
+        fn to_concrete(self) -> Self::Concrete {
+            Self::Concrete {
+                value: self.value.value.unwrap(),
+                double: self.double.value.unwrap(),
+            }
+        }
+
+        fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+            self.value.register_error(col);
+            self.double.register_error(col);
+        }
+    }
+
+    fn deserialize(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<Funky, DeserError<PartialFunky>> {
+        deserialize_toml::<PartialFunky>(toml_str, field_match_mode, vec_mode)
+    }
+
+    #[test]
+    fn test_adapters() {
+        let toml = "
+        value = '10'
+        double = 12
+        ";
+        let parsed = deserialize(
+            toml,
+            toml_pretty_deser::FieldMatchMode::Exact,
+            toml_pretty_deser::VecMode::Strict,
+        );
+        dbg!(&parsed);
+        assert!(parsed.is_ok());
+        if let Ok(inner) = parsed {
+            assert_eq!(inner.value, 10);
+            assert_eq!(inner.double, 24);
+        }
+    }
+    #[test]
+    fn test_adapter_failure() {
+        let toml = "
+        value = '10i'
+        double = 12
         ";
         let parsed = deserialize(
             toml,

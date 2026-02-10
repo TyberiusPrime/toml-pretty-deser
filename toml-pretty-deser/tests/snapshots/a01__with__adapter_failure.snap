@@ -1,0 +1,11 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: pretty
+---
+  ╭─test.toml
+  ┆
+2 │         value = '10i'
+  ┆                 ──┬──
+  ┆                   │
+  ┆                   ╰─── Could not be understood as integer
+──╯
