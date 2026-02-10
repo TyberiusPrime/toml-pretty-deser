@@ -1,186 +1,17 @@
 use std::{cell::RefCell, rc::Rc};
 
 use indexmap::IndexMap;
-use toml_edit::Document;
 use toml_pretty_deser::AsTableLikePlus;
 use toml_pretty_deser::{
-    DeserError, FromTomlItem, TomlCollector, TomlHelper, TomlValue, TomlValueState,
-    suggest_alternatives,
+    DeserError, FromTomlItem, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyTomlItem,
+    impl_from_toml_item_for_table, suggest_alternatives,
 };
 //library code
-
-trait FromTomlTable: Default + Sized {
-    fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self>;
-    fn can_concrete(&self) -> bool;
-}
-
-fn from_toml_item_via_table<T: FromTomlTable>(
-    item: &toml_edit::Item,
-    parent_span: std::ops::Range<usize>,
-    col: &TomlCollector,
-) -> TomlValue<T> {
-    if let Some(table) = item.as_table_like_plus() {
-        let mut helper = TomlHelper::from_table(table, col.clone());
-        let mut result = T::from_toml_table(&mut helper);
-
-        if let Some(ref inner) = result.value {
-            if inner.can_concrete() {
-                if helper.no_unknown() {
-                    result.state = TomlValueState::Ok {
-                        span: item.span().unwrap_or(parent_span),
-                    };
-                } else {
-                    helper.register_unknown();
-                }
-            }
-        }
-
-        result
-    } else {
-        TomlValue::new_wrong_type(item, parent_span, "table or inline table")
-    }
-}
-
-fn verify_struct<T: VerifyTomlItem<R> + FromTomlTable + std::fmt::Debug, R>(
-    temp: TomlValue<T>,
-    helper: &mut TomlHelper<'_>,
-    parent: &R,
-) -> TomlValue<T> {
-    if temp.value.is_some() {
-        let span = temp.span();
-        let res = temp.value.unwrap().verify_struct(helper, parent);
-        if !res.can_concrete() {
-            TomlValue {
-                value: Some(res),
-                state: TomlValueState::Nested,
-            }
-        } else {
-            TomlValue::new_ok(res, span)
-        }
-    } else {
-        temp
-    }
-}
-
-macro_rules! impl_from_toml_item_for_table {
-    ($($ty:ty),+ $(,)?) => {
-        $(
-            impl FromTomlItem for $ty {
-                fn from_toml_item(
-                    item: &toml_edit::Item,
-                    parent_span: std::ops::Range<usize>,
-                    col: &TomlCollector,
-                ) -> TomlValue<Self> {
-                    from_toml_item_via_table(item, parent_span, col)
-                }
-            }
-        )+
-    };
-}
-
-fn finalize_nested_field<T: FromTomlTable>(field: &mut TomlValue<T>, helper: &mut TomlHelper<'_>) {
-    if let Some(inner) = field.value.as_ref() {
-        if inner.can_concrete() {
-            if helper.no_unknown() {
-                field.state = TomlValueState::Ok { span: field.span() };
-            } else {
-                helper.register_unknown();
-            }
-        }
-    }
-}
-
-//what the #[tdp] marked PartialT structs implement
-trait TpdDeserializeStruct: Default {
-    type Concrete;
-    fn fill_fields(&mut self, helper: &mut TomlHelper<'_>);
-    fn can_concrete(&self) -> bool;
-    fn to_concrete(self) -> Self::Concrete;
-    fn register_errors(&self, col: &TomlCollector);
-}
-
-// what our internal Vec,IndexMap, etc implement
-trait TpdDeserialize: Default {
-    type Concrete;
-    //no can_concrete, rely on state: TomlValueState::Ok
-    fn to_concrete(self) -> Self::Concrete;
-    fn register_errors(&self, col: &TomlCollector);
-}
-
-impl<T> TpdDeserialize for Vec<TomlValue<T>> {
-    type Concrete = Vec<T>;
-
-    fn to_concrete(self) -> Self::Concrete {
-        self.into_iter().map(|item| item.value.unwrap()).collect()
-    }
-
-    fn register_errors(&self, col: &TomlCollector) {
-        for val in self.iter() {
-            val.register_error(col);
-        }
-    }
-}
-
-impl<T, S: std::hash::Hash + Eq> TpdDeserialize for IndexMap<S, TomlValue<T>> {
-    type Concrete = IndexMap<S, T>;
-
-    fn to_concrete(self) -> Self::Concrete {
-        self.into_iter()
-            .map(|(k, v)| (k, v.value.unwrap()))
-            .collect()
-    }
-
-    fn register_errors(&self, col: &TomlCollector) {
-        for val in self.values() {
-            val.register_error(col);
-        }
-    }
-}
-
-fn deserialize_toml<P: TpdDeserializeStruct + VerifyTomlItem<()>>(
-    toml_str: &str,
-    field_match_mode: toml_pretty_deser::FieldMatchMode,
-    vec_mode: toml_pretty_deser::VecMode,
-) -> Result<P::Concrete, DeserError<P>> {
-    let parsed_toml = toml_str
-        .parse::<Document<String>>()
-        .map_err(|toml_err| DeserError::ParsingFailure(toml_err, toml_str.to_string()))?;
-    let source = Rc::new(RefCell::new(toml_str.to_string()));
-
-    let col = TomlCollector {
-        errors: Rc::new(RefCell::new(Vec::new())),
-        match_mode: field_match_mode,
-        vec_mode,
-        context_spans: Rc::new(RefCell::new(Vec::new())),
-    };
-    let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col.clone());
-
-    let mut partial = P::default();
-    partial.fill_fields(&mut helper);
-    let partial = partial.verify_struct(&mut helper, &());
-
-    if helper.no_unknown() && partial.can_concrete() {
-        Ok(partial.to_concrete())
-    } else {
-        helper.register_unknown();
-        partial.register_errors(&col);
-        Err(DeserError::DeserFailure(
-            helper.into_inner(&source),
-            partial,
-        ))
-    }
-}
-
-trait VerifyTomlItem<R> {
-    #[allow(unused_mut)]
-    #[allow(unused_variables)]
-    fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &R) -> Self
-    where
-        Self: Sized,
-    {
-        self
-    }
-}
+//
+use toml_pretty_deser::helpers::{
+    FromTomlTable, TpdDeserialize, TpdDeserializeStruct, deserialize_toml, finalize_nested_field,
+    from_toml_item_via_table, verify_struct,
+};
 
 // Manually implemented example on how I want the API to look like
 //
@@ -1475,7 +1306,9 @@ impl PartialAdvancedOuter {
         helper: &mut TomlHelper<'_>,
         _parent_span: std::ops::Range<usize>,
     ) -> TomlValue<Option<Vec<TomlValue<PartialNestedStruct>>>> {
-        helper.get_with_aliases("opt_vec_nested", &[]).into_optional()
+        helper
+            .get_with_aliases("opt_vec_nested", &[])
+            .into_optional()
     }
 
     fn tpd_get_opt_vec_enum(
@@ -1491,7 +1324,9 @@ impl PartialAdvancedOuter {
         helper: &mut TomlHelper<'_>,
         _parent_span: std::ops::Range<usize>,
     ) -> TomlValue<Option<Vec<TomlValue<PartialTaggedEnum>>>> {
-        helper.get_with_aliases("opt_vec_tagged", &[]).into_optional()
+        helper
+            .get_with_aliases("opt_vec_tagged", &[])
+            .into_optional()
     }
 
     fn tpd_get_opt_map_nested(
@@ -1499,7 +1334,9 @@ impl PartialAdvancedOuter {
         helper: &mut TomlHelper<'_>,
         _parent_span: std::ops::Range<usize>,
     ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>> {
-        helper.get_with_aliases("opt_map_nested", &[]).into_optional()
+        helper
+            .get_with_aliases("opt_map_nested", &[])
+            .into_optional()
     }
 
     fn tpd_get_opt_map_enum(
@@ -1515,16 +1352,19 @@ impl PartialAdvancedOuter {
         helper: &mut TomlHelper<'_>,
         _parent_span: std::ops::Range<usize>,
     ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>> {
-        helper.get_with_aliases("opt_map_tagged", &[]).into_optional()
+        helper
+            .get_with_aliases("opt_map_tagged", &[])
+            .into_optional()
     }
     fn tpd_get_opt_map_vec_nested(
         &self,
         helper: &mut TomlHelper<'_>,
         _parent_span: std::ops::Range<usize>,
     ) -> TomlValue<Option<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>> {
-        helper.get_with_aliases("opt_map_vec_nested", &[]).into_optional()
+        helper
+            .get_with_aliases("opt_map_vec_nested", &[])
+            .into_optional()
     }
-
 }
 
 impl TpdDeserializeStruct for PartialAdvancedOuter {
@@ -1958,11 +1798,24 @@ a = 99
         assert_eq!(outer.opt_map_nested.as_ref().unwrap().len(), 1);
         assert!(outer.opt_map_nested.as_ref().unwrap().contains_key("a"));
         assert_eq!(
-            outer.opt_map_nested.as_ref().unwrap().get("a").unwrap().other_u8,
+            outer
+                .opt_map_nested
+                .as_ref()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .other_u8,
             13
         );
         assert_eq!(
-            outer.opt_map_nested.as_ref().unwrap().get("a").unwrap().double.double_u8,
+            outer
+                .opt_map_nested
+                .as_ref()
+                .unwrap()
+                .get("a")
+                .unwrap()
+                .double
+                .double_u8,
             14
         );
         assert!(outer.opt_map_enum.is_some());
@@ -1981,17 +1834,42 @@ a = 99
         ));
         assert!(outer.opt_map_vec_nested.is_some());
         assert_eq!(outer.opt_map_vec_nested.as_ref().unwrap().len(), 1);
-        assert!(outer.opt_map_vec_nested.as_ref().unwrap().contains_key("two"));
+        assert!(
+            outer
+                .opt_map_vec_nested
+                .as_ref()
+                .unwrap()
+                .contains_key("two")
+        );
         assert_eq!(
-            outer.opt_map_vec_nested.as_ref().unwrap().get("two").unwrap().len(),
+            outer
+                .opt_map_vec_nested
+                .as_ref()
+                .unwrap()
+                .get("two")
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
-            outer.opt_map_vec_nested.as_ref().unwrap().get("two").unwrap()[0].other_u8,
+            outer
+                .opt_map_vec_nested
+                .as_ref()
+                .unwrap()
+                .get("two")
+                .unwrap()[0]
+                .other_u8,
             222
         );
         assert_eq!(
-            outer.opt_map_vec_nested.as_ref().unwrap().get("two").unwrap()[0].double.double_u8,
+            outer
+                .opt_map_vec_nested
+                .as_ref()
+                .unwrap()
+                .get("two")
+                .unwrap()[0]
+                .double
+                .double_u8,
             255
         );
     }

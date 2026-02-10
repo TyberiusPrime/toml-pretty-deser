@@ -9,6 +9,7 @@ pub mod prelude;
 mod tablelike;
 pub use from_item::FromTomlItem;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
+pub mod helpers;
 mod case;
 
 pub use case::{FieldMatchMode, suggest_alternatives};
@@ -53,6 +54,17 @@ impl<P> DeserError<P> {
             }
         }
         out
+    }
+}
+
+pub trait VerifyTomlItem<R> {
+    #[allow(unused_mut)]
+    #[allow(unused_variables)]
+    fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &R) -> Self
+    where
+        Self: Sized,
+    {
+        self
     }
 }
 
