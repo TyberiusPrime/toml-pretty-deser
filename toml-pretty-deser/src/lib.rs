@@ -743,12 +743,16 @@ fn pretty_error_message(
                 Block::new(&idx, labels).expect("can not fail")
             });
         let block = block.map_code(|c| CodeWidth::new(c, c.len()));
-         let blockf: String = format!("{block}")
+        let blockf: String = format!("{block}")
             .lines()
             .skip(1)
             .map(|x| x.trim_end())
             .fold(String::new(), |acc, line| acc + line + "\n");
-        let digits_needed = blockf.chars().position(|c| c == '│').map(|x| x-1).unwrap_or(1);
+        let digits_needed = blockf
+            .chars()
+            .position(|c| c == '│')
+            .map(|x| x - 1)
+            .unwrap_or(1);
 
         let lines_before = match previous_newline {
             None => String::new(),
@@ -795,7 +799,7 @@ fn pretty_error_message(
         if !lines_before.is_empty() {
             write!(&mut out, "\n").expect("can't fail");
         }
-      
+
         write!(&mut out, "{blockf}").expect("can't fail");
         writeln!(&mut out, "{}", block.epilogue()).expect("can't fail");
 
@@ -946,6 +950,14 @@ impl<'a> TomlHelper<'a> {
                 observed: vec![],
                 col: col.clone(),
             },
+        }
+    }
+
+    pub fn span(&self) -> Range<usize> {
+        if let Some(table) = self.table {
+            table.span().unwrap_or(0..0)
+        } else {
+            0..0
         }
     }
 
@@ -1886,6 +1898,13 @@ impl<T> TomlValue<T> {
         }
     }
 
+    pub fn as_mut(&mut self) -> Option<&mut T> {
+        match self.state {
+            TomlValueState::Ok { .. } => self.value.as_mut(),
+            _ => None,
+        }
+    }
+
     pub fn span(&self) -> Range<usize> {
         match &self.state {
             TomlValueState::Ok { span }
@@ -2056,6 +2075,15 @@ impl<T> TomlValue<T> {
     }
 }
 
+impl<T> Default for TomlValue<T> {
+    fn default() -> Self {
+        TomlValue {
+            value: None,
+            state: TomlValueState::NotSet,
+        }
+    }
+}
+
 #[doc(hidden)]
 #[must_use]
 pub fn deserialize_nested<P, T>(
@@ -2211,7 +2239,11 @@ where
                                         values.push(converted);
                                     }
                                     Err((msg, help)) => {
-                                        let failed: TomlValue<T> = TomlValue::new_validation_failed(item_span.clone(), msg, help);
+                                        let failed: TomlValue<T> = TomlValue::new_validation_failed(
+                                            item_span.clone(),
+                                            msg,
+                                            help,
+                                        );
                                         failed.register_error(col);
                                         has_errors = true;
                                     }
@@ -2255,7 +2287,12 @@ where
                                             state: TomlValueState::Ok { span: span.clone() },
                                         },
                                         Err((msg, help)) => {
-                                            let failed: TomlValue<Vec<T>> = TomlValue::new_validation_failed(span.clone(), msg, help);
+                                            let failed: TomlValue<Vec<T>> =
+                                                TomlValue::new_validation_failed(
+                                                    span.clone(),
+                                                    msg,
+                                                    help,
+                                                );
                                             failed.register_error(col);
                                             failed
                                         }
@@ -2330,7 +2367,11 @@ where
                                         map.insert(K::from(key.to_string()), converted);
                                     }
                                     Err((msg, help)) => {
-                                        let failed: TomlValue<T> = TomlValue::new_validation_failed(item_span.clone(), msg, help);
+                                        let failed: TomlValue<T> = TomlValue::new_validation_failed(
+                                            item_span.clone(),
+                                            msg,
+                                            help,
+                                        );
                                         failed.register_error(col);
                                         has_errors = true;
                                     }
