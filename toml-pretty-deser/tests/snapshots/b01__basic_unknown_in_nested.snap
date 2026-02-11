@@ -1,0 +1,13 @@
+---
+source: toml-pretty-deser/tests/b01.rs
+assertion_line: 286
+expression: "errors[0].pretty(\"test.toml\")"
+---
+   ╭─test.toml
+   ┆
+11 │         [nested_struct.double]
+   ┆         ───────────┬──────────
+   ┆                    │
+   ┆                    ╰─────────── Missing required key: 'double_u8'.
+───╯
+Hint: This key is required but was not found in the TOML document.
