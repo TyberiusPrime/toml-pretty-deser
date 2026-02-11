@@ -114,7 +114,7 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
         }
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("nested") {
-                attrs.nested =NestedState::Nested;
+                attrs.nested = NestedState::Nested;
             } else if meta.path.is_ident("tagged") {
                 attrs.nested = NestedState::Tagged;
             } else if meta.path.is_ident("skip") {
@@ -575,6 +575,29 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         })
         .collect();
 
+    // Generate from_toml_table body
+    let from_toml_table_stmts: Vec<proc_macro2::TokenStream> = field_infos
+        .iter()
+        .filter(|f| !f.attrs.skip && !f.attrs.absorb_remaining)
+        .map(|f| {
+            let ident = &f.ident;
+            let getter_name = format_ident!("tpd_get_{}", ident);
+
+            let get_stmt = quote! { partial.#ident = partial.#getter_name(helper); };
+
+            // For nested fields, add finalize_nested_field
+            let is_direct_nested = f.attrs.has_partial() && matches!(&f.kind, TypeKind::Leaf(_));
+            if is_direct_nested {
+                quote! {
+                    #get_stmt
+                    toml_pretty_deser::helpers::finalize_nested_field(&mut partial.#ident, helper);
+                }
+            } else {
+                get_stmt
+            }
+        })
+        .collect();
+
     if is_root {
         // Root struct: generate TpdDeserializeStruct
 
@@ -588,7 +611,9 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
 
                 if f.attrs.absorb_remaining {
                     quote! { self.#ident = helper.absorb_remaining(); }
-                } else if matches!(f.attrs.nested, NestedState::Nested) && !matches!(&f.kind, TypeKind::Optional(_)) {
+                } else if matches!(f.attrs.nested, NestedState::Nested)
+                    && !matches!(&f.kind, TypeKind::Optional(_))
+                {
                     // Nested struct fields use verify_struct (not tagged enums)
                     // Only for direct nested types, not Vec<Nested> etc.
                     let is_direct_nested = matches!(&f.kind, TypeKind::Leaf(_));
@@ -651,6 +676,30 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
                 }
             }
 
+             impl toml_pretty_deser::FromTomlItem for #partial_name {
+                fn from_toml_item(
+                    item: &toml_edit::Item,
+                    parent_span: std::ops::Range<usize>,
+                    col: &toml_pretty_deser::TomlCollector,
+                ) -> toml_pretty_deser::TomlValue<Self> {
+                    toml_pretty_deser::helpers::from_toml_item_via_table(item, parent_span, col)
+                }
+            }
+
+            impl toml_pretty_deser::helpers::FromTomlTable for #partial_name {
+                fn from_toml_table(helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Self> {
+                    let mut partial = Self::default();
+                    #(#from_toml_table_stmts)*
+                    toml_pretty_deser::TomlValue {
+                        value: Some(partial),
+                        state: toml_pretty_deser::TomlValueState::Nested,
+                    }
+                }
+
+                fn can_concrete(&self) -> bool {
+                    #(#can_concrete_checks)&&*
+                }
+            }
             impl #name {
                 #vis fn from_toml_str(
                     toml_str: &str,
@@ -665,30 +714,6 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         output.into()
     } else {
         // Nested struct: generate FromTomlTable + FromTomlItem
-
-        // Generate from_toml_table body
-        let from_toml_table_stmts: Vec<proc_macro2::TokenStream> = field_infos
-            .iter()
-            .filter(|f| !f.attrs.skip && !f.attrs.absorb_remaining)
-            .map(|f| {
-                let ident = &f.ident;
-                let getter_name = format_ident!("tpd_get_{}", ident);
-
-                let get_stmt = quote! { partial.#ident = partial.#getter_name(helper); };
-
-                // For nested fields, add finalize_nested_field
-                let is_direct_nested =
-                    f.attrs.has_partial() && matches!(&f.kind, TypeKind::Leaf(_));
-                if is_direct_nested {
-                    quote! {
-                        #get_stmt
-                        toml_pretty_deser::helpers::finalize_nested_field(&mut partial.#ident, helper);
-                    }
-                } else {
-                    get_stmt
-                }
-            })
-            .collect();
 
         let output = quote! {
             #original_item
@@ -757,7 +782,10 @@ fn parse_tag_from_attr(attr_args: &str) -> Option<String> {
     if let syn::Meta::List(list) = meta {
         let nested: syn::MetaNameValue = syn::parse2(list.tokens).unwrap();
         if nested.path.is_ident("tag") {
-            if let syn::Expr::Lit(syn::ExprLit { lit: Lit::Str(s), .. }) = &nested.value {
+            if let syn::Expr::Lit(syn::ExprLit {
+                lit: Lit::Str(s), ..
+            }) = &nested.value
+            {
                 return Some(s.value());
             }
         }
@@ -962,6 +990,16 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
         })
         .collect();
 
+    let can_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
+        .iter()
+        .map(|v| {
+            let ident = &v.ident;
+            quote! {
+                Self::#ident(inner) => inner.can_concrete()
+            }
+        })
+        .collect();
+
     // Generate register_errors match arms
     let register_errors_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
@@ -986,12 +1024,13 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
 
             quote! {
                 #ident_str => {
-                    let partial_inner = <#partial_inner as toml_pretty_deser::helpers::FromTomlTable>::from_toml_table(&mut tag_helper);
+                    let partial_inner = <#partial_inner as toml_pretty_deser::helpers::FromTomlTable>
+                        ::from_toml_table(helper);
                     if let Some(inner) = partial_inner.value {
-                        if inner.can_concrete() && tag_helper.no_unknown() {
+                        if inner.can_concrete() && helper.no_unknown() {
                             toml_pretty_deser::TomlValue::new_ok(#partial_name::#ident(inner), parent_span)
                         } else {
-                            tag_helper.register_unknown();
+                            helper.register_unknown();
                             toml_pretty_deser::TomlValue {
                                 value: Some(#partial_name::#ident(inner)),
                                 state: toml_pretty_deser::TomlValueState::Nested,
@@ -1006,61 +1045,73 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
         .collect();
 
     let output = quote! {
-        #original_item
+            #original_item
 
-        #[derive(Debug)]
-        #vis enum #partial_name {
-            #(#partial_variants,)*
-        }
-
-        impl #partial_name {
-            #vis fn to_concrete(self) -> #name {
-                match self {
-                    #(#to_concrete_arms,)*
-                }
+            #[derive(Debug)]
+            #vis enum #partial_name {
+                #(#partial_variants,)*
             }
 
-            #vis fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
-                match self {
-                    #(#register_errors_arms)*
+            impl toml_pretty_deser::helpers::FromTomlTable for #partial_name {
+                fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self>{
+
+                     let tag_value: toml_pretty_deser::TomlValue<String> = helper.get_with_aliases(#tag_key, &[]);
+
+                        if !tag_value.is_ok() {
+                            return toml_pretty_deser::TomlValue {
+                                value: None,
+                                state: tag_value.state,
+                            };
+                        }
+                        //
+                        let tag = tag_value.value.as_ref().unwrap();
+                        let tag_span = tag_value.span();
+                        let parent_span = helper.span();
+                        match tag.as_str() {
+                            #(#tag_match_arms)*
+                            _ => toml_pretty_deser::TomlValue::new_validation_failed(
+                                tag_span,
+                                format!("Invalid tag value: {}", tag),
+                                Some(toml_pretty_deser::suggest_alternatives(tag, &[#(#variant_names),*])),
+                            ),
+                        }
                 }
+                fn can_concrete(&self) -> bool{
+                     match self {
+                        #(#can_concrete_arms,)*
+                     }
+               }
             }
-        }
 
-        impl toml_pretty_deser::FromTomlItem for #partial_name {
-            fn from_toml_item(
-                item: &toml_edit::Item,
-                parent_span: std::ops::Range<usize>,
-                col: &toml_pretty_deser::TomlCollector,
-            ) -> toml_pretty_deser::TomlValue<Self> {
-                if let Some(table) = <toml_edit::Item as toml_pretty_deser::AsTableLikePlus>::as_table_like_plus(item) {
-                    let mut tag_helper = toml_pretty_deser::TomlHelper::from_table(table, col.clone());
-                    let tag_value: toml_pretty_deser::TomlValue<String> = tag_helper.get_with_aliases(#tag_key, &[]);
-
-                    if !tag_value.is_ok() {
-                        return toml_pretty_deser::TomlValue {
-                            value: None,
-                            state: tag_value.state,
-                        };
+            impl #partial_name {
+                #vis fn to_concrete(self) -> #name {
+                    match self {
+                        #(#to_concrete_arms,)*
                     }
+                }
 
-                    let tag = tag_value.value.as_ref().unwrap();
-                    let tag_span = tag_value.span();
-
-                    match tag.as_str() {
-                        #(#tag_match_arms)*
-                        _ => toml_pretty_deser::TomlValue::new_validation_failed(
-                            tag_span,
-                            format!("Invalid tag value: {}", tag),
-                            Some(toml_pretty_deser::suggest_alternatives(tag, &[#(#variant_names),*])),
-                        ),
+                #vis fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+                    match self {
+                        #(#register_errors_arms)*
                     }
-                } else {
-                    toml_pretty_deser::TomlValue::new_wrong_type(item, parent_span, "table or inline table")
                 }
             }
-        }
-    };
+
+            impl toml_pretty_deser::FromTomlItem for #partial_name {
+                fn from_toml_item(
+                    item: &toml_edit::Item,
+                    parent_span: std::ops::Range<usize>,
+                    col: &toml_pretty_deser::TomlCollector,
+                ) -> toml_pretty_deser::TomlValue<Self> {
+                    if let Some(table) = <toml_edit::Item as toml_pretty_deser::AsTableLikePlus>::as_table_like_plus(item) {
+                        let mut tag_helper = toml_pretty_deser::TomlHelper::from_table(table, col.clone());
+                        toml_pretty_deser::helpers::FromTomlTable::from_toml_table(&mut tag_helper)
+                    } else {
+                        toml_pretty_deser::TomlValue::new_wrong_type(item, parent_span, "table or inline table")
+                    }
+                }
+            }
+        };
 
     output.into()
 }

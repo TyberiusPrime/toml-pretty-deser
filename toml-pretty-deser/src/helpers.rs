@@ -5,7 +5,7 @@ use toml_edit::Document;
 
 use crate::{AsTableLikePlus, DeserError, FieldMatchMode, TomlCollector, TomlHelper, TomlValue, TomlValueState, VecMode, VerifyTomlItem};
 
-pub trait FromTomlTable: Default + Sized {
+pub trait FromTomlTable: Sized {
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self>;
     fn can_concrete(&self) -> bool;
 }
@@ -92,7 +92,7 @@ pub trait TpdDeserializeStruct: Default {
     type Concrete;
     fn fill_fields(&mut self, helper: &mut TomlHelper<'_>);
     fn can_concrete(&self) -> bool;
-    /// 
+
     /// # Panics
     /// When can_concrete() return false and it's nevertheless called
     fn to_concrete(self) -> Self::Concrete;

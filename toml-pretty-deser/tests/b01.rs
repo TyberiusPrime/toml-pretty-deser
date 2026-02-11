@@ -29,10 +29,14 @@ impl VerifyTomlItem<()> for PartialOuter {}
 
 #[derive(Debug)]
 #[tpd]
+#[tpd(root)]
 struct NestedStruct {
     other_u8: u8,
     #[tpd(nested)]
     double: DoubleNestedStruct,
+}
+
+impl VerifyTomlItem<()> for PartialNestedStruct {
 }
 
 impl VerifyTomlItem<PartialOuter> for PartialNestedStruct {
@@ -52,6 +56,7 @@ impl VerifyTomlItem<PartialOuter> for PartialNestedStruct {
 struct DoubleNestedStruct {
     double_u8: u8,
 }
+impl VerifyTomlItem<PartialNestedStruct> for PartialDoubleNestedStruct { }
 
 #[derive(Debug, PartialEq, Eq)]
 #[tpd]
