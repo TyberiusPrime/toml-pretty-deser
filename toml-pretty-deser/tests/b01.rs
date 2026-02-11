@@ -1,17 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
 use indexmap::IndexMap;
-use toml_pretty_deser::AsTableLikePlus;
 use toml_pretty_deser::{
-    DeserError, FromTomlItem, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyTomlItem,
-    impl_from_toml_item_for_table, suggest_alternatives,
+    DeserError, FromTomlItem, TomlCollector, TomlHelper, TomlValue, VerifyTomlItem,
 };
 //library code
 //
-use toml_pretty_deser::helpers::{
-    FromTomlTable, TpdDeserialize, TpdDeserializeStruct, deserialize_toml, finalize_nested_field,
-    from_toml_item_via_table, verify_struct,
-};
+use toml_pretty_deser::helpers::{FromTomlTable, deserialize_toml};
 use toml_pretty_deser_macros::Tpd;
 
 // USER Code
@@ -89,11 +84,8 @@ fn deserialize(
 }
 
 mod other {
-    use super::{
-        NestedStruct, PartialNestedStruct, TpdDeserializeStruct, VerifyTomlItem, deserialize_toml,
-        verify_struct,
-    };
-    use toml_pretty_deser::{DeserError, TomlCollector, TomlHelper, TomlValue};
+    use super::{NestedStruct, PartialNestedStruct, VerifyTomlItem, deserialize_toml};
+    use toml_pretty_deser::DeserError;
     use toml_pretty_deser_macros::Tpd;
 
     //User code
@@ -1093,12 +1085,11 @@ a = 99
 }
 
 mod absord {
-    use toml_pretty_deser::TomlHelper;
     use indexmap::IndexMap;
     use toml_pretty_deser_macros::Tpd;
 
-    use super::{TpdDeserializeStruct, VerifyTomlItem, deserialize_toml};
-    use toml_pretty_deser::{DeserError, TomlCollector, TomlValue, TomlValueState};
+    use super::{VerifyTomlItem, deserialize_toml};
+    use toml_pretty_deser::DeserError;
 
     #[derive(Debug, Tpd)]
     #[tpd(root)]
@@ -1179,10 +1170,10 @@ mod absord {
 }
 
 mod with {
-    use toml_pretty_deser::{DeserError, TomlHelper, TomlValue, TomlValueState};
+    use toml_pretty_deser::{DeserError, TomlValue, TomlValueState};
     use toml_pretty_deser_macros::Tpd;
 
-    use crate::{TpdDeserializeStruct, VerifyTomlItem, deserialize_toml};
+    use crate::{VerifyTomlItem, deserialize_toml};
 
     //user code
 
@@ -1273,10 +1264,10 @@ mod with {
 }
 
 mod skip_and_default {
-    use toml_pretty_deser::{DeserError, TomlHelper, TomlValue};
+    use toml_pretty_deser::{DeserError, TomlHelper};
     use toml_pretty_deser_macros::Tpd;
 
-    use crate::{TpdDeserializeStruct, VerifyTomlItem, deserialize_toml};
+    use crate::{VerifyTomlItem, deserialize_toml};
 
     //user code.
     #[derive(Debug)]
