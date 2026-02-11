@@ -479,12 +479,14 @@ impl FromTomlItem for PartialTaggedEnum {
     }
 }
 
-fn deserialize(
-    toml_str: &str,
-    field_match_mode: toml_pretty_deser::FieldMatchMode,
-    vec_mode: toml_pretty_deser::VecMode,
-) -> Result<Outer, DeserError<PartialOuter>> {
-    deserialize_toml::<PartialOuter>(toml_str, field_match_mode, vec_mode)
+impl Outer {
+    fn deserialize(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<Outer, DeserError<PartialOuter>> {
+        deserialize_toml::<PartialOuter>(toml_str, field_match_mode, vec_mode)
+}
 }
 
 mod other {
@@ -571,7 +573,7 @@ fn test_basic_happy() {
             kind = 'KindA'
             a = 100
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -605,7 +607,7 @@ fn test_basic_alias() {
             kind = 'KindB'
             b = 200
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -637,7 +639,7 @@ fn test_basic_missing() {
         [nested_struct.double]
             double_u8 = 6
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -673,7 +675,7 @@ fn test_basic_unknown() {
             a = 10
             kind = 'KindA'
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -709,7 +711,7 @@ fn test_basic_unknown_in_nested() {
             a = 10
             kind = 'KindA'
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -745,7 +747,7 @@ fn test_error_in_vec() {
             a = 10
             kind = 'KindA'
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -835,7 +837,7 @@ fn test_tagged_enum_kind_a() {
             kind = 'KindA'
             a = 10
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -870,7 +872,7 @@ fn test_tagged_enum_kind_b() {
             kind = 'KindB'
             b = 20
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -905,7 +907,7 @@ fn test_tagged_enum_invalid_kind() {
             kind = 'InvalidKind'
             a = 10
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,
@@ -936,7 +938,7 @@ fn test_tagged_enum_struct_fail() {
             kind = 'KindA'
             b = 10
     ";
-    let parsed = deserialize(
+    let parsed = Outer::deserialize(
         toml,
         toml_pretty_deser::FieldMatchMode::Exact,
         toml_pretty_deser::VecMode::Strict,

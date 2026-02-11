@@ -274,9 +274,10 @@ impl HydratedAnnotatedError {
 }
 
 /// Stores information about expected fields and their aliases
+/// For deny_uknown.
 #[doc(hidden)]
 #[derive(Debug, Clone)]
-pub struct FieldInfo {
+struct FieldInfo {
     pub name: String,
     pub aliases: Vec<&'static str>,
 }
@@ -287,12 +288,6 @@ impl FieldInfo {
             name: name.into(),
             aliases: Vec::new(),
         }
-    }
-
-    #[must_use]
-    pub fn with_alias(mut self, alias: &'static str) -> Self {
-        self.aliases.push(alias);
-        self
     }
 
     #[must_use]

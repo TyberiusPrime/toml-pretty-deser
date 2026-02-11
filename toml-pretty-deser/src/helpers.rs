@@ -92,6 +92,9 @@ pub trait TpdDeserializeStruct: Default {
     type Concrete;
     fn fill_fields(&mut self, helper: &mut TomlHelper<'_>);
     fn can_concrete(&self) -> bool;
+    /// 
+    /// # Panics
+    /// When can_concrete() return false and it's nevertheless called
     fn to_concrete(self) -> Self::Concrete;
     fn register_errors(&self, col: &TomlCollector);
 }

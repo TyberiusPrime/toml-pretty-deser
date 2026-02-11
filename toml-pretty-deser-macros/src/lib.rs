@@ -202,7 +202,10 @@ fn leaf_type_name(ty: &Type) -> String {
             return last.ident.to_string();
         }
     }
-    panic!("Cannot extract type name from {:?}", quote!(#ty).to_string());
+    panic!(
+        "Cannot extract type name from {:?}",
+        quote!(#ty).to_string()
+    );
 }
 
 /// Generate the partial type for a field's inner type (inside the outer TomlValue wrapper)
@@ -310,11 +313,8 @@ fn gen_concrete_inner(
         }
         TypeKind::Vector(inner) => {
             if needs_manual_conversion(inner, has_partial) || has_container(inner) {
-                let inner_conv = gen_concrete_inner(
-                    quote! { __v.value.unwrap() },
-                    inner,
-                    has_partial,
-                );
+                let inner_conv =
+                    gen_concrete_inner(quote! { __v.value.unwrap() }, inner, has_partial);
                 quote! {
                     #expr.into_iter().map(|__v| #inner_conv).collect()
                 }
@@ -324,11 +324,8 @@ fn gen_concrete_inner(
         }
         TypeKind::Map(_, inner) => {
             if needs_manual_conversion(inner, has_partial) || has_container(inner) {
-                let inner_conv = gen_concrete_inner(
-                    quote! { __v.value.unwrap() },
-                    inner,
-                    has_partial,
-                );
+                let inner_conv =
+                    gen_concrete_inner(quote! { __v.value.unwrap() }, inner, has_partial);
                 quote! {
                     #expr.into_iter().map(|(__k, __v)| (__k, #inner_conv)).collect()
                 }
@@ -382,20 +379,19 @@ fn gen_register_errors(
         DescentKind::TpdDeserialize => {
             quote! {
                 #base_register
-                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state {
-                    if let Some(ref inner) = self.#field_ident.value {
+                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
+                        && let Some(ref inner) = self.#field_ident.value {
                         toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
-                    }
+
                 }
             }
         }
         DescentKind::Inherent => {
             quote! {
                 #base_register
-                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state {
-                    if let Some(ref inner) = self.#field_ident.value {
+                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state 
+                    && let Some(ref inner) = self.#field_ident.value {
                         inner.register_errors(col);
-                    }
                 }
             }
         }
@@ -906,10 +902,17 @@ fn derive_tagged_enum(input: DeriveInput, enum_attrs: EnumAttrs) -> TokenStream 
         .map(|v| {
             let inner_type = match &v.fields {
                 Fields::Unnamed(fields) => {
-                    assert_eq!(fields.unnamed.len(), 1, "Tagged enum variants must have exactly one unnamed field");
+                    assert_eq!(
+                        fields.unnamed.len(),
+                        1,
+                        "Tagged enum variants must have exactly one unnamed field"
+                    );
                     fields.unnamed.first().unwrap().ty.clone()
                 }
-                _ => panic!("Tagged enum variants must have exactly one unnamed field: {}(InnerType)", v.ident),
+                _ => panic!(
+                    "Tagged enum variants must have exactly one unnamed field: {}(InnerType)",
+                    v.ident
+                ),
             };
             TaggedVariantInfo {
                 ident: v.ident.clone(),

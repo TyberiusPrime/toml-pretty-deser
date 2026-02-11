@@ -1180,7 +1180,7 @@ mod with {
     #[derive(Debug, Tpd)]
     #[tpd(root)]
     struct Funky {
-        #[tpd(with = "adapt_from_string", from = "String")]
+        #[tpd(with = "adapt_from_string")]
         value: i64,
         #[tpd(with = "adapt_double")]
         double: i64,
