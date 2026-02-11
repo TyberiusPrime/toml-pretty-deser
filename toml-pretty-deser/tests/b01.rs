@@ -58,6 +58,20 @@ struct DoubleNestedStruct {
 }
 impl VerifyTomlItem<PartialNestedStruct> for PartialDoubleNestedStruct { }
 
+impl VerifyTomlItem<PartialOuter> for PartialDoubleNestedStruct {
+    fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &PartialOuter) -> Self
+    where
+        Self: Sized,
+    {
+        if let Some(value) = self.double_u8.as_mut()
+            && let Some(parent_value) = partial.a_u8.value
+        {
+            *value += parent_value  * 2;
+        }
+        self
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 #[tpd]
 enum AnEnum {
@@ -126,7 +140,7 @@ fn test_basic_happy() {
         assert_eq!(inner.simple_enum, AnEnum::TypeA);
         assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
-        assert_eq!(inner.nested_struct.double.double_u8, 6);
+        assert_eq!(inner.nested_struct.double.double_u8, 8);
     }
 }
 #[test]
@@ -160,7 +174,7 @@ fn test_basic_alias() {
         assert_eq!(inner.simple_enum, AnEnum::TypeB);
         //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
-        assert_eq!(inner.nested_struct.double.double_u8, 6);
+        assert_eq!(inner.nested_struct.double.double_u8, 8);
     }
 }
 
