@@ -70,7 +70,6 @@ struct FieldAttrs {
     skip: bool,
     default: bool,
     with_fn: Option<String>,
-    from_type: Option<String>,
     absorb_remaining: bool,
 }
 
@@ -103,12 +102,6 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
                 let lit: Lit = value.parse().unwrap();
                 if let Lit::Str(s) = lit {
                     attrs.with_fn = Some(s.value());
-                }
-            } else if meta.path.is_ident("from") {
-                let value = meta.value().unwrap();
-                let lit: Lit = value.parse().unwrap();
-                if let Lit::Str(s) = lit {
-                    attrs.from_type = Some(s.value());
                 }
             } else if meta.path.is_ident("alias") {
                 // #[tpd(alias("name1", "name2"))]
@@ -389,7 +382,7 @@ fn gen_register_errors(
         DescentKind::Inherent => {
             quote! {
                 #base_register
-                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state 
+                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
                     && let Some(ref inner) = self.#field_ident.value {
                         inner.register_errors(col);
                 }
@@ -483,22 +476,11 @@ fn derive_struct(input: DeriveInput) -> TokenStream {
             if let Some(ref with_fn) = f.attrs.with_fn {
                 let with_fn_ident: syn::Path = syn::parse_str(with_fn).unwrap();
 
-                if let Some(ref from_type) = f.attrs.from_type {
-                    // with + from: get as from_type, then apply adapter
-                    let from_ty: Type = syn::parse_str(from_type).unwrap();
-                    let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
-                    quote! {
-                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
-                            #with_fn_ident(helper.get_with_aliases::<#from_ty>(#field_name_str, #aliases_expr))
-                        }
-                    }
-                } else {
-                    // with only: get as field type, then apply adapter
-                    let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
-                    quote! {
-                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
-                            #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr))
-                        }
+                // with only: get as field type, then apply adapter
+                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
+                quote! {
+                    fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
+                        #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr))
                     }
                 }
             } else if f.attrs.default {
