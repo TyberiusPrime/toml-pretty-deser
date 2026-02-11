@@ -5,15 +5,13 @@ use syn::{
     parse_macro_input,
 };
 
-/// Derive macro for generating TOML deserialization code.
+/// Attribute macro for generating TOML deserialization code.
 ///
-/// # Struct-level attributes
-/// - `#[tpd(root)]` - Top-level deserialization target (generates `TpdDeserializeStruct`)
-/// - No `root` - Nested struct (generates `FromTomlTable` + `FromTomlItem`)
-///
-/// # Enum-level attributes
-/// - `#[tpd(tag = "key")]` - Tagged enum with tag field name
-/// - No `tag` - Simple string enum (generates `FromTomlItem`)
+/// # Usage
+/// - `#[tpd(root)]` on struct - Top-level deserialization target
+/// - `#[tpd]` on struct - Nested struct
+/// - `#[tpd(tag = "key")]` on enum - Tagged enum
+/// - `#[tpd]` on enum - Simple string enum
 ///
 /// # Field-level attributes
 /// - `#[tpd(nested)]` - Type has a Partial variant (nested struct or tagged enum)
@@ -26,13 +24,14 @@ use syn::{
 ///
 /// # Variant-level attributes (simple enum)
 /// - `#[tpd(alias("name1", "name2"))]` - Variant aliases
-#[proc_macro_derive(Tpd, attributes(tpd))]
-pub fn derive_tpd(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+#[proc_macro_attribute]
+pub fn tpd(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    let attr_args = attr.to_string();
     match &input.data {
-        Data::Struct(_) => derive_struct(input),
-        Data::Enum(_) => derive_enum(input),
-        Data::Union(_) => panic!("Tpd cannot be derived for unions"),
+        Data::Struct(_) => derive_struct(input, &attr_args),
+        Data::Enum(_) => derive_enum(input, &attr_args),
+        Data::Union(_) => panic!("tpd cannot be applied to unions"),
     }
 }
 
@@ -40,26 +39,46 @@ pub fn derive_tpd(input: TokenStream) -> TokenStream {
 // Attribute parsing
 // ============================================================================
 
-#[derive(Default)]
-struct StructAttrs {
-    is_root: bool,
+/// Parse top-level attribute args (the content inside `#[tpd(...)]`)
+fn is_root_attr(attr_args: &str) -> bool {
+    attr_args.contains("root")
 }
 
-fn parse_struct_attrs(input: &DeriveInput) -> StructAttrs {
-    let mut attrs = StructAttrs::default();
-    for attr in &input.attrs {
-        if !attr.path().is_ident("tpd") {
-            continue;
-        }
-        attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("root") {
-                attrs.is_root = true;
+/// Strip #[tpd(...)] attributes from a DeriveInput and return the cleaned item as tokens
+fn emit_original_item(input: &DeriveInput) -> proc_macro2::TokenStream {
+    let mut cleaned = input.clone();
+    // Remove #[tpd(...)] from item-level attrs (already consumed by proc_macro_attribute)
+    cleaned.attrs.retain(|a| !a.path().is_ident("tpd"));
+    // Remove #[tpd(...)] from fields/variants
+    match &mut cleaned.data {
+        Data::Struct(data) => {
+            if let Fields::Named(named) = &mut data.fields {
+                for field in &mut named.named {
+                    field.attrs.retain(|a| !a.path().is_ident("tpd"));
+                }
             }
-            Ok(())
-        })
-        .unwrap();
+        }
+        Data::Enum(data) => {
+            for variant in &mut data.variants {
+                variant.attrs.retain(|a| !a.path().is_ident("tpd"));
+                match &mut variant.fields {
+                    Fields::Named(named) => {
+                        for field in &mut named.named {
+                            field.attrs.retain(|a| !a.path().is_ident("tpd"));
+                        }
+                    }
+                    Fields::Unnamed(unnamed) => {
+                        for field in &mut unnamed.unnamed {
+                            field.attrs.retain(|a| !a.path().is_ident("tpd"));
+                        }
+                    }
+                    Fields::Unit => {}
+                }
+            }
+        }
+        Data::Union(_) => {}
     }
-    attrs
+    quote! { #cleaned }
 }
 
 #[derive(Default)]
@@ -402,8 +421,9 @@ fn gen_register_errors(
 // Struct derivation
 // ============================================================================
 
-fn derive_struct(input: DeriveInput) -> TokenStream {
-    let struct_attrs = parse_struct_attrs(&input);
+fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
+    let original_item = emit_original_item(&input);
+    let is_root = is_root_attr(attr_args);
     let name = &input.ident;
     let partial_name = format_ident!("Partial{}", name);
     let vis = &input.vis;
@@ -555,7 +575,7 @@ fn derive_struct(input: DeriveInput) -> TokenStream {
         })
         .collect();
 
-    if struct_attrs.is_root {
+    if is_root {
         // Root struct: generate TpdDeserializeStruct
 
         // Generate fill_fields body
@@ -597,6 +617,8 @@ fn derive_struct(input: DeriveInput) -> TokenStream {
         let absorb_stmts: Vec<_> = absorb_stmts.into_iter().map(|(s, _)| s).collect();
 
         let output = quote! {
+            #original_item
+
             #[derive(Default, Debug)]
             #vis struct #partial_name {
                 #(#partial_fields,)*
@@ -659,6 +681,8 @@ fn derive_struct(input: DeriveInput) -> TokenStream {
             .collect();
 
         let output = quote! {
+            #original_item
+
             #[derive(Default, Debug)]
             #vis struct #partial_name {
                 #(#partial_fields,)*
@@ -712,30 +736,23 @@ fn derive_struct(input: DeriveInput) -> TokenStream {
 // Enum derivation
 // ============================================================================
 
-#[derive(Default)]
-struct EnumAttrs {
-    tag: Option<String>,
-}
-
-fn parse_enum_attrs(input: &DeriveInput) -> EnumAttrs {
-    let mut attrs = EnumAttrs::default();
-    for attr in &input.attrs {
-        if !attr.path().is_ident("tpd") {
-            continue;
-        }
-        attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("tag") {
-                let value = meta.value().unwrap();
-                let lit: Lit = value.parse().unwrap();
-                if let Lit::Str(s) = lit {
-                    attrs.tag = Some(s.value());
-                }
-            }
-            Ok(())
-        })
-        .unwrap();
+/// Parse tag = "key" from attribute args string like `tag = "kind"`
+fn parse_tag_from_attr(attr_args: &str) -> Option<String> {
+    let attr_args = attr_args.trim();
+    if attr_args.is_empty() {
+        return None;
     }
-    attrs
+    // Parse: tag = "value"
+    let meta: syn::Meta = syn::parse_str(&format!("tpd({})", attr_args)).unwrap();
+    if let syn::Meta::List(list) = meta {
+        let nested: syn::MetaNameValue = syn::parse2(list.tokens).unwrap();
+        if nested.path.is_ident("tag") {
+            if let syn::Expr::Lit(syn::ExprLit { lit: Lit::Str(s), .. }) = &nested.value {
+                return Some(s.value());
+            }
+        }
+    }
+    None
 }
 
 struct VariantAttrs {
@@ -770,17 +787,18 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
     attrs
 }
 
-fn derive_enum(input: DeriveInput) -> TokenStream {
-    let enum_attrs = parse_enum_attrs(&input);
+fn derive_enum(input: DeriveInput, attr_args: &str) -> TokenStream {
+    let tag = parse_tag_from_attr(attr_args);
 
-    if enum_attrs.tag.is_some() {
-        derive_tagged_enum(input, enum_attrs)
+    if tag.is_some() {
+        derive_tagged_enum(input, tag.unwrap())
     } else {
         derive_simple_enum(input)
     }
 }
 
 fn derive_simple_enum(input: DeriveInput) -> TokenStream {
+    let original_item = emit_original_item(&input);
     let name = &input.ident;
 
     let variants = match &input.data {
@@ -843,6 +861,8 @@ fn derive_simple_enum(input: DeriveInput) -> TokenStream {
         .collect();
 
     let output = quote! {
+        #original_item
+
         impl toml_pretty_deser::FromTomlItem for #name {
             fn from_toml_item(
                 item: &toml_edit::Item,
@@ -869,10 +889,10 @@ fn derive_simple_enum(input: DeriveInput) -> TokenStream {
     output.into()
 }
 
-fn derive_tagged_enum(input: DeriveInput, enum_attrs: EnumAttrs) -> TokenStream {
+fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
+    let original_item = emit_original_item(&input);
     let name = &input.ident;
     let partial_name = format_ident!("Partial{}", name);
-    let tag_key = enum_attrs.tag.unwrap();
     let vis = &input.vis;
 
     let variants = match &input.data {
@@ -976,6 +996,8 @@ fn derive_tagged_enum(input: DeriveInput, enum_attrs: EnumAttrs) -> TokenStream 
         .collect();
 
     let output = quote! {
+        #original_item
+
         #[derive(Debug)]
         #vis enum #partial_name {
             #(#partial_variants,)*

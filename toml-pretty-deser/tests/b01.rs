@@ -7,10 +7,10 @@ use toml_pretty_deser::{
 //library code
 //
 use toml_pretty_deser::helpers::{FromTomlTable, deserialize_toml};
-use toml_pretty_deser_macros::Tpd;
+use toml_pretty_deser_macros::tpd;
 
 // USER Code
-#[derive(Debug, Tpd)]
+#[derive(Debug)]
 #[tpd(root)]
 struct Outer {
     #[tpd(alias("u8"))]
@@ -27,7 +27,8 @@ struct Outer {
 
 impl VerifyTomlItem<()> for PartialOuter {}
 
-#[derive(Debug, Tpd)]
+#[derive(Debug)]
+#[tpd]
 struct NestedStruct {
     other_u8: u8,
     #[tpd(nested)]
@@ -46,31 +47,35 @@ impl VerifyTomlItem<PartialOuter> for PartialNestedStruct {
     }
 }
 
-#[derive(Debug, Tpd)]
+#[derive(Debug)]
+#[tpd]
 struct DoubleNestedStruct {
     double_u8: u8,
 }
 
-#[derive(Debug, PartialEq, Eq, Tpd)]
+#[derive(Debug, PartialEq, Eq)]
+#[tpd]
 enum AnEnum {
     TypeA,
     #[tpd(alias("Bbb"))]
     TypeB,
 }
 
-#[derive(Debug, Tpd)]
+#[derive(Debug)]
 #[tpd(tag = "kind")]
 enum TaggedEnum {
     KindA(InnerA),
     KindB(InnerB),
 }
 
-#[derive(Debug, Tpd)]
+#[derive(Debug)]
+#[tpd]
 struct InnerA {
     a: u8,
 }
 
-#[derive(Debug, Tpd)]
+#[derive(Debug)]
+#[tpd]
 struct InnerB {
     b: u8,
 }
@@ -86,10 +91,10 @@ fn deserialize(
 mod other {
     use super::{NestedStruct, PartialNestedStruct, VerifyTomlItem, deserialize_toml};
     use toml_pretty_deser::DeserError;
-    use toml_pretty_deser_macros::Tpd;
+    use toml_pretty_deser_macros::tpd;
 
     //User code
-    #[derive(Debug, Tpd)]
+    #[derive(Debug)]
     #[tpd(root)]
     pub struct OtherOuter {
         #[tpd(nested)]
@@ -727,7 +732,7 @@ fn test_map_of_nested_structs() {
 
 // Advanced test with all the complex types
 //user code
-#[derive(Debug, Tpd)]
+#[derive(Debug)]
 #[tpd(root)]
 struct AdvancedOuter {
     boxed_u8: Box<u8>,
@@ -1086,12 +1091,12 @@ a = 99
 
 mod absord {
     use indexmap::IndexMap;
-    use toml_pretty_deser_macros::Tpd;
+    use toml_pretty_deser_macros::tpd;
 
     use super::{VerifyTomlItem, deserialize_toml};
     use toml_pretty_deser::DeserError;
 
-    #[derive(Debug, Tpd)]
+    #[derive(Debug)]
     #[tpd(root)]
     struct Absorber {
         a_u8: u8,
@@ -1171,13 +1176,13 @@ mod absord {
 
 mod with {
     use toml_pretty_deser::{DeserError, TomlValue, TomlValueState};
-    use toml_pretty_deser_macros::Tpd;
+    use toml_pretty_deser_macros::tpd;
 
     use crate::{VerifyTomlItem, deserialize_toml};
 
     //user code
 
-    #[derive(Debug, Tpd)]
+    #[derive(Debug)]
     #[tpd(root)]
     struct Funky {
         #[tpd(with = "adapt_from_string")]
@@ -1265,7 +1270,7 @@ mod with {
 
 mod skip_and_default {
     use toml_pretty_deser::{DeserError, TomlHelper};
-    use toml_pretty_deser_macros::Tpd;
+    use toml_pretty_deser_macros::tpd;
 
     use crate::{VerifyTomlItem, deserialize_toml};
 
@@ -1279,7 +1284,7 @@ mod skip_and_default {
         }
     }
 
-    #[derive(Debug, Tpd)]
+    #[derive(Debug)]
     #[tpd(root)]
     struct WithDefaults {
         a_u32: u32,
