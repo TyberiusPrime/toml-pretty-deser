@@ -3,7 +3,10 @@ use std::{cell::RefCell, rc::Rc};
 use indexmap::IndexMap;
 use toml_edit::Document;
 
-use crate::{AsTableLikePlus, DeserError, FieldMatchMode, TomlCollector, TomlHelper, TomlValue, TomlValueState, VecMode, VerifyTomlItem};
+use crate::{
+    AsTableLikePlus, DeserError, FieldMatchMode, TomlCollector, TomlHelper, TomlValue,
+    TomlValueState, VecMode, VerifyTomlItem,
+};
 
 pub trait FromTomlTable: Sized {
     fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self>;
@@ -44,7 +47,7 @@ pub fn verify_struct<T: VerifyTomlItem<R> + FromTomlTable + std::fmt::Debug, R>(
 ) -> TomlValue<T> {
     if temp.value.is_some() {
         let span = temp.span();
-        let res = temp.value.unwrap().verify_struct(helper, parent);
+        let res = temp.value.unwrap().verify_struct(helper, parent); //that's the user implemented verify.
         if !res.can_concrete() {
             TomlValue {
                 value: Some(res),
@@ -75,7 +78,10 @@ macro_rules! impl_from_toml_item_for_table {
     };
 }
 
-pub fn finalize_nested_field<T: FromTomlTable>(field: &mut TomlValue<T>, helper: &mut TomlHelper<'_>) {
+pub fn finalize_nested_field<T: FromTomlTable>(
+    field: &mut TomlValue<T>,
+    helper: &mut TomlHelper<'_>,
+) {
     if let Some(inner) = field.value.as_ref() {
         if inner.can_concrete() {
             if helper.no_unknown() {
@@ -170,5 +176,3 @@ pub fn deserialize_toml<P: TpdDeserializeStruct + VerifyTomlItem<()>>(
         ))
     }
 }
-
-

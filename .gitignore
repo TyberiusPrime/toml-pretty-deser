@@ -5,3 +5,4 @@ target*/
 **/.bacon-locations
 mutants.out
 mutants.out*
+t.rs

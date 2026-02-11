@@ -1,4 +1,3 @@
-
 /// Controls how field names are matched against TOML keys
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldMatchMode {
@@ -133,4 +132,3 @@ fn format_quoted_list(items: &[&str]) -> String {
         }
     }
 }
-

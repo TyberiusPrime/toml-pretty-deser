@@ -6,7 +6,6 @@ use toml_pretty_deser::{
 };
 //library code
 //
-use toml_pretty_deser::helpers::FromTomlTable;
 use toml_pretty_deser_macros::tpd;
 
 // USER Code
@@ -29,14 +28,10 @@ impl VerifyTomlItem<()> for PartialOuter {}
 
 #[derive(Debug)]
 #[tpd]
-#[tpd(root)]
 struct NestedStruct {
     other_u8: u8,
     #[tpd(nested)]
     double: DoubleNestedStruct,
-}
-
-impl VerifyTomlItem<()> for PartialNestedStruct {
 }
 
 impl VerifyTomlItem<PartialOuter> for PartialNestedStruct {
@@ -54,19 +49,18 @@ impl VerifyTomlItem<PartialOuter> for PartialNestedStruct {
 #[derive(Debug)]
 #[tpd]
 struct DoubleNestedStruct {
-    double_u8: u8,
+    double_u8: u16,
 }
-impl VerifyTomlItem<PartialNestedStruct> for PartialDoubleNestedStruct { }
 
-impl VerifyTomlItem<PartialOuter> for PartialDoubleNestedStruct {
-    fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &PartialOuter) -> Self
+impl VerifyTomlItem<PartialNestedStruct> for PartialDoubleNestedStruct {
+    fn verify_struct(mut self, _helper: &mut TomlHelper<'_>, partial: &PartialNestedStruct) -> Self
     where
         Self: Sized,
     {
         if let Some(value) = self.double_u8.as_mut()
-            && let Some(parent_value) = partial.a_u8.value
+            && let Some(parent_value) = partial.other_u8.value
         {
-            *value += parent_value  * 2;
+            *value += parent_value as u16 * 2;
         }
         self
     }
@@ -93,21 +87,21 @@ struct InnerA {
     a: u8,
 }
 
+impl VerifyTomlItem<PartialOuter> for PartialInnerA {
+    fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &PartialOuter) -> Self
+    where
+        Self: Sized,
+    {
+        self
+    }
+}
+impl VerifyTomlItem<PartialOuter> for PartialInnerB {}
+
 #[derive(Debug)]
 #[tpd]
 struct InnerB {
     b: u8,
 }
-
-//User code
-#[derive(Debug)]
-#[tpd(root)]
-struct OtherOuter {
-    #[tpd(nested)]
-    pub nested_struct: NestedStruct,
-}
-impl VerifyTomlItem<()> for PartialOtherOuter {}
-impl VerifyTomlItem<PartialOtherOuter> for PartialNestedStruct {}
 
 #[test]
 fn test_basic_happy() {
@@ -140,7 +134,7 @@ fn test_basic_happy() {
         assert_eq!(inner.simple_enum, AnEnum::TypeA);
         assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
-        assert_eq!(inner.nested_struct.double.double_u8, 8);
+        assert_eq!(inner.nested_struct.double.double_u8, 6 + 5 * 2);
     }
 }
 #[test]
@@ -174,7 +168,7 @@ fn test_basic_alias() {
         assert_eq!(inner.simple_enum, AnEnum::TypeB);
         //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
-        assert_eq!(inner.nested_struct.double.double_u8, 8);
+        assert_eq!(inner.nested_struct.double.double_u8, 6 + 5 * 2);
     }
 }
 
@@ -345,31 +339,8 @@ fn test_error_in_vec() {
                 .value
                 .as_ref()
                 .unwrap(),
-            &6
+            &(16)
         );
-    }
-}
-
-#[test]
-fn test_2nd_type() {
-    let toml = "
-        [nested_struct]
-            other_u8 = 5
-        [nested_struct.double]
-            double_u8 = 6
-
-
-    ";
-    let parsed = {
-        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
-        let vec_mode = toml_pretty_deser::VecMode::Strict;
-        OtherOuter::from_toml_str(toml, field_match_mode, vec_mode)
-    };
-    dbg!(&parsed);
-    assert!(parsed.is_ok());
-    if let Ok(inner) = parsed {
-        assert_eq!(inner.nested_struct.other_u8, 5); // no add 1 here
-        assert_eq!(inner.nested_struct.double.double_u8, 6);
     }
 }
 
@@ -503,6 +474,22 @@ fn test_tagged_enum_struct_fail() {
         insta::assert_snapshot!(pretty);
     }
 }
+impl VerifyTomlItem<PartialOuter> for PartialTaggedEnum {
+    fn verify_struct(self, helper: &mut TomlHelper<'_>, partial: &PartialOuter) -> Self
+    where
+        Self: Sized,
+    {
+        match self {
+            PartialTaggedEnum::KindA(partial_inner_a) => {
+                PartialTaggedEnum::KindA(partial_inner_a.verify_struct(helper, partial))
+            }
+            PartialTaggedEnum::KindB(partial_inner_b) => {
+                PartialTaggedEnum::KindB(partial_inner_b.verify_struct(helper, partial))
+            }
+        }
+        //self
+    }
+}
 #[test]
 fn test_vec_of_tagged_enums() {
     // Demonstrate that FromTomlItem works with Vec<TaggedEnum>
@@ -599,7 +586,7 @@ fn test_vec_of_nested_structs() {
             .unwrap()
             .double_u8
             .value,
-        Some(11)
+        Some(11 + 2 * 10)
     );
 
     assert_eq!(vec[1].as_ref().unwrap().other_u8.value, Some(20));
@@ -613,7 +600,7 @@ fn test_vec_of_nested_structs() {
             .unwrap()
             .double_u8
             .value,
-        Some(21)
+        Some(21 + 2 * 20)
     );
 
     assert_eq!(vec[2].as_ref().unwrap().other_u8.value, Some(30));
@@ -627,7 +614,7 @@ fn test_vec_of_nested_structs() {
             .unwrap()
             .double_u8
             .value,
-        Some(31)
+        Some(31 + 2 * 30)
     );
 }
 
@@ -661,7 +648,7 @@ fn test_option_nested_struct() {
     assert_eq!(nested.other_u8.value, Some(42));
     assert_eq!(
         nested.double.value.as_ref().unwrap().double_u8.value,
-        Some(43)
+        Some(43 + 42 * 2)
     );
 }
 
@@ -708,7 +695,7 @@ fn test_map_of_nested_structs() {
             .unwrap()
             .double_u8
             .value,
-        Some(101)
+        Some(101 + 2 * 100)
     );
 
     let second = map.get("second").unwrap();
@@ -723,7 +710,7 @@ fn test_map_of_nested_structs() {
             .unwrap()
             .double_u8
             .value,
-        Some(201)
+        Some(201 + 2 * 200)
     );
 }
 
@@ -880,7 +867,7 @@ a = 99
             }
         }
     }
-    dbg!(&result);
+    //dbg!(&result);
     assert!(result.is_ok());
 
     if let Ok(outer) = result {
@@ -890,9 +877,9 @@ a = 99
         // Test Vec<NestedStruct>
         assert_eq!(outer.vec_nested.len(), 2);
         assert_eq!(outer.vec_nested[0].other_u8, 10);
-        assert_eq!(outer.vec_nested[0].double.double_u8, 11);
+        assert_eq!(outer.vec_nested[0].double.double_u8, 31);
         assert_eq!(outer.vec_nested[1].other_u8, 20);
-        assert_eq!(outer.vec_nested[1].double.double_u8, 21);
+        assert_eq!(outer.vec_nested[1].double.double_u8, 61);
 
         // Test Vec<AnEnum>
         assert_eq!(outer.vec_enum.len(), 3);
@@ -915,10 +902,10 @@ a = 99
         assert_eq!(outer.map_nested.len(), 2);
         let first = outer.map_nested.get("first").unwrap();
         assert_eq!(first.other_u8, 30);
-        assert_eq!(first.double.double_u8, 31);
+        assert_eq!(first.double.double_u8, 91);
         let second = outer.map_nested.get("second").unwrap();
         assert_eq!(second.other_u8, 40);
-        assert_eq!(second.double.double_u8, 41);
+        assert_eq!(second.double.double_u8, 121);
 
         // Test IndexMap<String, AnEnum>
         assert_eq!(outer.map_enum.len(), 2);
@@ -941,13 +928,13 @@ a = 99
         let group1 = outer.map_vec_nested.get("group1").unwrap();
         assert_eq!(group1.len(), 2);
         assert_eq!(group1[0].other_u8, 50);
-        assert_eq!(group1[0].double.double_u8, 51);
+        assert_eq!(group1[0].double.double_u8, 151);
         assert_eq!(group1[1].other_u8, 52);
-        assert_eq!(group1[1].double.double_u8, 53);
+        assert_eq!(group1[1].double.double_u8, 157);
         let group2 = outer.map_vec_nested.get("group2").unwrap();
         assert_eq!(group2.len(), 1);
         assert_eq!(group2[0].other_u8, 60);
-        assert_eq!(group2[0].double.double_u8, 61);
+        assert_eq!(group2[0].double.double_u8, 181);
 
         // Test IndexMap<String, Vec<AnEnum>>
         assert_eq!(outer.map_vec_enum.len(), 2);
@@ -985,7 +972,7 @@ a = 99
         assert_eq!(outer.opt_vec_nested.as_ref().unwrap()[0].other_u8, 12);
         assert_eq!(
             outer.opt_vec_nested.as_ref().unwrap()[0].double.double_u8,
-            12
+            36
         );
         assert!(outer.opt_vec_enum.is_some());
         assert_eq!(outer.opt_vec_enum.as_ref().unwrap().len(), 2);
@@ -1019,7 +1006,7 @@ a = 99
                 .unwrap()
                 .double
                 .double_u8,
-            14
+            40
         );
         assert!(outer.opt_map_enum.is_some());
         assert_eq!(outer.opt_map_enum.as_ref().unwrap().len(), 1);
@@ -1073,7 +1060,7 @@ a = 99
                 .unwrap()[0]
                 .double
                 .double_u8,
-            255
+            699
         );
     }
 }
@@ -1285,12 +1272,60 @@ mod skip_and_default {
             let vec_mode = toml_pretty_deser::VecMode::Strict;
             WithDefaults::from_toml_str(toml, field_match_mode, vec_mode)
         };
+        dbg!(&parsed);
         assert!(parsed.is_ok());
         if let Ok(inner) = parsed {
             assert_eq!(inner.a_u32, 1230000000);
             assert_eq!(inner.default_u32, 0); //default value
             assert_eq!(inner.default_in_verify_u32, 39); //default value
             assert_eq!(inner.skipped_u32.0, 100); //default for skipped field
+        }
+    }
+}
+
+mod VerifyOnNested {
+    use toml_pretty_deser::{TomlHelper, VerifyTomlItem};
+    use toml_pretty_deser_macros::tpd;
+
+    #[tpd(root)]
+    #[derive(Debug)]
+    struct Outer {
+        #[tpd(nested)]
+        inner: Vec<Inner>,
+    }
+    #[tpd]
+    #[derive(Debug)]
+    struct Inner {
+        value: u16,
+    }
+
+    impl VerifyTomlItem<()> for PartialOuter {}
+    impl VerifyTomlItem<PartialOuter> for PartialInner {
+        fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &PartialOuter) -> Self {
+            //add 1 to value
+            self.value = self.value.map(helper, |x| Ok(x + 10));
+            self
+        }
+    }
+
+    #[test]
+    fn test_inner_vec() {
+        let toml = "
+                inner = [
+                    {value = 2},
+                    {value = 3}
+                ]
+            ";
+        let parsed = Outer::from_toml_str(
+            toml,
+            toml_pretty_deser::FieldMatchMode::Exact,
+            toml_pretty_deser::VecMode::Strict,
+        );
+        assert!(parsed.is_ok());
+        if let Ok(outer) = parsed {
+            assert_eq!(outer.inner.len(), 2);
+            assert_eq!(outer.inner[0].value, 12); //2 + 1 from verify
+            assert_eq!(outer.inner[1].value, 13); //3 + 1 from verify
         }
     }
 }

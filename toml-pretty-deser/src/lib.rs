@@ -9,8 +9,8 @@ pub mod prelude;
 mod tablelike;
 pub use from_item::FromTomlItem;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
-pub mod helpers;
 mod case;
+pub mod helpers;
 
 pub use case::{FieldMatchMode, suggest_alternatives};
 
@@ -833,14 +833,14 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub fn convert_failed_type<S>(self) -> TomlValue<S> {
-        match self.state {
+    pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
+        match &self.state {
             TomlValueState::Ok { span } => {
                 panic!("called convert_failed_type on a TomlValue that is Ok. Span was: {span:?}")
             }
             _ => TomlValue {
                 value: None,
-                state: self.state,
+                state: self.state.clone(),
             },
         }
     }
@@ -865,9 +865,9 @@ impl<T> TomlValue<T> {
                 value: Some(None),
                 state: TomlValueState::Ok { span: parent_span },
             },
-            TomlValueState::Nested{} => TomlValue {
+            TomlValueState::Nested {} => TomlValue {
                 value: Some(self.value),
-                state: TomlValueState::Nested{},
+                state: TomlValueState::Nested {},
             },
             _ => TomlValue {
                 value: None,
@@ -1007,6 +1007,37 @@ impl<T> TomlValue<T> {
             _ => self,
         }
     }
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
+    pub fn map<F, P>(&self, _helper: &mut TomlHelper, verification_func: F) -> TomlValue<P>
+    where
+        F: FnOnce(&T) -> Result<P, (String, Option<String>)>,
+    {
+        match &self.state {
+            TomlValueState::Ok { span } => match verification_func(
+                self.value
+                    .as_ref()
+                    .expect("None value on TomlValueState::Ok"),
+            ) {
+                Ok(value) => TomlValue::new_ok(
+                    value,
+                    span.clone(),
+                ),
+                Err((msg, help)) => {
+                    TomlValue {
+                        value: None,
+                        state: TomlValueState::ValidationFailed {
+                            span: span.clone(),
+                            message: msg,
+                            help, //todo
+                        },
+                    }
+                }
+            },
+            _ => self.convert_failed_type(),
+        }
+    }
+
 
     #[must_use]
     pub fn or_default(self, default: T) -> Self {

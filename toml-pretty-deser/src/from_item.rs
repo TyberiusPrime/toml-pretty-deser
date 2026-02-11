@@ -345,7 +345,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<TomlValue<T>> {
                 if has_error {
                     TomlValue {
                         value: Some(values),
-                        state: TomlValueState::Nested { },
+                        state: TomlValueState::Nested {},
                     }
                 } else {
                     TomlValue {
@@ -376,7 +376,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<TomlValue<T>> {
                 if has_error {
                     TomlValue {
                         value: Some(values),
-                        state: TomlValueState::Nested { },
+                        state: TomlValueState::Nested {},
                     }
                 } else {
                     TomlValue {
@@ -397,7 +397,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<TomlValue<T>> {
                                 span: element.span(),
                             }
                         } else {
-                            TomlValueState::Nested { }
+                            TomlValueState::Nested {}
                         },
                         value: Some(vec![element]),
                     }
@@ -421,7 +421,7 @@ impl<T: FromTomlItem> FromTomlItem for Vec<TomlValue<T>> {
                                 span: element.span(),
                             }
                         } else {
-                            TomlValueState::Nested { }
+                            TomlValueState::Nested {}
                         },
                         value: Some(vec![element]),
                     }
@@ -471,7 +471,7 @@ where
                 if has_errors {
                     TomlValue {
                         value: Some(map),
-                        state: TomlValueState::Nested { },
+                        state: TomlValueState::Nested {},
                     }
                 } else {
                     TomlValue {

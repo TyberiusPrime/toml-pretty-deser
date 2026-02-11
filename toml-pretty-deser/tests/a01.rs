@@ -486,7 +486,7 @@ impl Outer {
         vec_mode: toml_pretty_deser::VecMode,
     ) -> Result<Outer, DeserError<PartialOuter>> {
         deserialize_toml::<PartialOuter>(toml_str, field_match_mode, vec_mode)
-}
+    }
 }
 
 mod other {
