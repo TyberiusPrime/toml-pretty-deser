@@ -63,9 +63,16 @@ fn parse_struct_attrs(input: &DeriveInput) -> StructAttrs {
 }
 
 #[derive(Default)]
+enum NestedState {
+    #[default]
+    NotNested,
+    Nested,
+    Tagged,
+}
+
+#[derive(Default)]
 struct FieldAttrs {
-    is_nested: bool,
-    is_tagged: bool, // tagged enum field: like nested but no verify_struct
+    nested: NestedState,
     aliases: Vec<String>,
     skip: bool,
     default: bool,
@@ -76,7 +83,7 @@ struct FieldAttrs {
 impl FieldAttrs {
     /// Whether the field's type has a Partial variant (nested struct or tagged enum)
     fn has_partial(&self) -> bool {
-        self.is_nested || self.is_tagged
+        matches!(self.nested, NestedState::Nested | NestedState::Tagged)
     }
 }
 
@@ -88,9 +95,9 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
         }
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("nested") {
-                attrs.is_nested = true;
+                attrs.nested =NestedState::Nested;
             } else if meta.path.is_ident("tagged") {
-                attrs.is_tagged = true;
+                attrs.nested = NestedState::Tagged;
             } else if meta.path.is_ident("skip") {
                 attrs.skip = true;
             } else if meta.path.is_ident("default") {
@@ -561,7 +568,7 @@ fn derive_struct(input: DeriveInput) -> TokenStream {
 
                 if f.attrs.absorb_remaining {
                     quote! { self.#ident = helper.absorb_remaining(); }
-                } else if f.attrs.is_nested && !matches!(&f.kind, TypeKind::Optional(_)) {
+                } else if matches!(f.attrs.nested, NestedState::Nested) && !matches!(&f.kind, TypeKind::Optional(_)) {
                     // Nested struct fields use verify_struct (not tagged enums)
                     // Only for direct nested types, not Vec<Nested> etc.
                     let is_direct_nested = matches!(&f.kind, TypeKind::Leaf(_));
