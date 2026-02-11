@@ -650,6 +650,16 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
                     #(#register_errors_calls)*
                 }
             }
+
+            impl #name {
+                #vis fn from_toml_str(
+                    toml_str: &str,
+                    field_match_mode: toml_pretty_deser::FieldMatchMode,
+                    vec_mode: toml_pretty_deser::VecMode,
+                ) -> Result<#name, toml_pretty_deser::DeserError<#partial_name>> {
+                    toml_pretty_deser::helpers::deserialize_toml::<#partial_name>(toml_str, field_match_mode, vec_mode)
+                }
+            }
         };
 
         output.into()

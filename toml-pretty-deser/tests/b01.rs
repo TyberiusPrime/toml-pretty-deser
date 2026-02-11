@@ -6,7 +6,7 @@ use toml_pretty_deser::{
 };
 //library code
 //
-use toml_pretty_deser::helpers::{FromTomlTable, deserialize_toml};
+use toml_pretty_deser::helpers::FromTomlTable;
 use toml_pretty_deser_macros::tpd;
 
 // USER Code
@@ -80,37 +80,15 @@ struct InnerB {
     b: u8,
 }
 
-fn deserialize(
-    toml_str: &str,
-    field_match_mode: toml_pretty_deser::FieldMatchMode,
-    vec_mode: toml_pretty_deser::VecMode,
-) -> Result<Outer, DeserError<PartialOuter>> {
-    deserialize_toml::<PartialOuter>(toml_str, field_match_mode, vec_mode)
+//User code
+#[derive(Debug)]
+#[tpd(root)]
+struct OtherOuter {
+    #[tpd(nested)]
+    pub nested_struct: NestedStruct,
 }
-
-mod other {
-    use super::{NestedStruct, PartialNestedStruct, VerifyTomlItem, deserialize_toml};
-    use toml_pretty_deser::DeserError;
-    use toml_pretty_deser_macros::tpd;
-
-    //User code
-    #[derive(Debug)]
-    #[tpd(root)]
-    pub struct OtherOuter {
-        #[tpd(nested)]
-        pub nested_struct: NestedStruct,
-    }
-    impl VerifyTomlItem<()> for PartialOtherOuter {}
-    impl VerifyTomlItem<PartialOtherOuter> for PartialNestedStruct {}
-
-    pub fn deserialize(
-        toml_str: &str,
-        field_match_mode: toml_pretty_deser::FieldMatchMode,
-        vec_mode: toml_pretty_deser::VecMode,
-    ) -> Result<OtherOuter, DeserError<PartialOtherOuter>> {
-        deserialize_toml::<PartialOtherOuter>(toml_str, field_match_mode, vec_mode)
-    }
-}
+impl VerifyTomlItem<()> for PartialOtherOuter {}
+impl VerifyTomlItem<PartialOtherOuter> for PartialNestedStruct {}
 
 #[test]
 fn test_basic_happy() {
@@ -129,11 +107,11 @@ fn test_basic_happy() {
             kind = 'KindA'
             a = 100
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(parsed.is_ok());
     if let Ok(inner) = parsed {
@@ -163,11 +141,11 @@ fn test_basic_alias() {
             kind = 'KindB'
             b = 200
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(parsed.is_ok());
     if let Ok(inner) = parsed {
@@ -195,11 +173,11 @@ fn test_basic_missing() {
         [nested_struct.double]
             double_u8 = 6
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(!parsed.is_ok());
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
@@ -231,11 +209,11 @@ fn test_basic_unknown() {
             a = 10
             kind = 'KindA'
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(!parsed.is_ok());
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
@@ -267,11 +245,11 @@ fn test_basic_unknown_in_nested() {
             a = 10
             kind = 'KindA'
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(!parsed.is_ok());
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
@@ -303,11 +281,11 @@ fn test_error_in_vec() {
             a = 10
             kind = 'KindA'
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(!parsed.is_ok());
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
@@ -363,11 +341,11 @@ fn test_2nd_type() {
 
 
     ";
-    let parsed = other::deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        OtherOuter::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(parsed.is_ok());
     if let Ok(inner) = parsed {
@@ -393,11 +371,11 @@ fn test_tagged_enum_kind_a() {
             kind = 'KindA'
             a = 10
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(parsed.is_ok());
     if let Ok(inner) = parsed {
@@ -428,11 +406,11 @@ fn test_tagged_enum_kind_b() {
             kind = 'KindB'
             b = 20
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(parsed.is_ok());
     if let Ok(inner) = parsed {
@@ -463,11 +441,11 @@ fn test_tagged_enum_invalid_kind() {
             kind = 'InvalidKind'
             a = 10
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(parsed.is_err());
     if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
@@ -494,11 +472,11 @@ fn test_tagged_enum_struct_fail() {
             kind = 'KindA'
             b = 10
     ";
-    let parsed = deserialize(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        Outer::from_toml_str(toml, field_match_mode, vec_mode)
+    };
     dbg!(&parsed);
     assert!(parsed.is_err());
     if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
@@ -768,14 +746,6 @@ struct AdvancedOuter {
 
 impl VerifyTomlItem<()> for PartialAdvancedOuter {}
 
-fn deserialize_advanced(
-    toml_str: &str,
-    field_match_mode: toml_pretty_deser::FieldMatchMode,
-    vec_mode: toml_pretty_deser::VecMode,
-) -> Result<AdvancedOuter, DeserError<PartialAdvancedOuter>> {
-    deserialize_toml::<PartialAdvancedOuter>(toml_str, field_match_mode, vec_mode)
-}
-
 #[test]
 fn test_advanced_all_types() {
     let toml = "
@@ -878,11 +848,11 @@ a = 99
     double.double_u8 = 255
     ";
 
-    let result = deserialize_advanced(
-        toml,
-        toml_pretty_deser::FieldMatchMode::Exact,
-        toml_pretty_deser::VecMode::Strict,
-    );
+    let result = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        AdvancedOuter::from_toml_str(toml, field_match_mode, vec_mode)
+    };
 
     if result.is_err() {
         if let Err(DeserError::DeserFailure(ref errors, ref _partial)) = result {
@@ -1093,7 +1063,7 @@ mod absord {
     use indexmap::IndexMap;
     use toml_pretty_deser_macros::tpd;
 
-    use super::{VerifyTomlItem, deserialize_toml};
+    use super::VerifyTomlItem;
     use toml_pretty_deser::DeserError;
 
     #[derive(Debug)]
@@ -1106,14 +1076,6 @@ mod absord {
 
     impl VerifyTomlItem<()> for PartialAbsorber {}
 
-    fn deserialize(
-        toml_str: &str,
-        field_match_mode: toml_pretty_deser::FieldMatchMode,
-        vec_mode: toml_pretty_deser::VecMode,
-    ) -> Result<Absorber, DeserError<PartialAbsorber>> {
-        deserialize_toml::<PartialAbsorber>(toml_str, field_match_mode, vec_mode)
-    }
-
     #[test]
     fn test_basic_absorber() {
         let toml = "
@@ -1121,11 +1083,11 @@ mod absord {
             something = 23
             else = 3
         ";
-        let parsed = deserialize(
-            toml,
-            toml_pretty_deser::FieldMatchMode::Exact,
-            toml_pretty_deser::VecMode::Strict,
-        );
+        let parsed = {
+            let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+            let vec_mode = toml_pretty_deser::VecMode::Strict;
+            Absorber::from_toml_str(toml, field_match_mode, vec_mode)
+        };
         dbg!(&parsed);
         assert!(parsed.is_ok());
         if let Ok(inner) = parsed {
@@ -1140,11 +1102,11 @@ mod absord {
         let toml = "
             a_u8 = 123
         ";
-        let parsed = deserialize(
-            toml,
-            toml_pretty_deser::FieldMatchMode::Exact,
-            toml_pretty_deser::VecMode::Strict,
-        );
+        let parsed = {
+            let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+            let vec_mode = toml_pretty_deser::VecMode::Strict;
+            Absorber::from_toml_str(toml, field_match_mode, vec_mode)
+        };
         dbg!(&parsed);
         assert!(parsed.is_ok());
         if let Ok(inner) = parsed {
@@ -1159,11 +1121,11 @@ mod absord {
             something = 'shu'
             else = 'shi'
         ";
-        let parsed = deserialize(
-            toml,
-            toml_pretty_deser::FieldMatchMode::Exact,
-            toml_pretty_deser::VecMode::Strict,
-        );
+        let parsed = {
+            let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+            let vec_mode = toml_pretty_deser::VecMode::Strict;
+            Absorber::from_toml_str(toml, field_match_mode, vec_mode)
+        };
         dbg!(&parsed);
         assert!(!parsed.is_ok());
         if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
@@ -1178,7 +1140,7 @@ mod with {
     use toml_pretty_deser::{DeserError, TomlValue, TomlValueState};
     use toml_pretty_deser_macros::tpd;
 
-    use crate::{VerifyTomlItem, deserialize_toml};
+    use crate::VerifyTomlItem;
 
     //user code
 
@@ -1221,25 +1183,17 @@ mod with {
         }
     }
 
-    fn deserialize(
-        toml_str: &str,
-        field_match_mode: toml_pretty_deser::FieldMatchMode,
-        vec_mode: toml_pretty_deser::VecMode,
-    ) -> Result<Funky, DeserError<PartialFunky>> {
-        deserialize_toml::<PartialFunky>(toml_str, field_match_mode, vec_mode)
-    }
-
     #[test]
     fn test_adapters() {
         let toml = "
         value = '10'
         double = 12
         ";
-        let parsed = deserialize(
-            toml,
-            toml_pretty_deser::FieldMatchMode::Exact,
-            toml_pretty_deser::VecMode::Strict,
-        );
+        let parsed = {
+            let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+            let vec_mode = toml_pretty_deser::VecMode::Strict;
+            Funky::from_toml_str(toml, field_match_mode, vec_mode)
+        };
         dbg!(&parsed);
         assert!(parsed.is_ok());
         if let Ok(inner) = parsed {
@@ -1253,11 +1207,11 @@ mod with {
         value = '10i'
         double = 12
         ";
-        let parsed = deserialize(
-            toml,
-            toml_pretty_deser::FieldMatchMode::Exact,
-            toml_pretty_deser::VecMode::Strict,
-        );
+        let parsed = {
+            let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+            let vec_mode = toml_pretty_deser::VecMode::Strict;
+            Funky::from_toml_str(toml, field_match_mode, vec_mode)
+        };
         dbg!(&parsed);
         assert!(!parsed.is_ok());
         if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
@@ -1269,10 +1223,10 @@ mod with {
 }
 
 mod skip_and_default {
-    use toml_pretty_deser::{DeserError, TomlHelper};
+    use toml_pretty_deser::TomlHelper;
     use toml_pretty_deser_macros::tpd;
 
-    use crate::{VerifyTomlItem, deserialize_toml};
+    use crate::VerifyTomlItem;
 
     //user code.
     #[derive(Debug)]
@@ -1302,24 +1256,16 @@ mod skip_and_default {
         }
     }
 
-    fn deserialize(
-        toml_str: &str,
-        field_match_mode: toml_pretty_deser::FieldMatchMode,
-        vec_mode: toml_pretty_deser::VecMode,
-    ) -> Result<WithDefaults, DeserError<PartialWithDefaults>> {
-        deserialize_toml::<PartialWithDefaults>(toml_str, field_match_mode, vec_mode)
-    }
-
     #[test]
     fn test_skiped() {
         let toml = "
             a_u32 = 1230000000
             ";
-        let parsed = deserialize(
-            toml,
-            toml_pretty_deser::FieldMatchMode::Exact,
-            toml_pretty_deser::VecMode::Strict,
-        );
+        let parsed = {
+            let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+            let vec_mode = toml_pretty_deser::VecMode::Strict;
+            WithDefaults::from_toml_str(toml, field_match_mode, vec_mode)
+        };
         assert!(parsed.is_ok());
         if let Ok(inner) = parsed {
             assert_eq!(inner.a_u32, 1230000000);
