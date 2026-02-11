@@ -343,6 +343,38 @@ fn test_error_in_vec() {
         );
     }
 }
+//User code
+#[derive(Debug)]
+#[tpd(root)]
+struct OtherOuter {
+    #[tpd(nested)]
+    pub nested_struct: NestedStruct,
+}
+impl VerifyTomlItem<()> for PartialOtherOuter {}
+impl VerifyTomlItem<PartialOtherOuter> for PartialNestedStruct {}
+
+#[test]
+fn test_2nd_type() {
+    let toml = "
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+
+
+    ";
+    let parsed = {
+        let field_match_mode = toml_pretty_deser::FieldMatchMode::Exact;
+        let vec_mode = toml_pretty_deser::VecMode::Strict;
+        OtherOuter::from_toml_str(toml, field_match_mode, vec_mode)
+    };
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.nested_struct.other_u8, 5); // no add 1 here
+        assert_eq!(inner.nested_struct.double.double_u8, 2*5 + 6);
+    }
+}
 
 #[test]
 fn test_tagged_enum_kind_a() {
