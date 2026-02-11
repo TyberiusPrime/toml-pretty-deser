@@ -261,12 +261,91 @@ fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> proc_macro2::Toke
     }
 }
 
+/// Strip Optional/Boxed wrappers to get to the container/leaf core
+fn strip_wrappers(kind: &TypeKind) -> &TypeKind {
+    match kind {
+        TypeKind::Optional(inner) | TypeKind::Boxed(inner) => strip_wrappers(inner),
+        _ => kind,
+    }
+}
+
 /// Check if a type contains a container (Vec/Map) inside it
 fn has_container(kind: &TypeKind) -> bool {
     match kind {
         TypeKind::Leaf(_) => false,
         TypeKind::Optional(inner) | TypeKind::Boxed(inner) => has_container(inner),
         TypeKind::Vector(_) | TypeKind::Map(_, _) => true,
+    }
+}
+
+/// Generate verify wrapping for a nested field based on its TypeKind.
+/// Returns None if no verify is needed, or Some(token stream) with the verify call.
+fn gen_verify_getter(
+    kind: &TypeKind,
+    base_call: proc_macro2::TokenStream,
+    is_nested: bool,
+) -> Option<proc_macro2::TokenStream> {
+    let core = strip_wrappers(kind);
+    match core {
+        TypeKind::Leaf(_) => {
+            // Direct nested leaf: wrap with verify_struct
+            Some(quote! {
+                toml_pretty_deser::helpers::verify_struct(#base_call, helper, self)
+            })
+        }
+        TypeKind::Vector(inner) => {
+            let inner_core = strip_wrappers(inner);
+            match inner_core {
+                TypeKind::Leaf(_) => {
+                    // Vec<Nested>: call verify_vec_elements
+                    let inner_ty = gen_partial_inner_type(inner, is_nested);
+                    Some(quote! {
+                        {
+                            let mut __r = #base_call;
+                            toml_pretty_deser::helpers::verify_vec_elements::<#inner_ty, _>(&mut __r, helper, self);
+                            __r
+                        }
+                    })
+                }
+                _ => None,
+            }
+        }
+        TypeKind::Map(_, inner) => {
+            let inner_core = strip_wrappers(inner);
+            match inner_core {
+                TypeKind::Leaf(_) => {
+                    // Map<K, Nested>: call verify_map_elements
+                    let inner_ty = gen_partial_inner_type(inner, is_nested);
+                    Some(quote! {
+                        {
+                            let mut __r = #base_call;
+                            toml_pretty_deser::helpers::verify_map_elements::<#inner_ty, _, _>(&mut __r, helper, self);
+                            __r
+                        }
+                    })
+                }
+                TypeKind::Vector(vec_inner) => {
+                    let vec_inner_core = strip_wrappers(vec_inner);
+                    match vec_inner_core {
+                        TypeKind::Leaf(_) => {
+                            // Map<K, Vec<Nested>>: use verify_map_vec_elements helper
+                            let vec_inner_ty = gen_partial_inner_type(vec_inner, is_nested);
+                            Some(quote! {
+                                {
+                                    let mut __r = #base_call;
+                                    toml_pretty_deser::helpers::verify_map_vec_elements::<#vec_inner_ty, _, _>(&mut __r, helper, self);
+                                    __r
+                                }
+                            })
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+        TypeKind::Boxed(_) => unreachable!("strip_wrappers should have removed Boxed"),
+        TypeKind::Optional(_) => unreachable!("strip_wrappers should have removed Optional"),
     }
 }
 
@@ -502,18 +581,15 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
 
             // Determine the getter return type
             let is_option = matches!(&f.kind, TypeKind::Optional(_));
-            let is_direct_nested = f.attrs.has_partial() && matches!(&f.kind, TypeKind::Leaf(_));
-            let getter_call = if is_direct_nested {
-                quote! {
-                    toml_pretty_deser::helpers::verify_struct(
-                        helper.get_with_aliases(#field_name_str, #aliases_expr),
-                        helper, self
-                    )
+            let base_get = quote! { helper.get_with_aliases(#field_name_str, #aliases_expr) };
+            let getter_call = if f.attrs.has_partial() {
+                if let Some(verify_wrapped) = gen_verify_getter(&f.kind, base_get.clone(), f.attrs.has_partial()) {
+                    verify_wrapped
+                } else {
+                    base_get
                 }
             } else {
-                quote! {
-                    helper.get_with_aliases(#field_name_str, #aliases_expr)
-                }
+                base_get
             };
             if let Some(ref with_fn) = f.attrs.with_fn {
                 let with_fn_ident: syn::Path = syn::parse_str(with_fn).unwrap();
@@ -1053,6 +1129,26 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
         })
         .collect();
 
+    // Generate VerifyTomlItem delegation where clauses and match arms
+    let verify_where_clauses: Vec<proc_macro2::TokenStream> = variant_infos
+        .iter()
+        .map(|v| {
+            let inner_name = leaf_type_name(&v.inner_type);
+            let partial_inner = format_ident!("Partial{}", inner_name);
+            quote! { #partial_inner: toml_pretty_deser::VerifyTomlItem<__TpdR> }
+        })
+        .collect();
+
+    let verify_match_arms: Vec<proc_macro2::TokenStream> = variant_infos
+        .iter()
+        .map(|v| {
+            let ident = &v.ident;
+            quote! {
+                Self::#ident(inner) => Self::#ident(inner.verify_struct(helper, partial))
+            }
+        })
+        .collect();
+
     let output = quote! {
         #original_item
 
@@ -1117,6 +1213,17 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
                     toml_pretty_deser::helpers::FromTomlTable::from_toml_table(&mut tag_helper)
                 } else {
                     toml_pretty_deser::TomlValue::new_wrong_type(item, parent_span, "table or inline table")
+                }
+            }
+        }
+
+        impl<__TpdR> toml_pretty_deser::VerifyTomlItem<__TpdR> for #partial_name
+        where
+            #(#verify_where_clauses,)*
+        {
+            fn verify_struct(self, helper: &mut toml_pretty_deser::TomlHelper<'_>, partial: &__TpdR) -> Self {
+                match self {
+                    #(#verify_match_arms,)*
                 }
             }
         }

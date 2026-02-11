@@ -474,22 +474,6 @@ fn test_tagged_enum_struct_fail() {
         insta::assert_snapshot!(pretty);
     }
 }
-impl VerifyTomlItem<PartialOuter> for PartialTaggedEnum {
-    fn verify_struct(self, helper: &mut TomlHelper<'_>, partial: &PartialOuter) -> Self
-    where
-        Self: Sized,
-    {
-        match self {
-            PartialTaggedEnum::KindA(partial_inner_a) => {
-                PartialTaggedEnum::KindA(partial_inner_a.verify_struct(helper, partial))
-            }
-            PartialTaggedEnum::KindB(partial_inner_b) => {
-                PartialTaggedEnum::KindB(partial_inner_b.verify_struct(helper, partial))
-            }
-        }
-        //self
-    }
-}
 #[test]
 fn test_vec_of_tagged_enums() {
     // Demonstrate that FromTomlItem works with Vec<TaggedEnum>
@@ -751,6 +735,9 @@ struct AdvancedOuter {
 }
 
 impl VerifyTomlItem<()> for PartialAdvancedOuter {}
+impl VerifyTomlItem<PartialAdvancedOuter> for PartialNestedStruct {}
+impl VerifyTomlItem<PartialAdvancedOuter> for PartialInnerA {}
+impl VerifyTomlItem<PartialAdvancedOuter> for PartialInnerB {}
 
 #[test]
 fn test_advanced_all_types() {

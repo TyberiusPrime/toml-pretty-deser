@@ -78,6 +78,62 @@ macro_rules! impl_from_toml_item_for_table {
     };
 }
 
+pub fn verify_vec_elements<T: VerifyTomlItem<R> + FromTomlTable + std::fmt::Debug, R>(
+    result: &mut TomlValue<Vec<TomlValue<T>>>,
+    helper: &mut TomlHelper<'_>,
+    parent: &R,
+) {
+    if let Some(elements) = result.value.take() {
+        let verified: Vec<TomlValue<T>> = elements
+            .into_iter()
+            .map(|item| verify_struct(item, helper, parent))
+            .collect();
+        let has_error = verified.iter().any(|v| !v.is_ok());
+        if has_error && result.is_ok() {
+            result.state = TomlValueState::Nested;
+        }
+        result.value = Some(verified);
+    }
+}
+
+pub fn verify_map_elements<
+    T: VerifyTomlItem<R> + FromTomlTable + std::fmt::Debug,
+    S: std::hash::Hash + Eq,
+    R,
+>(
+    result: &mut TomlValue<IndexMap<S, TomlValue<T>>>,
+    helper: &mut TomlHelper<'_>,
+    parent: &R,
+) {
+    if let Some(elements) = result.value.take() {
+        let verified: IndexMap<S, TomlValue<T>> = elements
+            .into_iter()
+            .map(|(k, item)| (k, verify_struct(item, helper, parent)))
+            .collect();
+        let has_error = verified.values().any(|v| !v.is_ok());
+        if has_error && result.is_ok() {
+            result.state = TomlValueState::Nested;
+        }
+        result.value = Some(verified);
+    }
+}
+
+pub fn verify_map_vec_elements<
+    T: VerifyTomlItem<R> + FromTomlTable + std::fmt::Debug,
+    S: std::hash::Hash + Eq,
+    R,
+>(
+    result: &mut TomlValue<IndexMap<S, TomlValue<Vec<TomlValue<T>>>>>,
+    helper: &mut TomlHelper<'_>,
+    parent: &R,
+) {
+    if let Some(ref mut map) = result.value {
+        for vec_val in map.values_mut() {
+            verify_vec_elements(vec_val, helper, parent);
+        }
+    }
+}
+
 pub fn finalize_nested_field<T: FromTomlTable>(
     field: &mut TomlValue<T>,
     helper: &mut TomlHelper<'_>,
