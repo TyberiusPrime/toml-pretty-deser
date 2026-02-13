@@ -106,25 +106,19 @@ macro_rules! impl_visitor_for_from_str {
 macro_rules! impl_visitor_for_try_from_str {
     ($ty:ty, $help:expr) => {
         $crate::impl_visitor!($ty, |helper| {
-        match helper.item.as_str() {
-            Some(v) => {
-                    match v.try_into () {
-                        Ok(v) => {
-                            $crate::TomlValue::new_ok(v, helper.span())
-                        }
-                        Err(_) => {
-                            $crate::TomlValue::new_validation_failed(helper.span(),
-                                "Unconvertible string".to_string(),
-                                Some($help.to_string())
-                            )
-                        }
-
-                    }
+            match helper.item.as_str() {
+                Some(v) => match v.try_into() {
+                    Ok(v) => $crate::TomlValue::new_ok(v, helper.span()),
+                    Err(_) => $crate::TomlValue::new_validation_failed(
+                        helper.span(),
+                        "Unconvertible string".to_string(),
+                        Some($help.to_string()),
+                    ),
+                },
+                None => $crate::TomlValue::new_wrong_type(&helper.item, helper.span(), "string"),
             }
-            None => $crate::TomlValue::new_wrong_type(&helper.item, helper.span(), "string"),
-        }
         });
-    }
+    };
 }
 
 impl_visitor_for_from_str!(String);
@@ -169,7 +163,7 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
     type Concrete = Vec<T::Concrete>;
 
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        match helper.item {
+        match &helper.item {
             toml_edit::Item::ArrayOfTables(array) => {
                 {
                     let res: Vec<TomlValue<T>> = array
@@ -200,6 +194,17 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
                         ))
                     })
                     .collect();
+                if res.can_concrete() {
+                    TomlValue::new_ok(res, helper.span())
+                } else {
+                    TomlValue::new_nested(Some(res))
+                }
+            }
+            toml_edit::Item::Value(v) if helper.col.vec_mode.single_ok() => {
+                let res = vec![T::fill_from_toml(&mut TomlHelper::from_item(
+                    &toml_edit::Item::Value(v.clone()), //todo: can we do this without clone
+                    helper.col.clone(),
+                ))];
                 if res.can_concrete() {
                     TomlValue::new_ok(res, helper.span())
                 } else {

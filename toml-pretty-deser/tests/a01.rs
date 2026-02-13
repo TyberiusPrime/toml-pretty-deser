@@ -192,7 +192,42 @@ fn test_basic_alias() {
         assert_eq!(inner.opt_u8, Some(2));
         assert_eq!(inner.vec_u8, vec![3]);
         assert_eq!(inner.simple_enum, AnEnum::TypeB);
-        //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
+        assert_eq!(inner.map_u8.get("a").unwrap(), &4);
+        assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
+        assert_eq!(inner.nested_struct.double.double_u8, 6);
+    }
+}
+
+#[test]
+fn test_basic_alias_anycase() {
+    let toml = "
+        u_8 = 1
+        oPt_u8 =2
+        vec-u8 = 3
+        SimpleEnum = 'TypeB'
+        [MAP--u8]
+            a = 4
+        [NeStEdStruCt]
+            other_u8 = 5
+        [NeStEdStruCt.DOUBLE--] # the nested_struct must match
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindB'
+            b = 200
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::AnyCase,
+        toml_pretty_deser::VecMode::SingleOk,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.a_u8, 1);
+        assert_eq!(inner.opt_u8, Some(2));
+        assert_eq!(inner.vec_u8, vec![3]);
+        assert_eq!(inner.simple_enum, AnEnum::TypeB);
+        assert_eq!(inner.map_u8.get("a").unwrap(), &4);
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
         assert_eq!(inner.nested_struct.double.double_u8, 6);
     }
@@ -1076,7 +1111,7 @@ impl TryFrom<&str> for MyTryFromString {
 fn test_types() {
     let toml_str = "
         a_i8 = -12
-        a_i16 = -123    
+        a_i16 = -123
         a_i32 = -123456
         a_i64 = -1234567890123
         a_isize = -12345
@@ -1123,7 +1158,7 @@ fn test_types() {
 fn test_tryfrom_failure() {
     let toml_str = "
         a_i8 = -12
-        a_i16 = -123    
+        a_i16 = -123
         a_i32 = -123456
         a_i64 = -1234567890123
         a_isize = -12345

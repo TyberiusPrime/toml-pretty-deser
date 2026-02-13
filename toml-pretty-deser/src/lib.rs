@@ -319,6 +319,12 @@ pub enum VecMode {
     Strict,
 }
 
+impl VecMode {
+    fn single_ok(&self) -> bool {
+        matches!(self, VecMode::SingleOk)
+    }
+}
+
 /// Grab bag that collects the errors and provides parameterisation to
 /// the deser functions
 #[derive(Clone, Debug)]
