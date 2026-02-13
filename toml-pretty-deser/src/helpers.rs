@@ -18,7 +18,7 @@ pub trait Visitor: Sized + std::fmt::Debug {
     /// Macro-derived: recursively checks all TomlValue<_> fields are .is_ok()
     fn can_concrete(&self) -> bool;
 
-    fn register_errors(&self, col: &TomlCollector);
+    fn v_register_errors(&self, col: &TomlCollector);
 
     /// Consume into concrete. Allowed to panic if !can_concrete().
     fn into_concrete(self) -> Self::Concrete;
@@ -55,9 +55,16 @@ impl<T> TomlValue<T>
 where
     T: Visitor,
 {
-    pub fn from_visitor(visitor: T, span: Range<usize>) -> Self {
-        if visitor.can_concrete() {
-            TomlValue::new_ok(visitor, span)
+    pub fn from_visitor(visitor: T, helper: &TomlHelper<'_>) -> Self {
+        if helper.has_unknown() {
+            TomlValue {
+                value: Some(visitor),
+                state: TomlValueState::UnknownKeys {
+                    spans: helper.unknown_spans(),
+                },
+            }
+        } else if visitor.can_concrete() {
+            TomlValue::new_ok(visitor, helper.span())
         } else {
             TomlValue::new_nested(Some(visitor))
         }
@@ -70,7 +77,6 @@ where
         match self.state {
             TomlValueState::Ok { .. } => {
                 let span = self.span();
-                dbg!(&self);
                 let mut maybe_validated = self.value.unwrap().vv_validate(helper, parent);
                 match maybe_validated.verify(helper, parent) {
                     Ok(()) => TomlValue::new_ok(maybe_validated, span),
@@ -80,10 +86,8 @@ where
             }
             TomlValueState::Nested => {
                 if let Some(value) = self.value {
-                    dbg!("before", &value);
                     let mut maybe_validated = value.vv_validate(helper, parent);
                     maybe_validated.verify(helper, parent).ok();
-                    dbg!("after", &maybe_validated);
                     TomlValue::new_nested(Some(maybe_validated))
                     // {
                     //     Ok(()) => TomlValue::new_nested(Some(maybe_validated)),
@@ -109,19 +113,21 @@ where
         col: &TomlCollector,
         context_spans: &[SpannedMessage],
     ) {
-        let mut err = match &self.state {
+        let errs: Vec<AnnotatedError> = match &self.state {
             TomlValueState::NotSet | TomlValueState::Ok { .. } => {
                 return;
             } //ignored, we expect the errors below to have been added
             TomlValueState::Nested => {
-                self.value.as_ref().unwrap().register_errors(col);
+                if let Some(value) = self.value.as_ref() {
+                    value.v_register_errors(col);
+                }
                 return;
             }
-            TomlValueState::Missing { key, parent_span } => AnnotatedError::placed(
+            TomlValueState::Missing { key, parent_span } => vec![AnnotatedError::placed(
                 parent_span.clone(),
                 &format!("Missing required key: '{key}'."),
-                "This key is required but was not found in the TOML document.",
-            ),
+                "",
+            )],
             TomlValueState::MultiDefined { key, spans } => {
                 let mut err = AnnotatedError::placed(
                     spans[0].clone(),
@@ -131,34 +137,46 @@ where
                 for span in spans.iter().skip(1) {
                     err.add_span(span.clone(), "Also defined here");
                 }
-                err
+                vec![err]
             }
             TomlValueState::WrongType {
                 span,
                 expected,
                 found,
-            } => AnnotatedError::placed(
+            } => vec![AnnotatedError::placed(
                 span.clone(),
                 &format!("Wrong type: expected {expected}, found {found}"),
                 "This value has the wrong type.",
-            ),
+            )],
             TomlValueState::ValidationFailed {
                 span,
                 message,
                 help,
-            } => AnnotatedError::placed(
+            } => vec![AnnotatedError::placed(
                 span.clone(),
                 message,
                 help.as_ref().map_or("", std::string::String::as_str),
-            ),
+            )],
+            TomlValueState::UnknownKeys { spans } => {
+                if let Some(value) = self.value.as_ref() {
+                    value.v_register_errors(col);
+                };
+                spans
+                    .iter()
+                    .map(|(_key, span, help)| {
+                        AnnotatedError::placed(span.clone(), "Unknown key.", help)
+                    })
+                    .collect()
+            }
         };
 
-        // Add context spans to the error
-        for context in context_spans {
-            err.add_span(context.span.clone(), &context.msg);
+        for mut err in errs.into_iter() {
+            // Add context spans to the error
+            for context in context_spans {
+                err.add_span(context.span.clone(), &context.msg);
+            }
+            col.errors.borrow_mut().push(err);
         }
-
-        col.errors.borrow_mut().push(err);
     }
 }
 
@@ -185,12 +203,17 @@ where
     let mut helper = TomlHelper::from_item(&top_level, col.clone());
 
     let root = P::fill_from_toml(&mut helper);
-    let root = root.tpd_validate(&mut helper, &Root);
+    let mut root = root.tpd_validate(&mut helper, &Root);
 
-    if helper.no_unknown() && root.is_ok() {
+    if helper.has_unknown() {
+        root.state = TomlValueState::UnknownKeys {
+            spans: helper.unknown_spans(),
+        }
+    }
+
+    if root.is_ok() {
         Ok(root.value.unwrap().into_concrete())
     } else {
-        helper.register_unknown();
         root.register_error(&col);
         Err(DeserError::DeserFailure(
             helper.into_inner(&source),
@@ -229,7 +252,7 @@ impl Visitor for u8 {
         true
     }
 
-    fn register_errors(&self, _col: &TomlCollector) {}
+    fn v_register_errors(&self, _col: &TomlCollector) {}
 
     fn into_concrete(self) -> Self::Concrete {
         self
@@ -253,7 +276,7 @@ impl Visitor for String {
         true
     }
 
-    fn register_errors(&self, _col: &TomlCollector) {}
+    fn v_register_errors(&self, _col: &TomlCollector) {}
 
     fn into_concrete(self) -> Self::Concrete {
         self
@@ -269,7 +292,10 @@ impl<T: Visitor> Visitor for Option<T> {
         if p.is_ok() {
             TomlValue::new_ok(Some(p.value.unwrap()), helper.span())
         } else {
-            p.convert_failed_type()
+            TomlValue {
+                value: Some(p.value),
+                state: p.state,
+            }
         }
     }
 
@@ -280,9 +306,9 @@ impl<T: Visitor> Visitor for Option<T> {
         }
     }
 
-    fn register_errors(&self, col: &TomlCollector) {
+    fn v_register_errors(&self, col: &TomlCollector) {
         match self {
-            Some(v) => v.register_errors(col),
+            Some(v) => v.v_register_errors(col),
             None => {}
         }
     }
@@ -334,7 +360,7 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
         self.iter().all(|item| item.is_ok())
     }
 
-    fn register_errors(&self, col: &TomlCollector) {
+    fn v_register_errors(&self, col: &TomlCollector) {
         for v in self.iter() {
             v.register_error(col);
         }
@@ -396,7 +422,7 @@ where
         self.values().all(|v| v.is_ok())
     }
 
-    fn register_errors(&self, _col: &TomlCollector) {}
+    fn v_register_errors(&self, _col: &TomlCollector) {}
 
     fn into_concrete(self) -> Self::Concrete {
         self.into_iter()

@@ -345,6 +345,7 @@ impl TomlCollector {
 }
 
 /// TOML 'table-like' access wrapper that e.g. verifies that no unexpected fields occur in your TOML
+#[derive(Debug)]
 pub struct TomlHelper<'a> {
     //pub table: Option<&'a dyn TableLikePlus>,
     pub item: &'a toml_edit::Item,
@@ -683,7 +684,7 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    pub fn no_unknown(&self) -> bool {
+    pub fn has_unknown(&self) -> bool {
         let mut expected_normalized: IndexSet<String> = IndexSet::new();
         for field_info in &self.expected {
             for normalized_name in field_info.all_normalized_names(&self.col.match_mode) {
@@ -706,13 +707,13 @@ impl<'a> TomlHelper<'a> {
 
             // Check if this key was observed (i.e., it matched an expected field)
             if !observed_set.contains(&normalized_key) {
-                return false;
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
-    pub fn register_unknown(&mut self) {
+    pub fn unknown_spans(&self) -> Vec<(String, Range<usize>, String)> {
         // Build set of normalized expected names (including aliases)
         let mut expected_normalized: IndexSet<String> = IndexSet::new();
         for field_info in &self.expected {
@@ -720,35 +721,40 @@ impl<'a> TomlHelper<'a> {
                 expected_normalized.insert(normalized_name);
             }
         }
+        if let Some(table) = self.item.as_table_like_plus() {
+            // Collect all keys from either table type
+            let keys: Vec<String> = table.iter().map(|(k, _)| k.to_string()).collect();
 
-        // Collect all keys from either table type
-        let keys: Vec<String> = if let Some(table) = self.item.as_table_like_plus() {
-            table.iter().map(|(k, _)| k.to_string()).collect()
-        } else {
-            vec![]
-        };
+            // Build set of observed normalized names
+            let observed_set: IndexSet<String> = self.observed.iter().cloned().collect();
 
-        // Build set of observed normalized names
-        let observed_set: IndexSet<String> = self.observed.iter().cloned().collect();
+            let mut res = Vec::new();
+            for key in keys {
+                let normalized_key = self.col.match_mode.normalize(&key);
 
-        for key in keys {
-            let normalized_key = self.col.match_mode.normalize(&key);
+                // Check if this key was observed (i.e., it matched an expected field)
+                if !observed_set.contains(&normalized_key) {
+                    // This is an unknown key - find available (expected but not yet observed) fields
+                    let still_available: Vec<_> = expected_normalized
+                        .iter()
+                        .filter(|expected| !observed_set.contains(*expected))
+                        .map(std::string::String::as_str)
+                        .collect();
 
-            // Check if this key was observed (i.e., it matched an expected field)
-            if !observed_set.contains(&normalized_key) {
-                // This is an unknown key - find available (expected but not yet observed) fields
-                let still_available: Vec<_> = expected_normalized
-                    .iter()
-                    .filter(|expected| !observed_set.contains(*expected))
-                    .map(std::string::String::as_str)
-                    .collect();
-
-                self.add_err_by_key(
-                    &key,
-                    "Unknown key.",
-                    &suggest_alternatives(&key, &still_available),
-                );
+                    let span = table
+                        .key(&key)
+                        .and_then(toml_edit::Key::span)
+                        .unwrap_or(0..0);
+                    res.push((
+                        key.to_string(),
+                        span,
+                        suggest_alternatives(&normalized_key, &still_available),
+                    ));
+                }
             }
+            res
+        } else {
+            panic!("unknown_spans called on a non-table toml item")
         }
     }
 }
@@ -818,6 +824,7 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Adapt failed types, eating the none
     pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
         match &self.state {
             TomlValueState::Ok { span } => {
@@ -902,6 +909,8 @@ impl<T> TomlValue<T> {
             | TomlValueState::ValidationFailed { span, .. } => span.clone(),
             TomlValueState::NotSet | TomlValueState::Nested => 0..0,
             TomlValueState::MultiDefined { spans, .. } => spans[0].clone(), //just return the first one
+            TomlValueState::UnknownKeys { .. } => panic!("don't call span on UnknownKeys?"),
+            //one
         }
     }
 
@@ -939,33 +948,6 @@ impl<T> TomlValue<T> {
                 }
             },
             _ => self,
-        }
-    }
-    #[allow(clippy::missing_panics_doc)]
-    #[must_use]
-    pub fn map<F, P>(&self, _helper: &mut TomlHelper, verification_func: F) -> TomlValue<P>
-    where
-        F: FnOnce(&T) -> Result<P, (String, Option<String>)>,
-    {
-        match &self.state {
-            TomlValueState::Ok { span } => match verification_func(
-                self.value
-                    .as_ref()
-                    .expect("None value on TomlValueState::Ok"),
-            ) {
-                Ok(value) => TomlValue::new_ok(value, span.clone()),
-                Err((msg, help)) => {
-                    TomlValue {
-                        value: None,
-                        state: TomlValueState::ValidationFailed {
-                            span: span.clone(),
-                            message: msg,
-                            help, //todo
-                        },
-                    }
-                }
-            },
-            _ => self.convert_failed_type(),
         }
     }
 
@@ -1024,6 +1006,9 @@ pub enum TomlValueState {
         span: Range<usize>,
         message: String,
         help: Option<String>,
+    },
+    UnknownKeys {
+        spans: Vec<(String, Range<usize>, String)>,
     },
     Nested,
     Ok {

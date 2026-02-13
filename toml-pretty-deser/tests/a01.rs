@@ -274,7 +274,7 @@ fn test_basic_unknown_in_nested() {
             shu = 23
             other_u8 = 5
         [nested_struct.double]
-            shu = 23
+            sha = 23
         [nested_tagged_enum]
             a = 10
             kind = 'KindA'
@@ -289,10 +289,10 @@ fn test_basic_unknown_in_nested() {
     if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
         assert_eq!(inner.a_u8.value, Some(1));
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
-        assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
+        assert_eq!(inner.vec_u8.value.as_ref().unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
         assert!(!inner.nested_struct.is_ok());
-        insta::assert_snapshot!(errors[0].pretty("test.toml"));
+        insta::assert_snapshot!(DeserError::DeserFailure(errors, inner).pretty("test.toml"));
     }
 }
 #[test]
@@ -361,160 +361,135 @@ fn test_error_in_vec() {
         );
     }
 }
-//
-// #[test]
-// fn test_2nd_type() {
-//     let toml = "
-//         [nested_struct]
-//             other_u8 = 5
-//         [nested_struct.double]
-//             double_u8 = 6
-//
-//
-//     ";
-//     let parsed = other::deserialize(
-//         toml,
-//         toml_pretty_deser::FieldMatchMode::Exact,
-//         toml_pretty_deser::VecMode::Strict,
-//     );
-//     dbg!(&parsed);
-//     assert!(parsed.is_ok());
-//     if let Ok(inner) = parsed {
-//         assert_eq!(inner.nested_struct.other_u8, 5); // no add 1 here
-//         assert_eq!(inner.nested_struct.double.double_u8, 6);
-//     }
-// }
-//
-// #[test]
-// fn test_tagged_enum_kind_a() {
-//     let toml = "
-//         a_u8 = 1
-//         opt_u8 = 2
-//         vec_u8 = [3]
-//         simple_enum = 'TypeA'
-//         [map_u8]
-//             a = 4
-//         [nested_struct]
-//             other_u8 = 5
-//         [nested_struct.double]
-//             double_u8 = 6
-//         [nested_tagged_enum]
-//             kind = 'KindA'
-//             a = 10
-//     ";
-//     let parsed = Outer::deserialize(
-//         toml,
-//         toml_pretty_deser::FieldMatchMode::Exact,
-//         toml_pretty_deser::VecMode::Strict,
-//     );
-//     dbg!(&parsed);
-//     assert!(parsed.is_ok());
-//     if let Ok(inner) = parsed {
-//         assert_eq!(inner.a_u8, 1);
-//         match inner.nested_tagged_enum {
-//             TaggedEnum::KindA(ref a) => {
-//                 assert_eq!(a.a, 10);
-//             }
-//             _ => panic!("Expected KindA variant"),
-//         }
-//     }
-// }
-//
-// #[test]
-// fn test_tagged_enum_kind_b() {
-//     let toml = "
-//         a_u8 = 1
-//         opt_u8 = 2
-//         vec_u8 = [3]
-//         simple_enum = 'TypeA'
-//         [map_u8]
-//             a = 4
-//         [nested_struct]
-//             other_u8 = 5
-//         [nested_struct.double]
-//             double_u8 = 6
-//         [nested_tagged_enum]
-//             kind = 'KindB'
-//             b = 20
-//     ";
-//     let parsed = Outer::deserialize(
-//         toml,
-//         toml_pretty_deser::FieldMatchMode::Exact,
-//         toml_pretty_deser::VecMode::Strict,
-//     );
-//     dbg!(&parsed);
-//     assert!(parsed.is_ok());
-//     if let Ok(inner) = parsed {
-//         assert_eq!(inner.a_u8, 1);
-//         match inner.nested_tagged_enum {
-//             TaggedEnum::KindB(ref b) => {
-//                 assert_eq!(b.b, 20);
-//             }
-//             _ => panic!("Expected KindB variant"),
-//         }
-//     }
-// }
-//
-// #[test]
-// fn test_tagged_enum_invalid_kind() {
-//     let toml = "
-//         a_u8 = 1
-//         opt_u8 = 2
-//         vec_u8 = [3]
-//         simple_enum = 'TypeA'
-//         [map_u8]
-//             a = 4
-//         [nested_struct]
-//             other_u8 = 5
-//         [nested_struct.double]
-//             double_u8 = 6
-//         [nested_tagged_enum]
-//             kind = 'InvalidKind'
-//             a = 10
-//     ";
-//     let parsed = Outer::deserialize(
-//         toml,
-//         toml_pretty_deser::FieldMatchMode::Exact,
-//         toml_pretty_deser::VecMode::Strict,
-//     );
-//     dbg!(&parsed);
-//     assert!(parsed.is_err());
-//     if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
-//         assert!(!errors.is_empty());
-//         let error_str = errors[0].pretty("test.toml");
-//         assert!(error_str.contains("Invalid tag value"));
-//     }
-// }
-//
-// #[test]
-// fn test_tagged_enum_struct_fail() {
-//     let toml = "
-//         a_u8 = 1
-//         opt_u8 = 2
-//         vec_u8 = [3]
-//         simple_enum = 'TypeA'
-//         [map_u8]
-//             a = 4
-//         [nested_struct]
-//             other_u8 = 5
-//         [nested_struct.double]
-//             double_u8 = 6
-//         [nested_tagged_enum]
-//             kind = 'KindA'
-//             b = 10
-//     ";
-//     let parsed = Outer::deserialize(
-//         toml,
-//         toml_pretty_deser::FieldMatchMode::Exact,
-//         toml_pretty_deser::VecMode::Strict,
-//     );
-//     dbg!(&parsed);
-//     assert!(parsed.is_err());
-//     if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
-//         let pretty = errors[0].pretty("test.toml");
-//         insta::assert_snapshot!(pretty);
-//     }
-// }
+#[test]
+fn test_tagged_enum_kind_a() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 = 2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindA'
+            a = 10
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.a_u8, 1);
+        match inner.nested_tagged_enum {
+            TaggedEnum::KindA(ref a) => {
+                assert_eq!(a.a, 10);
+            }
+            _ => panic!("Expected KindA variant"),
+        }
+    }
+}
+#[test]
+fn test_tagged_enum_kind_b() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 = 2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindB'
+            b = 20
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.a_u8, 1);
+        match inner.nested_tagged_enum {
+            TaggedEnum::KindB(ref b) => {
+                assert_eq!(b.b, 20);
+            }
+            _ => panic!("Expected KindB variant"),
+        }
+    }
+}
+
+#[test]
+fn test_tagged_enum_invalid_kind() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 = 2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'InvalidKind'
+            a = 10
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_err());
+    if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
+        assert!(!errors.is_empty());
+        let error_str = errors[0].pretty("test.toml");
+        assert!(error_str.contains("Invalid tag value"));
+    }
+}
+
+#[test]
+fn test_tagged_enum_struct_fail() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 = 2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindA'
+            b = 10
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_err());
+    if let Err(e) = &parsed {
+        let pretty = e.pretty("test.toml");
+        insta::assert_snapshot!(pretty);
+    }
+}
 // #[test]
 // fn test_vec_of_tagged_enums() {
 //     // Demonstrate that FromTomlItem works with Vec<TaggedEnum>

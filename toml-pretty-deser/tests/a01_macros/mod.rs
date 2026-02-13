@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    DeserError, TomlCollector, TomlHelper, TomlValue, VerifyVisitor, Visitor,
+    DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyVisitor, Visitor,
     helpers::{Root, VerifyIn, deserialize_toml},
     suggest_alternatives,
 };
@@ -86,11 +86,7 @@ impl Visitor for PartialOuter {
         partial.nested_struct = partial.tpd_get_nested_struct(helper, 0..0);
         partial.nested_tagged_enum = partial.tpd_get_nested_tagged_enum(helper);
 
-        if partial.can_concrete() {
-            TomlValue::new_ok(partial, helper.span())
-        } else {
-            TomlValue::new_nested(Some(partial))
-        }
+        TomlValue::from_visitor(partial, helper)
     }
 
     fn can_concrete(&self) -> bool {
@@ -115,7 +111,7 @@ impl Visitor for PartialOuter {
         }
     }
 
-    fn register_errors(&self, col: &TomlCollector) {
+    fn v_register_errors(&self, col: &TomlCollector) {
         self.a_u8.register_error(col);
         self.opt_u8.register_error(col);
         self.vec_u8.register_error(col);
@@ -178,7 +174,7 @@ impl Visitor for AnEnum {
         true
     }
 
-    fn register_errors(&self, _col: &TomlCollector) {}
+    fn v_register_errors(&self, _col: &TomlCollector) {}
 
     fn into_concrete(self) -> Self::Concrete {
         self
@@ -208,14 +204,14 @@ impl Visitor for PartialNestedStruct {
         p.other_u8 = p.tpd_get_other_u8(helper);
         p.double = p.tpd_get_double(helper);
 
-        TomlValue::from_visitor(p, helper.span())
+        TomlValue::from_visitor(p, helper)
     }
 
     fn can_concrete(&self) -> bool {
         self.other_u8.is_ok() && self.double.is_ok()
     }
 
-    fn register_errors(&self, col: &TomlCollector) {
+    fn v_register_errors(&self, col: &TomlCollector) {
         self.other_u8.register_error(col);
         self.double.register_error(col);
     }
@@ -245,14 +241,14 @@ impl Visitor for PartialDoubleNestedStruct {
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         let mut p = PartialDoubleNestedStruct::default();
         p.double_u8 = p.get_double_u8(helper);
-        TomlValue::from_visitor(p, helper.span())
+        TomlValue::from_visitor(p, helper)
     }
 
     fn can_concrete(&self) -> bool {
         self.double_u8.is_ok()
     }
 
-    fn register_errors(&self, col: &TomlCollector) {
+    fn v_register_errors(&self, col: &TomlCollector) {
         self.double_u8.register_error(col);
     }
 
@@ -293,18 +289,14 @@ impl Visitor for PartialInnerA {
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         let mut p = PartialInnerA::default();
         p.a = helper.get_with_aliases("a", &[]);
-        if p.a.is_ok() {
-            TomlValue::new_ok(p, helper.span())
-        } else {
-            TomlValue::new_nested(Some(p))
-        }
+        TomlValue::from_visitor(p, helper)
     }
 
     fn can_concrete(&self) -> bool {
         self.a.is_ok()
     }
 
-    fn register_errors(&self, col: &TomlCollector) {
+    fn v_register_errors(&self, col: &TomlCollector) {
         self.a.register_error(col);
     }
 
@@ -321,18 +313,14 @@ impl Visitor for PartialInnerB {
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         let mut p = PartialInnerB::default();
         p.b = helper.get_with_aliases("b", &[]);
-        if p.b.is_ok() {
-            TomlValue::new_ok(p, helper.span())
-        } else {
-            TomlValue::new_nested(Some(p))
-        }
+        TomlValue::from_visitor(p, helper)
     }
 
     fn can_concrete(&self) -> bool {
         self.b.is_ok()
     }
 
-    fn register_errors(&self, col: &TomlCollector) {
+    fn v_register_errors(&self, col: &TomlCollector) {
         self.b.register_error(col);
     }
 
@@ -363,10 +351,12 @@ impl Visitor for PartialTaggedEnum {
         match tag.as_str() {
             "KindA" => {
                 let partial_inner = PartialInnerA::fill_from_toml(helper);
-                if partial_inner.is_ok() {
-                    TomlValue::new_ok(PartialTaggedEnum::KindA(partial_inner), helper.span())
+                let is_ok = partial_inner.is_ok();
+                let visitor = PartialTaggedEnum::KindA(partial_inner);
+                if is_ok {
+                    TomlValue::new_ok(visitor, helper.span())
                 } else {
-                    partial_inner.convert_failed_type()
+                    TomlValue::new_nested(Some(visitor))
                 }
             }
             "KindB" => {
@@ -374,7 +364,7 @@ impl Visitor for PartialTaggedEnum {
                 if partial_inner.is_ok() {
                     TomlValue::new_ok(PartialTaggedEnum::KindB(partial_inner), helper.span())
                 } else {
-                    partial_inner.convert_failed_type()
+                    TomlValue::new_nested(Some(PartialTaggedEnum::KindB(partial_inner)))
                 }
             }
             _ => TomlValue::new_validation_failed(
@@ -392,8 +382,15 @@ impl Visitor for PartialTaggedEnum {
         }
     }
 
-    fn register_errors(&self, _col: &TomlCollector) {
-        todo!()
+    fn v_register_errors(&self, col: &TomlCollector) {
+        match self {
+            PartialTaggedEnum::KindA(toml_value) => {
+                toml_value.register_error(col);
+            }
+            PartialTaggedEnum::KindB(toml_value) => {
+                toml_value.register_error(col);
+            }
+        }
     }
 
     fn into_concrete(self) -> Self::Concrete {
@@ -456,11 +453,7 @@ impl Visitor for PartialOtherOuter {
         let mut partial = PartialOtherOuter::default();
         partial.nested_struct = partial.tpd_get_nested_struct(helper, 0..0);
 
-        if partial.can_concrete() {
-            TomlValue::new_ok(partial, helper.span())
-        } else {
-            TomlValue::new_nested(Some(partial))
-        }
+        TomlValue::from_visitor(partial, helper)
     }
 
     fn can_concrete(&self) -> bool {
@@ -473,7 +466,7 @@ impl Visitor for PartialOtherOuter {
         }
     }
 
-    fn register_errors(&self, col: &TomlCollector) {
+    fn v_register_errors(&self, col: &TomlCollector) {
         self.nested_struct.register_error(col);
     }
 }

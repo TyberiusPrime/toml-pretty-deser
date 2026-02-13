@@ -9,4 +9,3 @@ expression: "errors[0].pretty(\"test.toml\")"
   ┆ │
   ┆ ╰─ Missing required key: 'a_u8'.
 ──╯
-Hint: This key is required but was not found in the TOML document.

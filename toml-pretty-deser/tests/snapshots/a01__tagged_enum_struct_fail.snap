@@ -2,6 +2,16 @@
 source: toml-pretty-deser/tests/a01.rs
 expression: pretty
 ---
+Error 1/2
+   ╭─test.toml
+   ┆
+12 │         [nested_tagged_enum]
+   ┆         ──────────┬─────────
+   ┆                   │
+   ┆                   ╰────────── Missing required key: 'a'.
+───╯
+
+Error 2/2
    ╭─test.toml
    ┆
 12 │         [nested_tagged_enum]
