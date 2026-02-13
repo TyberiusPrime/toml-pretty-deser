@@ -1,11 +1,11 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyVisitor, Visitor,
+    DeserError, TomlCollector, TomlHelper, TomlValue, VerifyVisitor, Visitor,
     helpers::{Root, VerifyIn, deserialize_toml},
     suggest_alternatives,
 };
 
-use crate::OtherOuter;
+use crate::{MapTest, OtherOuter, WithVecOfTaggedEnums};
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
 use super::{AnEnum, DoubleNestedStruct, InnerA, InnerB, NestedStruct, Outer, TaggedEnum};
@@ -132,6 +132,7 @@ impl VerifyVisitor<Root> for PartialOuter {
         self.vec_u8 = self.vec_u8.take().tpd_validate(helper, &self);
         self.map_u8 = self.map_u8.take().tpd_validate(helper, &self);
         self.nested_struct = self.nested_struct.take().tpd_validate(helper, &self);
+        //todoself.nested_tagged_enum = self.nested_tagged_enum.take().tpd_validate(helper, &self);
         self.simple_enum = self.simple_enum.take().tpd_validate(helper, &self);
         self
     }
@@ -272,6 +273,8 @@ pub enum PartialTaggedEnum {
     KindA(TomlValue<PartialInnerA>),
     KindB(TomlValue<PartialInnerB>),
 }
+
+impl VerifyIn<PartialOuter> for PartialTaggedEnum {}
 
 #[derive(Default, Debug)]
 pub struct PartialInnerA {
@@ -470,3 +473,342 @@ impl Visitor for PartialOtherOuter {
         self.nested_struct.register_error(col);
     }
 }
+
+#[derive(Debug, Default)]
+pub struct PartialWithVecOfTaggedEnums {
+    items: TomlValue<Vec<TomlValue<PartialTaggedEnum>>>,
+}
+
+impl PartialWithVecOfTaggedEnums {
+    fn tpd_get_items(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Vec<TomlValue<PartialTaggedEnum>>> {
+        helper.get_with_aliases("items", &[])
+    }
+}
+
+impl Visitor for PartialWithVecOfTaggedEnums {
+    type Concrete = WithVecOfTaggedEnums;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut partial = PartialWithVecOfTaggedEnums::default();
+        partial.items = partial.tpd_get_items(helper, 0..0);
+
+        TomlValue::from_visitor(partial, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.items.is_ok()
+    }
+
+    fn into_concrete(self) -> WithVecOfTaggedEnums {
+        WithVecOfTaggedEnums {
+            items: self.items.value.unwrap().into_concrete(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.items.register_error(col);
+    }
+}
+
+impl WithVecOfTaggedEnums {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<WithVecOfTaggedEnums, DeserError<PartialWithVecOfTaggedEnums>> {
+        deserialize_toml::<PartialWithVecOfTaggedEnums>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+impl VerifyIn<Root> for PartialWithVecOfTaggedEnums {}
+impl VerifyVisitor<Root> for PartialWithVecOfTaggedEnums {}
+
+impl VerifyIn<PartialWithVecOfTaggedEnums> for PartialTaggedEnum {}
+
+impl VerifyVisitor<PartialWithVecOfTaggedEnums> for PartialTaggedEnum {
+    fn vv_validate(
+        mut self,
+        helper: &mut TomlHelper<'_>,
+        parent: &PartialWithVecOfTaggedEnums,
+    ) -> Self {
+        match &mut self {
+            PartialTaggedEnum::KindA(toml_value) => {
+                *toml_value = toml_value.take().tpd_validate(helper, parent);
+            }
+            PartialTaggedEnum::KindB(toml_value) => {
+                *toml_value = toml_value.take().tpd_validate(helper, parent);
+            }
+        }
+        self
+    }
+}
+
+impl VerifyIn<PartialWithVecOfTaggedEnums> for PartialInnerA {}
+impl VerifyIn<PartialWithVecOfTaggedEnums> for PartialInnerB {}
+impl VerifyVisitor<PartialWithVecOfTaggedEnums> for PartialInnerA {}
+impl VerifyVisitor<PartialWithVecOfTaggedEnums> for PartialInnerB {}
+
+// Vec of nested struct
+#[derive(Debug, Default)]
+pub struct PartialWithVecOfStructs {
+    items: TomlValue<Vec<TomlValue<PartialNestedStruct>>>,
+}
+
+impl PartialWithVecOfStructs {
+    fn tpd_get_items(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Vec<TomlValue<PartialNestedStruct>>> {
+        helper.get_with_aliases("items", &[])
+    }
+}
+
+impl Visitor for PartialWithVecOfStructs {
+    type Concrete = super::WithVecOfStructs;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut partial = PartialWithVecOfStructs::default();
+        partial.items = partial.tpd_get_items(helper, 0..0);
+
+        TomlValue::from_visitor(partial, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.items.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        super::WithVecOfStructs {
+            items: self.items.value.unwrap().into_concrete(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.items.register_error(col);
+    }
+}
+
+impl super::WithVecOfStructs {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<super::WithVecOfStructs, DeserError<PartialWithVecOfStructs>> {
+        deserialize_toml::<PartialWithVecOfStructs>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+impl VerifyIn<Root> for PartialWithVecOfStructs {}
+impl VerifyVisitor<Root> for PartialWithVecOfStructs {}
+impl VerifyIn<PartialWithVecOfStructs> for PartialNestedStruct {}
+
+// OptStruct of nested struct
+#[derive(Debug, Default)]
+pub struct PartialOptionNested {
+    a_struct: TomlValue<Option<PartialNestedStruct>>,
+    tag: TomlValue<Option<PartialTaggedEnum>>,
+
+    structs: TomlValue<Option<Vec<TomlValue<PartialNestedStruct>>>>,
+    tagged: TomlValue<Option<Vec<TomlValue<PartialTaggedEnum>>>>,
+}
+
+impl PartialOptionNested {
+    fn tpd_get_a_struct(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<Option<PartialNestedStruct>> {
+        helper.get_with_aliases("a_struct", &[]).into_optional()
+    }
+
+    fn tpd_get_tag(&self, helper: &mut TomlHelper<'_>) -> TomlValue<Option<PartialTaggedEnum>> {
+        helper.get_with_aliases("tag", &[]).into_optional()
+    }
+
+    fn tpd_get_structs(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<Option<Vec<TomlValue<PartialNestedStruct>>>> {
+        helper.get_with_aliases("structs", &[]).into_optional()
+    }
+    fn tpd_get_tagged(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<Option<Vec<TomlValue<PartialTaggedEnum>>>> {
+        helper.get_with_aliases("tagged", &[]).into_optional()
+    }
+}
+
+impl Visitor for PartialOptionNested {
+    type Concrete = super::OptionNested;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut partial = PartialOptionNested::default();
+        partial.a_struct = partial.tpd_get_a_struct(helper);
+        partial.tag = partial.tpd_get_tag(helper);
+        partial.structs = partial.tpd_get_structs(helper);
+        partial.tagged = partial.tpd_get_tagged(helper);
+
+        TomlValue::from_visitor(partial, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.a_struct.is_ok() && self.tag.is_ok() && self.structs.is_ok() && self.tagged.is_ok()
+
+        //self.a_struct.is_ok() && self.tag.is_ok() && self.structs.is_ok() && self.tagged.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        super::OptionNested {
+            a_struct: self.a_struct.value.unwrap().map(|x| x.into_concrete()),
+            tag: self.tag.value.unwrap().map(|x| x.into_concrete()),
+            structs: self.structs.value.unwrap().map(|x| x.into_concrete()),
+            tagged: self.tagged.value.unwrap().map(|x| x.into_concrete()),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.a_struct.register_error(col);
+        self.tag.register_error(col);
+        self.structs.register_error(col);
+        self.tagged.register_error(col);
+    }
+}
+
+impl super::OptionNested {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<super::OptionNested, DeserError<PartialOptionNested>> {
+        deserialize_toml::<PartialOptionNested>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+impl VerifyIn<Root> for PartialOptionNested {}
+impl VerifyVisitor<Root> for PartialOptionNested {}
+impl VerifyIn<PartialOptionNested> for PartialNestedStruct {}
+
+// map test
+//
+#[derive(Debug, Default)]
+pub struct PartialMapTest {
+    map_nested: TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>>,
+    map_tagged: TomlValue<IndexMap<String, TomlValue<PartialTaggedEnum>>>,
+    opt_map_nested: TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>>,
+    opt_map_tagged: TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>>,
+
+    map_nested_vec: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>,
+    map_tagged_vec: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>>,
+}
+
+impl PartialMapTest {
+    fn tpd_get_map_nested(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>> {
+        helper.get_with_aliases("map_nested", &[])
+    }
+
+    fn tpd_get_map_tagged(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<IndexMap<String, TomlValue<PartialTaggedEnum>>> {
+        helper.get_with_aliases("map_tagged", &[])
+    }
+
+    fn tpd_get_opt_map_nested(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>> {
+        helper
+            .get_with_aliases("opt_map_nested", &[])
+            .into_optional()
+    }
+
+    fn tpd_get_opt_map_tagged(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>> {
+        helper
+            .get_with_aliases("opt_map_tagged", &[])
+            .into_optional()
+    }
+
+    fn tpd_get_map_nested_vec(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>> {
+        helper.get_with_aliases("map_nested_vec", &[])
+    }
+
+    fn tpd_get_map_tagged_vec(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>> {
+        helper.get_with_aliases("map_tagged_vec", &[])
+    }
+}
+
+impl MapTest {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<MapTest, DeserError<PartialMapTest>> {
+        deserialize_toml::<PartialMapTest>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+impl Visitor for PartialMapTest {
+    type Concrete = MapTest;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut partial = PartialMapTest::default();
+        partial.map_nested = partial.tpd_get_map_nested(helper);
+        partial.map_tagged = partial.tpd_get_map_tagged(helper);
+        partial.opt_map_nested = partial.tpd_get_opt_map_nested(helper);
+        partial.opt_map_tagged = partial.tpd_get_opt_map_tagged(helper);
+        partial.map_nested_vec = partial.tpd_get_map_nested_vec(helper);
+        partial.map_tagged_vec = partial.tpd_get_map_tagged_vec(helper);
+
+        TomlValue::from_visitor(partial, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.map_nested.is_ok()
+            && self.map_tagged.is_ok()
+            && self.opt_map_nested.is_ok()
+            && self.opt_map_tagged.is_ok()
+            && self.map_nested_vec.is_ok()
+            && self.map_tagged_vec.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        MapTest {
+            map_nested: self.map_nested.value.unwrap().into_concrete(),
+            map_tagged: self.map_tagged.value.unwrap().into_concrete(),
+            opt_map_nested: self.opt_map_nested.value.unwrap().into_concrete(),
+            opt_map_tagged: self.opt_map_tagged.value.unwrap().into_concrete(),
+            map_nested_vec: self.map_nested_vec.value.unwrap().into_concrete(),
+            map_tagged_vec: self.map_tagged_vec.value.unwrap().into_concrete(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.map_nested.register_error(col);
+        self.map_tagged.register_error(col);
+        self.opt_map_nested.register_error(col);
+        self.opt_map_tagged.register_error(col);
+
+        self.map_nested_vec.register_error(col);
+        self.map_tagged_vec.register_error(col);
+    }
+}
+
+impl VerifyIn<Root> for PartialMapTest {}
+impl VerifyVisitor<Root> for PartialMapTest {}

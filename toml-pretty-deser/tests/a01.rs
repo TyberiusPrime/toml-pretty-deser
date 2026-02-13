@@ -1,5 +1,5 @@
 use indexmap::IndexMap;
-use toml_pretty_deser::{DeserError, TomlHelper};
+use toml_pretty_deser::{DeserError, FieldMatchMode, TomlHelper, VecMode};
 //library code
 //
 use toml_pretty_deser::helpers::VerifyIn;
@@ -26,7 +26,7 @@ pub struct Outer {
 }
 
 // #[tpd]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct NestedStruct {
     other_u8: u8,
     double: DoubleNestedStruct,
@@ -47,7 +47,7 @@ impl VerifyIn<PartialOuter> for PartialNestedStruct {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct DoubleNestedStruct {
     double_u8: u8,
 }
@@ -61,20 +61,20 @@ pub enum AnEnum {
 }
 
 // #[tpd]
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum TaggedEnum {
     KindA(InnerA),
     #[allow(dead_code)]
     KindB(InnerB),
 }
 // #[tpd]
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct InnerA {
     a: u8,
 }
 
 // #[tpd]
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct InnerB {
     b: u8,
@@ -490,1314 +490,322 @@ fn test_tagged_enum_struct_fail() {
         insta::assert_snapshot!(pretty);
     }
 }
-// #[test]
-// fn test_vec_of_tagged_enums() {
-//     // Demonstrate that FromTomlItem works with Vec<TaggedEnum>
-//     let toml_str = "
-//         [[items]]
-//         kind = 'KindA'
-//         a = 1
-//
-//         [[items]]
-//         kind = 'KindB'
-//         b = 2
-//
-//         [[items]]
-//         kind = 'KindA'
-//         a = 3
-//     ";
-//
-//     let parsed = toml_str.parse::<toml_edit::Document<String>>().unwrap();
-//     let col = TomlCollector {
-//         errors: Rc::new(RefCell::new(Vec::new())),
-//         match_mode: toml_pretty_deser::FieldMatchMode::Exact,
-//         vec_mode: toml_pretty_deser::VecMode::Strict,
-//         context_spans: Rc::new(RefCell::new(Vec::new())),
-//     };
-//
-//     let items = parsed.get("items").unwrap();
-//     let result: TomlValue<Vec<TomlValue<PartialTaggedEnum>>> =
-//         FromTomlItem::from_toml_item(items, 0..0, &col);
-//
-//     assert!(result.is_ok());
-//     let vec = result.value.unwrap();
-//     assert_eq!(vec.len(), 3);
-//
-//     match &vec[0].value.as_ref().unwrap() {
-//         PartialTaggedEnum::KindA(inner) => assert_eq!(inner.a.value, Some(1)),
-//         _ => panic!("Expected KindA"),
-//     }
-//
-//     match &vec[1].value.as_ref().unwrap() {
-//         PartialTaggedEnum::KindB(inner) => assert_eq!(inner.b.value, Some(2)),
-//         _ => panic!("Expected KindB"),
-//     }
-//
-//     match &vec[2].value.as_ref().unwrap() {
-//         PartialTaggedEnum::KindA(inner) => assert_eq!(inner.a.value, Some(3)),
-//         _ => panic!("Expected KindA"),
-//     }
-// }
-//
-// #[test]
-// fn test_vec_of_nested_structs() {
-//     // Demonstrate that FromTomlItem works with Vec<NestedStruct>
-//     let toml_str = "
-//         [[items]]
-//         other_u8 = 10
-//         [items.double]
-//         double_u8 = 11
-//
-//         [[items]]
-//         other_u8 = 20
-//         [items.double]
-//         double_u8 = 21
-//
-//         [[items]]
-//         other_u8 = 30
-//         [items.double]
-//         double_u8 = 31
-//     ";
-//
-//     let parsed = toml_str.parse::<toml_edit::Document<String>>().unwrap();
-//     let col = TomlCollector {
-//         errors: Rc::new(RefCell::new(Vec::new())),
-//         match_mode: toml_pretty_deser::FieldMatchMode::Exact,
-//         vec_mode: toml_pretty_deser::VecMode::Strict,
-//         context_spans: Rc::new(RefCell::new(Vec::new())),
-//     };
-//
-//     let items = parsed.get("items").unwrap();
-//     let result: TomlValue<Vec<TomlValue<PartialNestedStruct>>> =
-//         FromTomlItem::from_toml_item(items, 0..0, &col);
-//
-//     assert!(result.is_ok());
-//     let vec = result.value.unwrap();
-//     assert_eq!(vec.len(), 3);
-//
-//     assert_eq!(vec[0].as_ref().unwrap().other_u8.value, Some(10));
-//     assert_eq!(
-//         vec[0]
-//             .as_ref()
-//             .unwrap()
-//             .double
-//             .value
-//             .as_ref()
-//             .unwrap()
-//             .double_u8
-//             .value,
-//         Some(11)
-//     );
-//
-//     assert_eq!(vec[1].as_ref().unwrap().other_u8.value, Some(20));
-//     assert_eq!(
-//         vec[1]
-//             .as_ref()
-//             .unwrap()
-//             .double
-//             .value
-//             .as_ref()
-//             .unwrap()
-//             .double_u8
-//             .value,
-//         Some(21)
-//     );
-//
-//     assert_eq!(vec[2].as_ref().unwrap().other_u8.value, Some(30));
-//     assert_eq!(
-//         vec[2]
-//             .as_ref()
-//             .unwrap()
-//             .double
-//             .value
-//             .as_ref()
-//             .unwrap()
-//             .double_u8
-//             .value,
-//         Some(31)
-//     );
-// }
-//
-// #[test]
-// fn test_option_nested_struct() {
-//     // Demonstrate that FromTomlItem works with Option<NestedStruct>
-//     let toml_str = "
-//         [item]
-//         other_u8 = 42
-//         [item.double]
-//         double_u8 = 43
-//     ";
-//
-//     let parsed = toml_str.parse::<toml_edit::Document<String>>().unwrap();
-//     let col = TomlCollector {
-//         errors: Rc::new(RefCell::new(Vec::new())),
-//         match_mode: toml_pretty_deser::FieldMatchMode::Exact,
-//         vec_mode: toml_pretty_deser::VecMode::Strict,
-//         context_spans: Rc::new(RefCell::new(Vec::new())),
-//     };
-//
-//     let item = parsed.get("item").unwrap();
-//     let result: TomlValue<Option<PartialNestedStruct>> =
-//         FromTomlItem::from_toml_item(item, 0..0, &col);
-//
-//     assert!(result.is_ok());
-//     let opt = result.value.unwrap();
-//     assert!(opt.is_some());
-//
-//     let nested = opt.unwrap();
-//     assert_eq!(nested.other_u8.value, Some(42));
-//     assert_eq!(
-//         nested.double.value.as_ref().unwrap().double_u8.value,
-//         Some(43)
-//     );
-// }
-//
-// #[test]
-// fn test_map_of_nested_structs() {
-//     // Demonstrate that FromTomlItem works with IndexMap<String, NestedStruct>
-//     let toml_str = "
-//         [items.first]
-//         other_u8 = 100
-//         [items.first.double]
-//         double_u8 = 101
-//
-//         [items.second]
-//         other_u8 = 200
-//         [items.second.double]
-//         double_u8 = 201
-//     ";
-//
-//     let parsed = toml_str.parse::<toml_edit::Document<String>>().unwrap();
-//     let col = TomlCollector {
-//         errors: Rc::new(RefCell::new(Vec::new())),
-//         match_mode: toml_pretty_deser::FieldMatchMode::Exact,
-//         vec_mode: toml_pretty_deser::VecMode::Strict,
-//         context_spans: Rc::new(RefCell::new(Vec::new())),
-//     };
-//
-//     let items = parsed.get("items").unwrap();
-//     let result: TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>> =
-//         FromTomlItem::from_toml_item(items, 0..0, &col);
-//
-//     assert!(result.is_ok());
-//     let map = result.value.unwrap();
-//     assert_eq!(map.len(), 2);
-//
-//     let first = map.get("first").unwrap();
-//     assert_eq!(first.as_ref().unwrap().other_u8.value, Some(100));
-//     assert_eq!(
-//         first
-//             .as_ref()
-//             .unwrap()
-//             .double
-//             .value
-//             .as_ref()
-//             .unwrap()
-//             .double_u8
-//             .value,
-//         Some(101)
-//     );
-//
-//     let second = map.get("second").unwrap();
-//     assert_eq!(second.as_ref().unwrap().other_u8.value, Some(200));
-//     assert_eq!(
-//         second
-//             .as_ref()
-//             .unwrap()
-//             .double
-//             .value
-//             .as_ref()
-//             .unwrap()
-//             .double_u8
-//             .value,
-//         Some(201)
-//     );
-// }
-//
-// // Advanced test with all the complex types
-// //user code
-// #[derive(Debug)]
-// struct AdvancedOuter {
-//     boxed_u8: Box<u8>,
-//     vec_nested: Vec<NestedStruct>,
-//     vec_enum: Vec<AnEnum>,
-//     vec_tagged: Vec<TaggedEnum>,
-//     map_nested: IndexMap<String, NestedStruct>,
-//     map_enum: IndexMap<String, AnEnum>,
-//     map_tagged: IndexMap<String, TaggedEnum>,
-//     map_vec_nested: IndexMap<String, Vec<NestedStruct>>,
-//     map_vec_enum: IndexMap<String, Vec<AnEnum>>,
-//     map_vec_tagged: IndexMap<String, Vec<TaggedEnum>>,
-//
-//     opt_vec_nested: Option<Vec<NestedStruct>>,
-//     opt_vec_enum: Option<Vec<AnEnum>>,
-//     opt_vec_tagged: Option<Vec<TaggedEnum>>,
-//     opt_map_nested: Option<IndexMap<String, NestedStruct>>,
-//     opt_map_enum: Option<IndexMap<String, AnEnum>>,
-//     opt_map_tagged: Option<IndexMap<String, TaggedEnum>>,
-//     opt_map_vec_nested: Option<IndexMap<String, Vec<NestedStruct>>>,
-// }
-//
-// impl VerifyTomlItem<()> for PartialAdvancedOuter {}
-//
-// //macro code
-//
-// #[derive(Default, Debug)]
-// struct PartialAdvancedOuter {
-//     boxed_u8: TomlValue<Box<u8>>,
-//     vec_nested: TomlValue<Vec<TomlValue<PartialNestedStruct>>>,
-//     vec_enum: TomlValue<Vec<TomlValue<AnEnum>>>,
-//     vec_tagged: TomlValue<Vec<TomlValue<PartialTaggedEnum>>>,
-//     map_nested: TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>>,
-//     map_enum: TomlValue<IndexMap<String, TomlValue<AnEnum>>>,
-//     map_tagged: TomlValue<IndexMap<String, TomlValue<PartialTaggedEnum>>>,
-//     map_vec_nested: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>,
-//     map_vec_enum: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<AnEnum>>>>>,
-//     map_vec_tagged: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>>,
-//
-//     opt_vec_nested: TomlValue<Option<Vec<TomlValue<PartialNestedStruct>>>>,
-//     opt_vec_enum: TomlValue<Option<Vec<TomlValue<AnEnum>>>>,
-//     opt_vec_tagged: TomlValue<Option<Vec<TomlValue<PartialTaggedEnum>>>>,
-//     opt_map_nested: TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>>,
-//     opt_map_enum: TomlValue<Option<IndexMap<String, TomlValue<AnEnum>>>>,
-//     opt_map_tagged: TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>>,
-//     opt_map_vec_nested:
-//         TomlValue<Option<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>>,
-// }
-//
-// impl PartialAdvancedOuter {
-//     // Example of a custom getter that could be used in fill_fields
-//     fn tpd_get_boxed_u8(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Box<u8>> {
-//         helper.get_with_aliases("boxed_u8", &[])
-//     }
-//
-//     fn tpd_get_vec_nested(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Vec<TomlValue<PartialNestedStruct>>> {
-//         helper.get_with_aliases("vec_nested", &[])
-//     }
-//     fn tpd_get_vec_enum(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Vec<TomlValue<AnEnum>>> {
-//         helper.get_with_aliases("vec_enum", &[])
-//     }
-//     fn tpd_get_vec_tagged(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Vec<TomlValue<PartialTaggedEnum>>> {
-//         helper.get_with_aliases("vec_tagged", &[])
-//     }
-//     fn tpd_get_map_nested(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>> {
-//         helper.get_with_aliases("map_nested", &[])
-//     }
-//     fn tpd_get_map_enum(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<IndexMap<String, TomlValue<AnEnum>>> {
-//         helper.get_with_aliases("map_enum", &[])
-//     }
-//
-//     fn tpd_get_map_tagged(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<IndexMap<String, TomlValue<PartialTaggedEnum>>> {
-//         helper.get_with_aliases("map_tagged", &[])
-//     }
-//
-//     fn tpd_get_map_vec_nested(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>> {
-//         helper.get_with_aliases("map_vec_nested", &[])
-//     }
-//
-//     fn tpd_get_map_vec_enum(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<AnEnum>>>>> {
-//         helper.get_with_aliases("map_vec_enum", &[])
-//     }
-//
-//     fn tpd_get_map_vec_tagged(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>> {
-//         helper.get_with_aliases("map_vec_tagged", &[])
-//     }
-//
-//     fn tpd_get_opt_vec_nested(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Option<Vec<TomlValue<PartialNestedStruct>>>> {
-//         helper
-//             .get_with_aliases("opt_vec_nested", &[])
-//             .into_optional()
-//     }
-//
-//     fn tpd_get_opt_vec_enum(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Option<Vec<TomlValue<AnEnum>>>> {
-//         helper.get_with_aliases("opt_vec_enum", &[]).into_optional()
-//     }
-//
-//     fn tpd_get_opt_vec_tagged(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Option<Vec<TomlValue<PartialTaggedEnum>>>> {
-//         helper
-//             .get_with_aliases("opt_vec_tagged", &[])
-//             .into_optional()
-//     }
-//
-//     fn tpd_get_opt_map_nested(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>> {
-//         helper
-//             .get_with_aliases("opt_map_nested", &[])
-//             .into_optional()
-//     }
-//
-//     fn tpd_get_opt_map_enum(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Option<IndexMap<String, TomlValue<AnEnum>>>> {
-//         helper.get_with_aliases("opt_map_enum", &[]).into_optional()
-//     }
-//
-//     fn tpd_get_opt_map_tagged(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>> {
-//         helper
-//             .get_with_aliases("opt_map_tagged", &[])
-//             .into_optional()
-//     }
-//     fn tpd_get_opt_map_vec_nested(
-//         &self,
-//         helper: &mut TomlHelper<'_>,
-//         _parent_span: std::ops::Range<usize>,
-//     ) -> TomlValue<Option<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>> {
-//         helper
-//             .get_with_aliases("opt_map_vec_nested", &[])
-//             .into_optional()
-//     }
-// }
-//
-// impl TpdDeserializeStruct for PartialAdvancedOuter {
-//     type Concrete = AdvancedOuter;
-//     fn can_concrete(&self) -> bool {
-//         self.boxed_u8.is_ok()
-//             && self.vec_nested.is_ok()
-//             && self.vec_enum.is_ok()
-//             && self.vec_tagged.is_ok()
-//             && self.map_nested.is_ok()
-//             && self.map_enum.is_ok()
-//             && self.map_tagged.is_ok()
-//             && self.map_vec_nested.is_ok()
-//             && self.map_vec_enum.is_ok()
-//             && self.map_vec_tagged.is_ok()
-//             && self.opt_vec_nested.is_ok()
-//             && self.opt_vec_enum.is_ok()
-//             && self.opt_vec_tagged.is_ok()
-//             && self.opt_map_nested.is_ok()
-//             && self.opt_map_enum.is_ok()
-//             && self.opt_map_tagged.is_ok()
-//             && self.opt_map_vec_nested.is_ok()
-//     }
-//
-//     fn to_concrete(self) -> AdvancedOuter {
-//         AdvancedOuter {
-//             boxed_u8: self.boxed_u8.value.unwrap(),
-//             vec_nested: self
-//                 .vec_nested
-//                 .value
-//                 .unwrap()
-//                 .into_iter()
-//                 .map(|p| p.expect("should be set").to_concrete())
-//                 .collect(),
-//             vec_enum: self.vec_enum.value.unwrap().to_concrete(),
-//             vec_tagged: self
-//                 .vec_tagged
-//                 .value
-//                 .unwrap()
-//                 .into_iter()
-//                 .map(|p| p.expect("should be set").to_concrete())
-//                 .collect(),
-//             map_nested: self
-//                 .map_nested
-//                 .value
-//                 .unwrap()
-//                 .into_iter()
-//                 .map(|(k, v)| (k, v.expect("should be set").to_concrete()))
-//                 .collect(),
-//             map_enum: self.map_enum.value.unwrap().to_concrete(),
-//             map_tagged: self
-//                 .map_tagged
-//                 .value
-//                 .unwrap()
-//                 .into_iter()
-//                 .map(|(k, v)| (k, v.expect("should be set").to_concrete()))
-//                 .collect(),
-//             map_vec_nested: self
-//                 .map_vec_nested
-//                 .value
-//                 .unwrap()
-//                 .into_iter()
-//                 .map(|(k, vec)| {
-//                     (
-//                         k,
-//                         vec.expect("should be set")
-//                             .into_iter()
-//                             .map(|p| p.expect("should be set").to_concrete())
-//                             .collect(),
-//                     )
-//                 })
-//                 .collect(),
-//             map_vec_enum: self
-//                 .map_vec_enum
-//                 .value
-//                 .unwrap()
-//                 .into_iter()
-//                 .map(|(k, vec)| {
-//                     (
-//                         k,
-//                         vec.expect("should be set")
-//                             .into_iter()
-//                             .map(|p| p.expect("should be set"))
-//                             .collect(),
-//                     )
-//                 })
-//                 .collect(),
-//             map_vec_tagged: self
-//                 .map_vec_tagged
-//                 .value
-//                 .unwrap()
-//                 .into_iter()
-//                 .map(|(k, vec)| {
-//                     (
-//                         k,
-//                         vec.expect("should be set")
-//                             .into_iter()
-//                             .map(|p| p.expect("should be set").to_concrete())
-//                             .collect(),
-//                     )
-//                 })
-//                 .collect(),
-//             opt_vec_nested: self.opt_vec_nested.value.unwrap().map(|vec| {
-//                 vec.into_iter()
-//                     .map(|p| p.expect("should be set").to_concrete())
-//                     .collect()
-//             }),
-//             opt_vec_enum: self
-//                 .opt_vec_enum
-//                 .value
-//                 .unwrap()
-//                 .map(|vec| vec.into_iter().map(|p| p.expect("should be set")).collect()),
-//             opt_vec_tagged: self.opt_vec_tagged.value.unwrap().map(|vec| {
-//                 vec.into_iter()
-//                     .map(|p| p.expect("should be set").to_concrete())
-//                     .collect()
-//             }),
-//             opt_map_nested: self.opt_map_nested.value.unwrap().map(|map| {
-//                 map.into_iter()
-//                     .map(|(k, v)| (k, v.expect("should be set").to_concrete()))
-//                     .collect()
-//             }),
-//             opt_map_enum: self.opt_map_enum.value.unwrap().map(|map| {
-//                 map.into_iter()
-//                     .map(|(k, v)| (k, v.expect("should be set")))
-//                     .collect()
-//             }),
-//             opt_map_tagged: self.opt_map_tagged.value.unwrap().map(|map| {
-//                 map.into_iter()
-//                     .map(|(k, v)| (k, v.expect("should be set").to_concrete()))
-//                     .collect()
-//             }),
-//             opt_map_vec_nested: self.opt_map_vec_nested.value.unwrap().map(|map| {
-//                 map.into_iter()
-//                     .map(|(k, vec)| {
-//                         (
-//                             k,
-//                             vec.expect("should be set")
-//                                 .into_iter()
-//                                 .map(|p| p.expect("should be set").to_concrete())
-//                                 .collect(),
-//                         )
-//                     })
-//                     .collect()
-//             }),
-//         }
-//     }
-//
-//     fn fill_fields(&mut self, helper: &mut TomlHelper<'_>) {
-//         self.boxed_u8 = self.tpd_get_boxed_u8(helper, 0..0);
-//         self.vec_nested = self.tpd_get_vec_nested(helper, 0..0);
-//         self.vec_enum = self.tpd_get_vec_enum(helper, 0..0);
-//         self.vec_tagged = self.tpd_get_vec_tagged(helper, 0..0);
-//         self.map_nested = self.tpd_get_map_nested(helper, 0..0);
-//         self.map_enum = self.tpd_get_map_enum(helper, 0..0);
-//         self.map_tagged = self.tpd_get_map_tagged(helper, 0..0);
-//         self.map_vec_nested = self.tpd_get_map_vec_nested(helper, 0..0);
-//         self.map_vec_enum = self.tpd_get_map_vec_enum(helper, 0..0);
-//         self.map_vec_tagged = self.tpd_get_map_vec_tagged(helper, 0..0);
-//         self.opt_vec_nested = self.tpd_get_opt_vec_nested(helper, 0..0);
-//         self.opt_vec_enum = self.tpd_get_opt_vec_enum(helper, 0..0);
-//         self.opt_vec_tagged = self.tpd_get_opt_vec_tagged(helper, 0..0);
-//         self.opt_map_nested = self.tpd_get_opt_map_nested(helper, 0..0);
-//         self.opt_map_enum = self.tpd_get_opt_map_enum(helper, 0..0);
-//         self.opt_map_tagged = self.tpd_get_opt_map_tagged(helper, 0..0);
-//         self.opt_map_vec_nested = self.tpd_get_opt_map_vec_nested(helper, 0..0);
-//     }
-//
-//     fn register_errors(&self, col: &TomlCollector) {
-//         self.boxed_u8.register_error(col);
-//         self.vec_nested.register_error(col);
-//         self.vec_enum.register_error(col);
-//         self.vec_tagged.register_error(col);
-//         self.map_nested.register_error(col);
-//         self.map_enum.register_error(col);
-//         self.map_tagged.register_error(col);
-//         self.map_vec_nested.register_error(col);
-//         self.map_vec_enum.register_error(col);
-//         self.map_vec_tagged.register_error(col);
-//         self.opt_vec_nested.register_error(col);
-//         self.opt_vec_enum.register_error(col);
-//         self.opt_vec_tagged.register_error(col);
-//         self.opt_map_nested.register_error(col);
-//         self.opt_map_enum.register_error(col);
-//         self.opt_map_tagged.register_error(col);
-//         self.opt_map_vec_nested.register_error(col);
-//     }
-// }
-//
-// fn deserialize_advanced(
-//     toml_str: &str,
-//     field_match_mode: toml_pretty_deser::FieldMatchMode,
-//     vec_mode: toml_pretty_deser::VecMode,
-// ) -> Result<AdvancedOuter, DeserError<PartialAdvancedOuter>> {
-//     deserialize_toml::<PartialAdvancedOuter>(toml_str, field_match_mode, vec_mode)
-// }
-//
-// #[test]
-// fn test_advanced_all_types() {
-//     let toml = "
-// boxed_u8 = 42
-// vec_enum = ['TypeA', 'TypeB', 'TypeA']
-//
-// opt_vec_enum = ['TypeA','TypeB']
-//
-// opt_map_nested = {
-//     a = {other_u8 = 13, double = {double_u8 = 14}},
-// }
-// opt_map_tagged.delta = {kind = 'KindB', b = 222}
-//
-// [[vec_nested]]
-// other_u8 = 10
-// [vec_nested.double]
-// double_u8 = 11
-//
-// [[vec_nested]]
-// other_u8 = 20
-// [vec_nested.double]
-// double_u8 = 21
-//
-// [[vec_tagged]]
-// kind = 'KindA'
-// a = 100
-//
-// [[vec_tagged]]
-// kind = 'KindB'
-// b = 200
-//
-// [map_nested.first]
-// other_u8 = 30
-// [map_nested.first.double]
-// double_u8 = 31
-//
-// [map_nested.second]
-// other_u8 = 40
-// [map_nested.second.double]
-// double_u8 = 41
-//
-// [map_enum]
-// x = 'TypeA'
-// y = 'TypeB'
-//
-// [map_tagged.alpha]
-// kind = 'KindA'
-// a = 111
-//
-// [map_tagged.beta]
-// kind = 'KindB'
-// b = 222
-//
-// [[map_vec_nested.group1]]
-// other_u8 = 50
-// [map_vec_nested.group1.double]
-// double_u8 = 51
-//
-// [[map_vec_nested.group1]]
-// other_u8 = 52
-// [map_vec_nested.group1.double]
-// double_u8 = 53
-//
-// [[map_vec_nested.group2]]
-// other_u8 = 60
-// [map_vec_nested.group2.double]
-// double_u8 = 61
-//
-// [map_vec_enum]
-// list1 = ['TypeA', 'TypeB']
-// list2 = ['TypeB', 'TypeA', 'TypeB']
-//
-// [[map_vec_tagged.set1]]
-// kind = 'KindA'
-// a = 77
-//
-// [[map_vec_tagged.set1]]
-// kind = 'KindB'
-// b = 88
-//
-// [[map_vec_tagged.set2]]
-// kind = 'KindA'
-// a = 99
-//
-// [[opt_vec_nested]]
-//     other_u8 = 12
-//     double.double_u8 = 12
-//
-//
-// [[opt_vec_tagged]]
-//     kind = 'KindB'
-//     b = 111
-//
-// [opt_map_enum]
-//     c = 'TypeA'
-//
-//
-// [[opt_map_vec_nested.two]]
-//     other_u8 = 222
-//     double.double_u8 = 255
-//     ";
-//
-//     let result = deserialize_advanced(
-//         toml,
-//         toml_pretty_deser::FieldMatchMode::Exact,
-//         toml_pretty_deser::VecMode::Strict,
-//     );
-//
-//     if result.is_err() {
-//         if let Err(DeserError::DeserFailure(ref errors, ref _partial)) = result {
-//             for error in errors {
-//                 eprintln!("{}", error.pretty("test.toml"));
-//             }
-//         }
-//     }
-//     dbg!(&result);
-//     assert!(result.is_ok());
-//
-//     if let Ok(outer) = result {
-//         // Test Box
-//         assert_eq!(*outer.boxed_u8, 42);
-//
-//         // Test Vec<NestedStruct>
-//         assert_eq!(outer.vec_nested.len(), 2);
-//         assert_eq!(outer.vec_nested[0].other_u8, 10);
-//         assert_eq!(outer.vec_nested[0].double.double_u8, 11);
-//         assert_eq!(outer.vec_nested[1].other_u8, 20);
-//         assert_eq!(outer.vec_nested[1].double.double_u8, 21);
-//
-//         // Test Vec<AnEnum>
-//         assert_eq!(outer.vec_enum.len(), 3);
-//         assert_eq!(outer.vec_enum[0], AnEnum::TypeA);
-//         assert_eq!(outer.vec_enum[1], AnEnum::TypeB);
-//         assert_eq!(outer.vec_enum[2], AnEnum::TypeA);
-//
-//         // Test Vec<TaggedEnum>
-//         assert_eq!(outer.vec_tagged.len(), 2);
-//         match &outer.vec_tagged[0] {
-//             TaggedEnum::KindA(inner) => assert_eq!(inner.a, 100),
-//             _ => panic!("Expected KindA"),
-//         }
-//         match &outer.vec_tagged[1] {
-//             TaggedEnum::KindB(inner) => assert_eq!(inner.b, 200),
-//             _ => panic!("Expected KindB"),
-//         }
-//
-//         // Test IndexMap<String, NestedStruct>
-//         assert_eq!(outer.map_nested.len(), 2);
-//         let first = outer.map_nested.get("first").unwrap();
-//         assert_eq!(first.other_u8, 30);
-//         assert_eq!(first.double.double_u8, 31);
-//         let second = outer.map_nested.get("second").unwrap();
-//         assert_eq!(second.other_u8, 40);
-//         assert_eq!(second.double.double_u8, 41);
-//
-//         // Test IndexMap<String, AnEnum>
-//         assert_eq!(outer.map_enum.len(), 2);
-//         assert_eq!(outer.map_enum.get("x").unwrap(), &AnEnum::TypeA);
-//         assert_eq!(outer.map_enum.get("y").unwrap(), &AnEnum::TypeB);
-//
-//         // Test IndexMap<String, TaggedEnum>
-//         assert_eq!(outer.map_tagged.len(), 2);
-//         match outer.map_tagged.get("alpha").unwrap() {
-//             TaggedEnum::KindA(inner) => assert_eq!(inner.a, 111),
-//             _ => panic!("Expected KindA"),
-//         }
-//         match outer.map_tagged.get("beta").unwrap() {
-//             TaggedEnum::KindB(inner) => assert_eq!(inner.b, 222),
-//             _ => panic!("Expected KindB"),
-//         }
-//
-//         // Test IndexMap<String, Vec<NestedStruct>>
-//         assert_eq!(outer.map_vec_nested.len(), 2);
-//         let group1 = outer.map_vec_nested.get("group1").unwrap();
-//         assert_eq!(group1.len(), 2);
-//         assert_eq!(group1[0].other_u8, 50);
-//         assert_eq!(group1[0].double.double_u8, 51);
-//         assert_eq!(group1[1].other_u8, 52);
-//         assert_eq!(group1[1].double.double_u8, 53);
-//         let group2 = outer.map_vec_nested.get("group2").unwrap();
-//         assert_eq!(group2.len(), 1);
-//         assert_eq!(group2[0].other_u8, 60);
-//         assert_eq!(group2[0].double.double_u8, 61);
-//
-//         // Test IndexMap<String, Vec<AnEnum>>
-//         assert_eq!(outer.map_vec_enum.len(), 2);
-//         let list1 = outer.map_vec_enum.get("list1").unwrap();
-//         assert_eq!(list1.len(), 2);
-//         assert_eq!(list1[0], AnEnum::TypeA);
-//         assert_eq!(list1[1], AnEnum::TypeB);
-//         let list2 = outer.map_vec_enum.get("list2").unwrap();
-//         assert_eq!(list2.len(), 3);
-//         assert_eq!(list2[0], AnEnum::TypeB);
-//         assert_eq!(list2[1], AnEnum::TypeA);
-//         assert_eq!(list2[2], AnEnum::TypeB);
-//
-//         // Test IndexMap<String, Vec<TaggedEnum>>
-//         assert_eq!(outer.map_vec_tagged.len(), 2);
-//         let set1 = outer.map_vec_tagged.get("set1").unwrap();
-//         assert_eq!(set1.len(), 2);
-//         match &set1[0] {
-//             TaggedEnum::KindA(inner) => assert_eq!(inner.a, 77),
-//             _ => panic!("Expected KindA"),
-//         }
-//         match &set1[1] {
-//             TaggedEnum::KindB(inner) => assert_eq!(inner.b, 88),
-//             _ => panic!("Expected KindB"),
-//         }
-//         let set2 = outer.map_vec_tagged.get("set2").unwrap();
-//         assert_eq!(set2.len(), 1);
-//         match &set2[0] {
-//             TaggedEnum::KindA(inner) => assert_eq!(inner.a, 99),
-//             _ => panic!("Expected KindA"),
-//         }
-//
-//         assert!(outer.opt_vec_nested.is_some());
-//         assert_eq!(outer.opt_vec_nested.as_ref().unwrap().len(), 1);
-//         assert_eq!(outer.opt_vec_nested.as_ref().unwrap()[0].other_u8, 12);
-//         assert_eq!(
-//             outer.opt_vec_nested.as_ref().unwrap()[0].double.double_u8,
-//             12
-//         );
-//         assert!(outer.opt_vec_enum.is_some());
-//         assert_eq!(outer.opt_vec_enum.as_ref().unwrap().len(), 2);
-//         assert_eq!(outer.opt_vec_enum.as_ref().unwrap()[0], AnEnum::TypeA);
-//         assert_eq!(outer.opt_vec_enum.as_ref().unwrap()[1], AnEnum::TypeB);
-//         assert!(outer.opt_vec_tagged.is_some());
-//         assert_eq!(outer.opt_vec_tagged.as_ref().unwrap().len(), 1);
-//         assert!(matches!(
-//             &outer.opt_vec_tagged.as_ref().unwrap()[0],
-//             TaggedEnum::KindB(inner) if inner.b == 111
-//         ));
-//         assert!(outer.opt_map_nested.is_some());
-//         assert_eq!(outer.opt_map_nested.as_ref().unwrap().len(), 1);
-//         assert!(outer.opt_map_nested.as_ref().unwrap().contains_key("a"));
-//         assert_eq!(
-//             outer
-//                 .opt_map_nested
-//                 .as_ref()
-//                 .unwrap()
-//                 .get("a")
-//                 .unwrap()
-//                 .other_u8,
-//             13
-//         );
-//         assert_eq!(
-//             outer
-//                 .opt_map_nested
-//                 .as_ref()
-//                 .unwrap()
-//                 .get("a")
-//                 .unwrap()
-//                 .double
-//                 .double_u8,
-//             14
-//         );
-//         assert!(outer.opt_map_enum.is_some());
-//         assert_eq!(outer.opt_map_enum.as_ref().unwrap().len(), 1);
-//         assert!(outer.opt_map_enum.as_ref().unwrap().contains_key("c"));
-//         assert_eq!(
-//             outer.opt_map_enum.as_ref().unwrap().get("c").unwrap(),
-//             &AnEnum::TypeA
-//         );
-//         assert!(outer.opt_map_tagged.is_some());
-//         assert_eq!(outer.opt_map_tagged.as_ref().unwrap().len(), 1);
-//         assert!(outer.opt_map_tagged.as_ref().unwrap().contains_key("delta"));
-//         assert!(matches!(
-//             outer.opt_map_tagged.as_ref().unwrap().get("delta").unwrap(),
-//             TaggedEnum::KindB(inner) if inner.b == 222
-//         ));
-//         assert!(outer.opt_map_vec_nested.is_some());
-//         assert_eq!(outer.opt_map_vec_nested.as_ref().unwrap().len(), 1);
-//         assert!(
-//             outer
-//                 .opt_map_vec_nested
-//                 .as_ref()
-//                 .unwrap()
-//                 .contains_key("two")
-//         );
-//         assert_eq!(
-//             outer
-//                 .opt_map_vec_nested
-//                 .as_ref()
-//                 .unwrap()
-//                 .get("two")
-//                 .unwrap()
-//                 .len(),
-//             1
-//         );
-//         assert_eq!(
-//             outer
-//                 .opt_map_vec_nested
-//                 .as_ref()
-//                 .unwrap()
-//                 .get("two")
-//                 .unwrap()[0]
-//                 .other_u8,
-//             222
-//         );
-//         assert_eq!(
-//             outer
-//                 .opt_map_vec_nested
-//                 .as_ref()
-//                 .unwrap()
-//                 .get("two")
-//                 .unwrap()[0]
-//                 .double
-//                 .double_u8,
-//             255
-//         );
-//     }
-// }
-//
-// mod absord {
-//     use std::{cell::RefCell, rc::Rc};
-//
-//     use super::TpdDeserialize;
-//     use indexmap::IndexMap;
-//     use toml_edit::Document;
-//     use toml_pretty_deser::{DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState};
-//
-//     //#[tdp]
-//     #[derive(Debug)]
-//     struct Absorber {
-//         a_u8: u8,
-//         //#[tdp_absorb_remaining] //at most one per struct
-//         others: IndexMap<String, u8>,
-//     }
-//     #[derive(Default, Debug)]
-//     struct PartialAbsorber {
-//         a_u8: TomlValue<u8>,
-//         others: TomlValue<IndexMap<String, TomlValue<u8>>>,
-//     }
-//
-//     impl PartialAbsorber {
-//         fn tpd_get_a_u8(&self, helper: &mut TomlHelper<'_>) -> TomlValue<u8> {
-//             helper.get_with_aliases("a_u8", &[])
-//         }
-//
-//         fn can_concrete(&self) -> bool {
-//             self.a_u8.is_ok() && self.others.is_ok()
-//         }
-//
-//         fn to_concrete(self) -> Absorber {
-//             Absorber {
-//                 a_u8: self.a_u8.value.unwrap(),
-//                 others: self.others.value.unwrap().to_concrete(),
-//             }
-//         }
-//     }
-//
-//     fn deserialize(
-//         toml_str: &str,
-//         field_match_mode: toml_pretty_deser::FieldMatchMode,
-//         vec_mode: toml_pretty_deser::VecMode,
-//     ) -> Result<Absorber, DeserError<PartialAbsorber>> {
-//         let parsed_toml = toml_str
-//             .parse::<Document<String>>()
-//             .map_err(|toml_err| DeserError::ParsingFailure(toml_err, toml_str.to_string()))?;
-//         let source = Rc::new(RefCell::new(toml_str.to_string()));
-//
-//         let col = TomlCollector {
-//             errors: Rc::new(RefCell::new(Vec::new())),
-//             match_mode: field_match_mode,
-//             vec_mode,
-//             context_spans: Rc::new(RefCell::new(Vec::new())),
-//         };
-//         let mut helper = TomlHelper::from_table(parsed_toml.as_table(), col.clone());
-//
-//         let mut partial = PartialAbsorber::default();
-//         partial.a_u8 = partial.tpd_get_a_u8(&mut helper);
-//         partial.others = helper.absorb_remaining();
-//
-//         if helper.no_unknown() && partial.can_concrete() {
-//             Ok(partial.to_concrete())
-//         } else {
-//             //descend into the error tree
-//             helper.register_unknown();
-//             partial.a_u8.register_error(&col);
-//             partial.others.register_error(&col);
-//             if let TomlValueState::Nested = partial.others.state {
-//                 partial.others.value.as_ref().unwrap().register_errors(&col);
-//             }
-//             Err(DeserError::DeserFailure(
-//                 helper.into_inner(&source),
-//                 partial,
-//             ))
-//         }
-//     }
-//
-//     #[test]
-//     fn test_basic_absorber() {
-//         let toml = "
-//             a_u8 = 123
-//             something = 23
-//             else = 3
-//         ";
-//         let parsed = deserialize(
-//             toml,
-//             toml_pretty_deser::FieldMatchMode::Exact,
-//             toml_pretty_deser::VecMode::Strict,
-//         );
-//         dbg!(&parsed);
-//         assert!(parsed.is_ok());
-//         if let Ok(inner) = parsed {
-//             assert_eq!(inner.a_u8, 123);
-//             assert_eq!(inner.others.get("something"), Some(&23));
-//             assert_eq!(inner.others.get("else"), Some(&3));
-//         }
-//     }
-//
-//     #[test]
-//     fn test_basic_absorber_empty() {
-//         let toml = "
-//             a_u8 = 123
-//         ";
-//         let parsed = deserialize(
-//             toml,
-//             toml_pretty_deser::FieldMatchMode::Exact,
-//             toml_pretty_deser::VecMode::Strict,
-//         );
-//         dbg!(&parsed);
-//         assert!(parsed.is_ok());
-//         if let Ok(inner) = parsed {
-//             assert_eq!(inner.a_u8, 123);
-//             assert!(inner.others.is_empty())
-//         }
-//     }
-//     #[test]
-//     fn test_basic_absorber_wrong_type() {
-//         let toml = "
-//             a_u8 = 123
-//             something = 'shu'
-//             else = 'shi'
-//         ";
-//         let parsed = deserialize(
-//             toml,
-//             toml_pretty_deser::FieldMatchMode::Exact,
-//             toml_pretty_deser::VecMode::Strict,
-//         );
-//         dbg!(&parsed);
-//         assert!(!parsed.is_ok());
-//         if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
-//             assert!(!errors.is_empty());
-//             let pretty = errors[0].pretty("test.toml");
-//             insta::assert_snapshot!(pretty);
-//         }
-//     }
-// }
-//
-// mod with {
-//     use toml_pretty_deser::{DeserError, TomlHelper, TomlValue, TomlValueState};
-//
-//     use crate::{TpdDeserializeStruct, VerifyTomlItem, deserialize_toml};
-//
-//     //user code
-//
-//     //#[tdp]
-//     #[derive(Debug)]
-//     struct Funky {
-//         // #[tdp_with = "adapt_from_string"]
-//         value: i64,
-//         // #tdp_with = adapt_double
-//         double: i64,
-//     }
-//     impl VerifyTomlItem<()> for PartialFunky {}
-//
-//     fn adapt_from_string(input: TomlValue<String>) -> TomlValue<i64> {
-//         if input.is_ok() {
-//             match input.value.as_ref().unwrap().parse::<i64>() {
-//                 Ok(num) => TomlValue {
-//                     value: Some(num),
-//                     state: TomlValueState::Ok { span: input.span() },
-//                 },
-//                 Err(_) => TomlValue::new_validation_failed(
-//                     input.span(),
-//                     "Could not be understood as integer".to_string(),
-//                     None,
-//                 ),
-//             }
-//         } else {
-//             input.convert_failed_type()
-//         }
-//     }
-//
-//     fn adapt_double(input: TomlValue<i64>) -> TomlValue<i64> {
-//         if input.is_ok() {
-//             TomlValue {
-//                 value: Some(input.value.unwrap() * 2),
-//                 state: TomlValueState::Ok { span: input.span() },
-//             }
-//         } else {
-//             input
-//         }
-//     }
-//
-//     // macro code
-//     #[derive(Debug, Default)]
-//     struct PartialFunky {
-//         value: TomlValue<i64>,
-//         double: TomlValue<i64>,
-//     }
-//
-//     impl PartialFunky {
-//         fn tpd_get_value(&self, helper: &mut TomlHelper<'_>) -> TomlValue<i64> {
-//             adapt_from_string(helper.get_with_aliases("value", &[]))
-//         }
-//
-//         fn tpd_get_double(&self, helper: &mut TomlHelper<'_>) -> TomlValue<i64> {
-//             adapt_double(helper.get_with_aliases("double", &[]))
-//         }
-//     }
-//     impl TpdDeserializeStruct for PartialFunky {
-//         type Concrete = Funky;
-//
-//         fn fill_fields(&mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>) {
-//             self.value = self.tpd_get_value(helper);
-//             self.double = self.tpd_get_double(helper);
-//         }
-//
-//         fn can_concrete(&self) -> bool {
-//             self.value.is_ok() && self.double.is_ok()
-//         }
-//
-//         fn to_concrete(self) -> Self::Concrete {
-//             Self::Concrete {
-//                 value: self.value.value.unwrap(),
-//                 double: self.double.value.unwrap(),
-//             }
-//         }
-//
-//         fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
-//             self.value.register_error(col);
-//             self.double.register_error(col);
-//         }
-//     }
-//
-//     fn deserialize(
-//         toml_str: &str,
-//         field_match_mode: toml_pretty_deser::FieldMatchMode,
-//         vec_mode: toml_pretty_deser::VecMode,
-//     ) -> Result<Funky, DeserError<PartialFunky>> {
-//         deserialize_toml::<PartialFunky>(toml_str, field_match_mode, vec_mode)
-//     }
-//
-//     #[test]
-//     fn test_adapters() {
-//         let toml = "
-//         value = '10'
-//         double = 12
-//         ";
-//         let parsed = deserialize(
-//             toml,
-//             toml_pretty_deser::FieldMatchMode::Exact,
-//             toml_pretty_deser::VecMode::Strict,
-//         );
-//         dbg!(&parsed);
-//         assert!(parsed.is_ok());
-//         if let Ok(inner) = parsed {
-//             assert_eq!(inner.value, 10);
-//             assert_eq!(inner.double, 24);
-//         }
-//     }
-//     #[test]
-//     fn test_adapter_failure() {
-//         let toml = "
-//         value = '10i'
-//         double = 12
-//         ";
-//         let parsed = deserialize(
-//             toml,
-//             toml_pretty_deser::FieldMatchMode::Exact,
-//             toml_pretty_deser::VecMode::Strict,
-//         );
-//         dbg!(&parsed);
-//         assert!(!parsed.is_ok());
-//         if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
-//             assert!(!errors.is_empty());
-//             let pretty = errors[0].pretty("test.toml");
-//             insta::assert_snapshot!(pretty);
-//         }
-//     }
-// }
-//
-// mod skip_and_default {
-//     use toml_pretty_deser::{DeserError, TomlHelper, TomlValue};
-//
-//     use crate::{TpdDeserializeStruct, VerifyTomlItem, deserialize_toml};
-//
-//     //user code.
-//     #[derive(Debug)]
-//     struct DefaultTo100(u32);
-//
-//     impl Default for DefaultTo100 {
-//         fn default() -> Self {
-//             DefaultTo100(100)
-//         }
-//     }
-//
-//     #[derive(Debug)]
-//     struct WithDefaults {
-//         a_u32: u32,
-//         //#[tdp_defaul]
-//         default_u32: u32,
-//         default_in_verify_u32: u32,
-//         //#[tdp_skip]
-//         skipped_u32: DefaultTo100,
-//     }
-//     impl VerifyTomlItem<()> for PartialWithDefaults {
-//         #[allow(unused_variables)]
-//         fn verify_struct(mut self, helper: &mut TomlHelper<'_>, partial: &()) -> Self {
-//             self.default_in_verify_u32 = self.default_in_verify_u32.or_default(39);
-//             self
-//         }
-//     }
-//
-//     //macro code
-//     #[derive(Debug, Default)]
-//     struct PartialWithDefaults {
-//         a_u32: TomlValue<u32>,
-//         default_u32: TomlValue<Option<u32>>, // we need to distinguish.
-//         default_in_verify_u32: TomlValue<u32>,
-//     }
-//
-//     impl PartialWithDefaults {
-//         fn tdp_get_a_u32(&self, helper: &mut TomlHelper<'_>) -> TomlValue<u32> {
-//             helper.get_with_aliases("a_u32", &[])
-//         }
-//         fn tdp_get_default_u32(&self, helper: &mut TomlHelper<'_>) -> TomlValue<u32> {
-//             helper.get_with_aliases("default_u32", &[])
-//         }
-//
-//         fn tdp_get_default_in_verify_u32(&self, helper: &mut TomlHelper<'_>) -> TomlValue<u32> {
-//             helper.get_with_aliases("default_in_verify_u32", &[])
-//         }
-//     }
-//
-//     impl TpdDeserializeStruct for PartialWithDefaults {
-//         type Concrete = WithDefaults;
-//
-//         fn fill_fields(&mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>) {
-//             self.a_u32 = self.tdp_get_a_u32(helper);
-//             self.default_u32 = self.tdp_get_default_u32(helper).into_optional();
-//             self.default_in_verify_u32 = self.tdp_get_default_in_verify_u32(helper);
-//             //defaults don't get filled.
-//         }
-//
-//         fn can_concrete(&self) -> bool {
-//             self.a_u32.is_ok() && self.default_u32.is_ok() && self.default_in_verify_u32.is_ok()
-//         }
-//
-//         fn to_concrete(self) -> Self::Concrete {
-//             Self::Concrete {
-//                 a_u32: self.a_u32.value.unwrap(),
-//                 default_u32: match self.default_u32.value {
-//                     Some(Some(value)) => value,
-//                     Some(None) => Default::default(),
-//                     None => unreachable!(),
-//                 },
-//                 default_in_verify_u32: self.default_in_verify_u32.value.unwrap_or(39),
-//                 skipped_u32: Default::default(),
-//             }
-//         }
-//
-//         fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
-//             self.a_u32.register_error(col);
-//             self.default_u32.register_error(col);
-//         }
-//     }
-//
-//     fn deserialize(
-//         toml_str: &str,
-//         field_match_mode: toml_pretty_deser::FieldMatchMode,
-//         vec_mode: toml_pretty_deser::VecMode,
-//     ) -> Result<WithDefaults, DeserError<PartialWithDefaults>> {
-//         deserialize_toml::<PartialWithDefaults>(toml_str, field_match_mode, vec_mode)
-//     }
-//
-//     #[test]
-//     fn test_skiped() {
-//         let toml = "
-//             a_u32 = 1230000000
-//             ";
-//         let parsed = deserialize(
-//             toml,
-//             toml_pretty_deser::FieldMatchMode::Exact,
-//             toml_pretty_deser::VecMode::Strict,
-//         );
-//         assert!(parsed.is_ok());
-//         if let Ok(inner) = parsed {
-//             assert_eq!(inner.a_u32, 1230000000);
-//             assert_eq!(inner.default_u32, 0); //default value
-//             assert_eq!(inner.default_in_verify_u32, 39); //default value
-//             assert_eq!(inner.skipped_u32.0, 100); //default for skipped field
-//         }
-//     }
-// }
+
+pub struct WithVecOfTaggedEnums {
+    items: Vec<TaggedEnum>,
+}
+
+#[test]
+fn test_vec_of_tagged_enums() {
+    // Demonstrate that FromTomlItem works with Vec<TaggedEnum>
+    let toml_str = "
+        [[items]]
+        kind = 'KindA'
+        a = 1
+
+        [[items]]
+        kind = 'KindB'
+        b = 2
+
+        [[items]]
+        kind = 'KindA'
+        a = 3
+    ";
+
+    let parsed =
+        WithVecOfTaggedEnums::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    assert!(parsed.is_ok());
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.items.len(), 3);
+        assert_eq!(parsed.items[0], TaggedEnum::KindA(InnerA { a: 1 }));
+        assert_eq!(parsed.items[1], TaggedEnum::KindB(InnerB { b: 2 }));
+        assert_eq!(parsed.items[2], TaggedEnum::KindA(InnerA { a: 3 }));
+    }
+}
+
+pub struct WithVecOfStructs {
+    items: Vec<NestedStruct>,
+}
+
+#[test]
+fn test_vec_of_nested_structs() {
+    // Demonstrate that FromTomlItem works with Vec<NestedStruct>
+    let toml_str = "
+        [[items]]
+        other_u8 = 10
+        [items.double]
+        double_u8 = 11
+
+        [[items]]
+        other_u8 = 20
+        [items.double]
+        double_u8 = 21
+
+        [[items]]
+        other_u8 = 30
+        [items.double]
+        double_u8 = 31
+    ";
+
+    let parsed = WithVecOfStructs::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    assert!(parsed.is_ok());
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.items.len(), 3);
+        assert_eq!(
+            parsed.items[0],
+            NestedStruct {
+                other_u8: 10,
+                double: DoubleNestedStruct { double_u8: 11 },
+            }
+        );
+        assert_eq!(
+            parsed.items[1],
+            NestedStruct {
+                other_u8: 20,
+                double: DoubleNestedStruct { double_u8: 21 },
+            }
+        );
+        assert_eq!(
+            parsed.items[2],
+            NestedStruct {
+                other_u8: 30,
+                double: DoubleNestedStruct { double_u8: 31 },
+            }
+        );
+    }
+}
+
+#[derive(Debug)]
+pub struct OptionNested {
+    a_struct: Option<NestedStruct>,
+    tag: Option<TaggedEnum>,
+    structs: Option<Vec<NestedStruct>>,
+    tagged: Option<Vec<TaggedEnum>>,
+}
+
+#[test]
+fn test_options() {
+    // Demonstrate that FromTomlItem works with Vec<NestedStruct>
+    let toml_str = "
+        [a_struct]
+            other_u8 = 10
+        [a_struct.double]
+            double_u8 = 11
+
+        [[structs]]
+            other_u8 = 11
+            double.double_u8 = 12
+        [[structs]]
+            other_u8 = 13
+            double.double_u8 = 14
+
+        [tag]
+            kind = 'KindA'
+            a = 15
+        [[tagged]]
+            kind = 'KindA'
+            a = 16
+
+        [[tagged]]
+            kind = 'KindB'
+            b = 17
+    ";
+
+    let parsed = OptionNested::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.a_struct.as_ref().unwrap().other_u8, 10);
+        assert_eq!(parsed.a_struct.as_ref().unwrap().double.double_u8, 11);
+        assert_eq!(parsed.structs.as_ref().unwrap().len(), 2);
+        assert_eq!(parsed.structs.as_ref().unwrap()[0].other_u8, 11);
+        assert_eq!(parsed.structs.as_ref().unwrap()[0].double.double_u8, 12);
+        assert_eq!(parsed.structs.as_ref().unwrap().len(), 2);
+        assert_eq!(
+            parsed.tag.as_ref().unwrap(),
+            &TaggedEnum::KindA(InnerA { a: 15 })
+        );
+        assert_eq!(parsed.tagged.as_ref().unwrap().len(), 2);
+        assert_eq!(
+            parsed.tagged.as_ref().unwrap()[0],
+            TaggedEnum::KindA(InnerA { a: 16 })
+        );
+        assert_eq!(
+            parsed.tagged.as_ref().unwrap()[1],
+            TaggedEnum::KindB(InnerB { b: 17 })
+        );
+    }
+}
+
+#[test]
+fn test_options_left_off() {
+    // Demonstrate that FromTomlItem works with Vec<NestedStruct>
+    let toml_str = "
+    ";
+
+    let parsed = OptionNested::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(parsed) = parsed {
+        assert!(parsed.a_struct.is_none());
+        assert!(parsed.tag.is_none());
+        assert!(parsed.structs.is_none());
+        assert!(parsed.tagged.is_none());
+    }
+}
+
+#[derive(Debug)]
+pub struct MapTest {
+    map_nested: IndexMap<String, NestedStruct>,
+    map_tagged: IndexMap<String, TaggedEnum>,
+    opt_map_nested: Option<IndexMap<String, NestedStruct>>,
+    opt_map_tagged: Option<IndexMap<String, TaggedEnum>>,
+
+    map_nested_vec: IndexMap<String, Vec<NestedStruct>>,
+    map_tagged_vec: IndexMap<String, Vec<TaggedEnum>>,
+}
+
+#[test]
+fn test_map() {
+    let toml_str = "
+        [map_nested.a]
+            other_u8 = 10
+            double.double_u8 = 11
+
+        [map_nested.b]
+            other_u8 = 20
+            double.double_u8 = 22
+
+        [map_tagged.first]
+            kind = 'KindA'
+            a = 10
+
+        [opt_map_nested.c]
+            other_u8 = 30
+            double.double_u8 = 31
+
+        [opt_map_tagged.second]
+            kind = 'KindB'
+            b = 20
+
+        [[map_nested_vec.x]]
+            other_u8 = 40
+            double.double_u8 = 41
+
+        [[map_nested_vec.x]]
+            other_u8 = 50
+            double.double_u8 = 51
+
+        [[map_tagged_vec.y]]
+            kind = 'KindA'
+            a = 60
+
+        [[map_tagged_vec.y]]
+            kind = 'KindB'
+            b = 70
+    ";
+    let parsed = MapTest::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.map_nested.get("a").unwrap().other_u8, 10);
+        assert_eq!(parsed.map_nested.get("a").unwrap().double.double_u8, 11);
+        assert_eq!(parsed.map_nested.get("b").unwrap().other_u8, 20);
+        assert_eq!(
+            parsed.map_tagged.get("first").unwrap(),
+            &TaggedEnum::KindA(InnerA { a: 10 })
+        );
+        assert_eq!(
+            parsed
+                .opt_map_nested
+                .as_ref()
+                .unwrap()
+                .get("c")
+                .unwrap()
+                .other_u8,
+            30
+        );
+        assert_eq!(
+            parsed
+                .opt_map_nested
+                .as_ref()
+                .unwrap()
+                .get("c")
+                .unwrap()
+                .double
+                .double_u8,
+            31
+        );
+        assert_eq!(
+            parsed
+                .opt_map_tagged
+                .as_ref()
+                .unwrap()
+                .get("second")
+                .unwrap(),
+            &TaggedEnum::KindB(InnerB { b: 20 })
+        );
+        assert_eq!(parsed.map_nested_vec.get("x").unwrap().len(), 2);
+        assert_eq!(parsed.map_nested_vec.get("x").unwrap()[0].other_u8, 40);
+        assert_eq!(
+            parsed.map_nested_vec.get("x").unwrap()[0].double.double_u8,
+            41
+        );
+        assert_eq!(parsed.map_nested_vec.get("x").unwrap()[1].other_u8, 50);
+        assert_eq!(
+            parsed.map_nested_vec.get("x").unwrap()[1].double.double_u8,
+            51
+        );
+        assert_eq!(parsed.map_tagged_vec.get("y").unwrap().len(), 2);
+        assert_eq!(
+            parsed.map_tagged_vec.get("y").unwrap()[0],
+            TaggedEnum::KindA(InnerA { a: 60 })
+        );
+    }
+}
+#[test]
+fn test_map_nested() {
+    let toml_str = "
+        [map_nested.a]
+            other_u8 = 10
+            double.double_u8 = 'a' # wrong type
+
+        [map_nested.b]
+            other_u8 = 20
+            double.double_u8 = 22
+
+        [map_tagged.first]
+            kind = 'KindA'
+            a = 10
+
+        [opt_map_nested.c]
+            other_u8 = 30
+            double.double_u8 = 31
+
+        [opt_map_tagged.second]
+            kind = 'KindC' # invalid kind
+            b = 20
+
+        [[map_nested_vec.x]]
+            other_u8 = 40
+            double.double_u8 = 41
+
+        [[map_nested_vec.x]]
+            other_u8 = 50
+            double.double_u8 = 51
+
+        [[map_tagged_vec.y]]
+            kind = 'KindA'
+            a = 'x' # wrong type
+
+        [[map_tagged_vec.y]]
+            kind = 'KindB'
+            b = 70
+    ";
+    let parsed = MapTest::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&parsed);
+    assert!(!parsed.is_ok());
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use indexmap::IndexMap;
 use toml_edit::Document;
@@ -284,7 +284,7 @@ impl Visitor for String {
 }
 
 impl<T: Visitor> Visitor for Option<T> {
-    type Concrete = Option<T>;
+    type Concrete = Option<T::Concrete>;
 
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         //Optional etc is being handled upstream by get_with_alias / tpd_get_* ..into_optional()
@@ -313,8 +313,8 @@ impl<T: Visitor> Visitor for Option<T> {
         }
     }
 
-    fn into_concrete(self) -> Self::Concrete {
-        self
+    fn into_concrete(self) -> Option<T::Concrete> {
+        self.map(|t| t.into_concrete())
     }
 }
 
@@ -334,7 +334,25 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
 
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         match helper.item {
-            toml_edit::Item::ArrayOfTables(_array_of_tables) => todo!(),
+            toml_edit::Item::ArrayOfTables(array) => {
+                {
+                    let res: Vec<TomlValue<T>> = array
+                        .iter()
+                        .map(|entry| {
+                            T::fill_from_toml(&mut TomlHelper::from_item(
+                                &toml_edit::Item::Table(entry.clone()), //todo: can we do this without
+                                //clone
+                                helper.col.clone(),
+                            ))
+                        })
+                        .collect();
+                    if res.iter().all(|item| item.is_ok()) {
+                        TomlValue::new_ok(res, helper.span())
+                    } else {
+                        TomlValue::new_nested(Some(res))
+                    }
+                }
+            }
             toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
                 let res: Vec<TomlValue<T>> = array
                     .iter()
@@ -422,7 +440,13 @@ where
         self.values().all(|v| v.is_ok())
     }
 
-    fn v_register_errors(&self, _col: &TomlCollector) {}
+    fn v_register_errors(&self, col: &TomlCollector) {
+        for (_key,value) in self.iter() {
+            value.register_error(col);
+
+        }
+
+    }
 
     fn into_concrete(self) -> Self::Concrete {
         self.into_iter()

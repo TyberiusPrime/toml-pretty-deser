@@ -762,8 +762,8 @@ impl<'a> TomlHelper<'a> {
 /// The internal representation of a value to-have-been-deserialized
 #[derive(Debug)]
 pub struct TomlValue<T> {
-    pub value: Option<T>,
     pub state: TomlValueState,
+    pub value: Option<T>,
 }
 
 impl<T> TomlValue<T> {

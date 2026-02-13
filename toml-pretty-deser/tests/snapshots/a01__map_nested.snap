@@ -1,0 +1,38 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/3
+  ╭─test.toml
+  ┆
+2 │         [map_nested.a]
+3 │             other_u8 = 10
+4 │             double.double_u8 = 'a' # wrong type
+  ┆                                ─┬─
+  ┆                                 │
+  ┆                                 ╰─────────────── Wrong type: expected u8, found string
+──╯
+Hint: This value has the wrong type.
+
+Error 2/3
+   ╭─test.toml
+   ┆
+18 │         [opt_map_tagged.second]
+19 │             kind = 'KindC' # invalid kind
+   ┆                    ───┬───
+   ┆                       │
+   ┆                       ╰─────────────────── Invalid tag value: KindC
+───╯
+Hint: Did you mean: 'KindA' or 'KindB'?
+
+Error 3/3
+   ╭─test.toml
+   ┆
+30 │         [[map_tagged_vec.y]]
+31 │             kind = 'KindA'
+32 │             a = 'x' # wrong type
+   ┆                 ─┬─
+   ┆                  │
+   ┆                  ╰─────────────── Wrong type: expected u8, found string
+───╯
+Hint: This value has the wrong type.
