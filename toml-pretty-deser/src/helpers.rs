@@ -88,7 +88,11 @@ where
                 if let Some(value) = self.value {
                     let mut maybe_validated = value.vv_validate(helper, parent);
                     maybe_validated.verify(helper, parent).ok();
-                    TomlValue::new_nested(Some(maybe_validated))
+                    if maybe_validated.can_concrete() {
+                        TomlValue::new_ok(maybe_validated, helper.span())
+                    } else {
+                        TomlValue::new_nested(Some(maybe_validated))
+                    }
                     // {
                     //     Ok(()) => TomlValue::new_nested(Some(maybe_validated)),
                     //
@@ -203,8 +207,9 @@ where
     let mut helper = TomlHelper::from_item(&top_level, col.clone());
 
     let root = P::fill_from_toml(&mut helper);
+    dbg!(&root);
     let mut root = root.tpd_validate(&mut helper, &Root);
-
+    dbg!(&root);
     if helper.has_unknown() {
         root.state = TomlValueState::UnknownKeys {
             spans: helper.unknown_spans(),

@@ -952,7 +952,7 @@ impl<T> TomlValue<T> {
     }
 
     #[must_use]
-    pub fn or_default(self, default: T) -> Self {
+    pub fn or(self, default: T) -> Self {
         match &self.state {
             TomlValueState::Missing { .. } => Self {
                 value: Some(default),
@@ -962,7 +962,7 @@ impl<T> TomlValue<T> {
         }
     }
     #[must_use]
-    pub fn or_default_with<F>(self, default_func: F) -> Self
+    pub fn or_with<F>(self, default_func: F) -> Self
     where
         F: FnOnce() -> T,
     {
@@ -973,6 +973,14 @@ impl<T> TomlValue<T> {
             },
             _ => self,
         }
+    }
+
+    #[must_use]
+    pub fn or_default(self) -> Self 
+    where
+        T: Default {
+        self.or_with(Default::default)
+
     }
 }
 

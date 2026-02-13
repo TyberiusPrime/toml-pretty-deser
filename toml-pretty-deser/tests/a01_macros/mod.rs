@@ -5,7 +5,7 @@ use toml_pretty_deser::{
     suggest_alternatives,
 };
 
-use crate::{MapTest, OtherOuter, WithVecOfTaggedEnums};
+use crate::{MapTest, OtherOuter, WithDefaults, WithVecOfTaggedEnums};
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
 use super::{AnEnum, DoubleNestedStruct, InnerA, InnerB, NestedStruct, Outer, TaggedEnum};
@@ -812,3 +812,54 @@ impl Visitor for PartialMapTest {
 
 impl VerifyIn<Root> for PartialMapTest {}
 impl VerifyVisitor<Root> for PartialMapTest {}
+
+// defaults
+//
+impl WithDefaults {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<WithDefaults, DeserError<PartialWithDefaults>> {
+        deserialize_toml::<PartialWithDefaults>(toml_str, field_match_mode, vec_mode)
+    }
+}
+#[derive(Default, Debug)]
+pub struct PartialWithDefaults {
+    pub a: TomlValue<u8>,
+    pub b: TomlValue<u8>,
+    pub c: TomlValue<u8>,
+}
+
+impl Visitor for PartialWithDefaults {
+    type Concrete = super::WithDefaults;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut p = PartialWithDefaults::default();
+        p.a = helper.get_with_aliases("a", &[]);
+        p.b = helper.get_with_aliases("b", &[]);
+        p.c = helper.get_with_aliases("c", &[]);
+
+        TomlValue::from_visitor(p, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.a.is_ok() && self.b.is_ok() && self.c.is_ok()
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.a.register_error(col);
+        self.b.register_error(col);
+        self.c.register_error(col);
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        super::WithDefaults {
+            a: self.a.value.unwrap(),
+            b: self.b.value.unwrap(),
+            c: self.c.value.unwrap(),
+        }
+    }
+}
+
+impl VerifyVisitor<Root> for PartialWithDefaults {}

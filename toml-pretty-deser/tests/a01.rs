@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 use toml_pretty_deser::{DeserError, FieldMatchMode, TomlHelper, VecMode};
 //library code
 //
-use toml_pretty_deser::helpers::VerifyIn;
+use toml_pretty_deser::helpers::{Root, VerifyIn};
 
 mod a01_macros;
 use a01_macros::*;
@@ -807,5 +807,41 @@ fn test_map_nested() {
     assert!(!parsed.is_ok());
     if let Err(e) = parsed {
         insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+#[derive(Debug)]
+pub struct WithDefaults {
+    a: u8,
+    b: u8,
+    c: u8,
+}
+
+impl VerifyIn<Root> for PartialWithDefaults {
+    fn verify(
+        &mut self,
+        _helper: &mut TomlHelper<'_>,
+        _parent: &Root,
+    ) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        self.a = self.a.take().or_default();
+        self.b = self.b.take().or_with(|| 55);
+        self.c = self.c.take().or(33);
+        Ok(())
+    }
+}
+
+#[test]
+fn test_default() {
+    let toml_str = "";
+    let parsed = WithDefaults::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.a, 0); // default for u8
+        assert_eq!(parsed.b, 55); // custom default
+        assert_eq!(parsed.c, 33); // custom default
+    } else {
+        panic!("Parsing failed: {:?}", parsed.err());
     }
 }
