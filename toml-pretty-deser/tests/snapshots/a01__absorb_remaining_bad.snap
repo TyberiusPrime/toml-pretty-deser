@@ -1,0 +1,16 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │ 
+2 │         anton = 1
+3 │         others = 2
+4 │         more ='a'
+  ┆               ─┬─
+  ┆                │
+  ┆                ╰── Wrong type: expected u8, found string
+──╯
+Hint: This value has the wrong type.

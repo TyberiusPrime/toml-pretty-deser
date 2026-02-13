@@ -228,6 +228,7 @@ fn test_basic_missing() {
         //assert_eq!(inner.value.nested_struct.double.double_u8, 6);
     }
 }
+
 #[test]
 fn test_basic_unknown() {
     let toml = "
@@ -293,6 +294,36 @@ fn test_basic_unknown_in_nested() {
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
         assert!(!inner.nested_struct.is_ok());
         insta::assert_snapshot!(DeserError::DeserFailure(errors, inner).pretty("test.toml"));
+    }
+}
+
+#[test]
+fn test_struct_is_no_table() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 =2
+        vec_u8 = [3]
+        simple_enum = 'TypeA'
+        nested_struct = 5
+        [map_u8]
+            a = 4
+
+        [nested_tagged_enum]
+            kind = 'KindA'
+            a = 3
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(!parsed.is_ok());
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+        //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
+        //assert_eq!(inner.value.nested_struct.other_u8, 6); //1 added in verify
+        //assert_eq!(inner.value.nested_struct.double.double_u8, 6);
     }
 }
 #[test]
@@ -361,6 +392,64 @@ fn test_error_in_vec() {
         );
     }
 }
+#[test]
+fn test_error_in_map() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 =2
+        vec_u8 = [8]
+        simple_enum = 'TypeB'
+        [map_u8]
+            a = 300
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            a = 10
+            kind = 'KindA'
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(!parsed.is_ok());
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+#[test]
+fn test_error_in_opt() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 ='a'
+        vec_u8 = [8]
+        simple_enum = 'TypeB'
+        [map_u8]
+            a = 255
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            a = 10
+            kind = 'KindA'
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(!parsed.is_ok());
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
 #[test]
 fn test_tagged_enum_kind_a() {
     let toml = "
@@ -828,6 +917,16 @@ impl VerifyIn<Root> for PartialWithDefaults {
     {
         self.a = self.a.take().or_default();
         self.b = self.b.take().or_with(|| 55);
+        self.c = self.c.take().verify(|x| {
+            if x % 2 == 0 {
+                Ok(())
+            } else {
+                Err((
+                    "Must be even".to_string(),
+                    Some("Like, 2, or four.".to_string()),
+                ))
+            }
+        });
         self.c = self.c.take().or(33);
         Ok(())
     }
@@ -845,3 +944,72 @@ fn test_default() {
         panic!("Parsing failed: {:?}", parsed.err());
     }
 }
+
+#[test]
+fn test_verify() {
+    let toml_str = "
+    c = 12
+";
+    let parsed = WithDefaults::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.a, 0); // default for u8
+        assert_eq!(parsed.b, 55); // custom default
+        assert_eq!(parsed.c, 12); // custom default
+    } else {
+        panic!("Parsing failed: {:?}", parsed.err());
+    }
+}
+
+#[test]
+fn test_verify_fail() {
+    let toml_str = "
+    c = 13
+";
+    let parsed = WithDefaults::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    } else {
+        panic!("Parsing succeeded?");
+    }
+}
+
+#[derive(Debug)]
+pub struct Absorb {
+    anton: u8,
+    //#[tdp(absorb_remaining)]
+    remainder: IndexMap<String, u8>,
+}
+
+#[test]
+fn test_absorb_remaining() {
+    let toml_str = "
+        anton = 1
+        others = 2
+        more =3
+";
+    let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.anton, 1);
+        assert_eq!(parsed.remainder.get("others").unwrap(), &2);
+        assert_eq!(parsed.remainder.get("more").unwrap(), &3);
+        assert_eq!(parsed.remainder.len(), 2);
+    } else {
+        panic!("Parsing failed: {:?}", parsed.err());
+    }
+}
+
+#[test]
+fn test_absorb_remaining_bad() {
+    let toml_str = "
+        anton = 1
+        others = 2
+        more ='a'
+";
+    let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    } else {
+        panic!("Parsing succeeded?");
+    }
+}
+

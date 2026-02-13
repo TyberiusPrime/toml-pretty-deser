@@ -207,9 +207,7 @@ where
     let mut helper = TomlHelper::from_item(&top_level, col.clone());
 
     let root = P::fill_from_toml(&mut helper);
-    dbg!(&root);
     let mut root = root.tpd_validate(&mut helper, &Root);
-    dbg!(&root);
     if helper.has_unknown() {
         root.state = TomlValueState::UnknownKeys {
             spans: helper.unknown_spans(),
@@ -291,24 +289,13 @@ impl Visitor for String {
 impl<T: Visitor> Visitor for Option<T> {
     type Concrete = Option<T::Concrete>;
 
-    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        //Optional etc is being handled upstream by get_with_alias / tpd_get_* ..into_optional()
-        let p = T::fill_from_toml(helper);
-        if p.is_ok() {
-            TomlValue::new_ok(Some(p.value.unwrap()), helper.span())
-        } else {
-            TomlValue {
-                value: Some(p.value),
-                state: p.state,
-            }
-        }
+    fn fill_from_toml(_helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        unreachable!(); // since we always start with a concrete TomlValue<T>
+        // and then convert the missing into Some(None) in into_optional
     }
 
     fn can_concrete(&self) -> bool {
-        match self {
-            Some(v) => v.can_concrete(),
-            None => true,
-        }
+        unreachable!("or is it?");
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
@@ -351,7 +338,7 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
                             ))
                         })
                         .collect();
-                    if res.iter().all(|item| item.is_ok()) {
+                    if res.can_concrete() {
                         TomlValue::new_ok(res, helper.span())
                     } else {
                         TomlValue::new_nested(Some(res))
@@ -369,7 +356,7 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
                         ))
                     })
                     .collect();
-                if res.iter().all(|item| item.is_ok()) {
+                if res.can_concrete() {
                     TomlValue::new_ok(res, helper.span())
                 } else {
                     TomlValue::new_nested(Some(res))

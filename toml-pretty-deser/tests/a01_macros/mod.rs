@@ -5,7 +5,7 @@ use toml_pretty_deser::{
     suggest_alternatives,
 };
 
-use crate::{MapTest, OtherOuter, WithDefaults, WithVecOfTaggedEnums};
+use crate::{Absorb, MapTest, OtherOuter, WithDefaults, WithVecOfTaggedEnums};
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
 use super::{AnEnum, DoubleNestedStruct, InnerA, InnerB, NestedStruct, Outer, TaggedEnum};
@@ -201,6 +201,9 @@ impl Visitor for PartialNestedStruct {
     type Concrete = NestedStruct;
 
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        if !helper.is_table() {
+            return TomlValue::new_wrong_type(helper.item, helper.span(), "table or inline table");
+        }
         let mut p = Self::default();
         p.other_u8 = p.tpd_get_other_u8(helper);
         p.double = p.tpd_get_double(helper);
@@ -863,3 +866,62 @@ impl Visitor for PartialWithDefaults {
 }
 
 impl VerifyVisitor<Root> for PartialWithDefaults {}
+
+
+//Absord
+impl Absorb {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<Absorb, DeserError<PartialAbsorb>> {
+        deserialize_toml::<PartialAbsorb>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PartialAbsorb {
+    anton: TomlValue<u8>,
+    remainder: TomlValue<IndexMap<String, TomlValue<u8>>>,
+}
+
+impl Visitor for PartialAbsorb {
+    type Concrete = Absorb;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut p = PartialAbsorb::default();
+        p.anton = helper.get_with_aliases("anton", &[]);
+        p.remainder =helper.absorb_remaining();
+        TomlValue::from_visitor(p, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.anton.is_ok() && self.remainder.is_ok()
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.anton.register_error(col);
+        self.remainder.register_error(col);
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        Absorb {
+            anton: self.anton.value.unwrap(),
+            remainder: self.remainder.value.unwrap().into_concrete(),
+        }
+    }
+}
+
+impl VerifyIn<Root> for PartialAbsorb {}
+impl VerifyVisitor<Root> for PartialAbsorb {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.anton = self.anton.take().tpd_validate(helper, &self);
+        self.remainder = self.remainder.take().tpd_validate(helper, &self);
+        self
+    }
+}
+
+

@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+6 │         [map_u8]
+7 │             a = 300
+  ┆                 ─┬─
+  ┆                  │
+  ┆                  ╰── Wrong type: expected integer (u8), range exceeded, found integer
+──╯
+Hint: This value has the wrong type.

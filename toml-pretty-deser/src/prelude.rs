@@ -2,7 +2,7 @@
 ///
 /// Rexports everything the deserialization needs
 pub use crate::{
-    AnnotatedError, AsTableLikePlus, DeserError, FieldMatchMode, FromTomlItem, TomlCollector,
+    AnnotatedError, AsTableLikePlus, DeserError, FieldMatchMode,  TomlCollector,
     TomlHelper, TomlValue, TomlValueState, VecMode, suggest_alternatives,
 };
 pub use std::cell::RefCell;

@@ -3,17 +3,16 @@ use std::fmt::Write;
 use std::{cell::RefCell, ops::Range, rc::Rc};
 use toml_edit::TomlError;
 
-mod from_item;
 /// Import `toml_pretty_deser::prelude::`* to make use of our macros
 pub mod prelude;
 mod tablelike;
-pub use from_item::FromTomlItem;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
 mod case;
 pub mod helpers;
 
 pub use case::{FieldMatchMode, suggest_alternatives};
 pub use helpers::{VerifyVisitor, Visitor};
+
 
 /// The failure states of deserialization
 ///
@@ -588,32 +587,6 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    pub fn add_err_by_key(&self, key: &str, msg: &str, help: &str) {
-        let span = self.span_from_key(key);
-        self.add_err_by_span(span, msg, help);
-    }
-
-    pub fn add_err_by_span(&self, span: Range<usize>, msg: &str, help: &str) {
-        let err = AnnotatedError::placed(span, msg, help);
-        self.col.errors.borrow_mut().push(err);
-    }
-
-    #[allow(clippy::missing_panics_doc)]
-    pub fn add_err_by_spans(&self, spans: Vec<(Range<usize>, String)>, help: &str) {
-        let err = if spans.is_empty() {
-            AnnotatedError::unplaced(help)
-        } else {
-            let mut iter = spans.into_iter();
-            let first = iter.next().unwrap();
-            let mut err = AnnotatedError::placed(first.0, &first.1, help);
-            for (span, msg) in iter {
-                err.add_span(span, &msg);
-            }
-            err
-        };
-        self.col.errors.borrow_mut().push(err);
-    }
-
     /// Absorb all remaining keys (not matched by other fields) into an `IndexMap`.
     /// This is used by `#[tpd_absorb_remaining]` fields.
     ///
@@ -627,7 +600,7 @@ impl<'a> TomlHelper<'a> {
     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, TomlValue<T>>>
     where
         K: From<String> + std::hash::Hash + Eq,
-        T: FromTomlItem,
+        T: Visitor+Default 
     {
         // Build set of observed normalized names (keys that matched other fields)
         let observed_set: IndexSet<String> = self.observed.iter().cloned().collect();
@@ -663,7 +636,8 @@ impl<'a> TomlHelper<'a> {
                 first_span = Some(item_span.clone());
             }
             // Deserialize the value
-            let value_result = T::from_toml_item(item, item_span, &self.col);
+            let mut helper = TomlHelper::from_item(item, self.col.clone());
+            let value_result = T::fill_from_toml(&mut helper);
 
             if !value_result.is_ok() {
                 all_ok = false;
@@ -824,26 +798,6 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Adapt failed types, eating the none
-    pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
-        match &self.state {
-            TomlValueState::Ok { span } => {
-                panic!("called convert_failed_type on a TomlValue that is Ok. Span was: {span:?}")
-            }
-            _ => TomlValue {
-                value: None,
-                state: self.state.clone(),
-            },
-        }
-    }
-
-    pub fn into_option(self) -> Option<T> {
-        match self.state {
-            TomlValueState::Ok { .. } => self.value,
-            _ => None,
-        }
-    }
-
     pub fn into_optional(self) -> TomlValue<Option<T>> {
         match self.state {
             TomlValueState::Ok { span } => TomlValue {
@@ -881,10 +835,6 @@ impl<T> TomlValue<T> {
         matches!(self.state, TomlValueState::Ok { .. })
     }
 
-    pub fn is_missing(&self) -> bool {
-        matches!(self.state, TomlValueState::Missing { .. })
-    }
-
     pub fn as_ref(&self) -> Option<&T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value.as_ref(),
@@ -914,18 +864,9 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// # Panics
-    /// When the value is not `TomlValueState::Ok`
-    pub fn expect(self, msg: &str) -> T {
-        match self.state {
-            TomlValueState::Ok { .. } => self.value.expect(msg),
-            _ => panic!("Called unwrap on a TomlValue that is not Ok"),
-        }
-    }
-
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
-    pub fn verify<F>(self, _helper: &mut TomlHelper, verification_func: F) -> Self
+    pub fn verify<F>(self, verification_func: F) -> Self
     where
         F: FnOnce(&T) -> Result<(), (String, Option<String>)>,
     {
