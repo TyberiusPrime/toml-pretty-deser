@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, mem::MaybeUninit, rc::Rc};
 
 use indexmap::IndexMap;
 use toml_edit::Document;
@@ -26,15 +26,25 @@ pub trait Visitor: Sized {
 
 pub trait VerifyVisitor<Parent> {
     #[allow(unused_variables)]
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &Parent) -> Option<Self>
+    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &Parent) -> Self
     where
         Self: Sized + Visitor,
     {
-        if self.can_concrete() {
-            Some(self)
-        } else {
-            None
-        }
+        self
+    }
+}
+
+pub trait VerifyIn<Parent> {
+    #[allow(unused_variables)]
+    fn verify(
+        &mut self,
+        helper: &mut TomlHelper<'_>,
+        parent: &Parent,
+    ) -> Result<(), ((String, Option<String>))>
+    where
+        Self: Sized + Visitor,
+    {
+        Ok(())
     }
 }
 
@@ -47,15 +57,17 @@ where
 {
     pub fn tpd_verify<R>(self, helper: &mut TomlHelper, parent: &R) -> TomlValue<T>
     where
-        T: Visitor + VerifyVisitor<R>,
+        T: Visitor + VerifyVisitor<R> + VerifyIn<R>,
     {
         match self.state {
             TomlValueState::Ok { .. } => {
                 let span = self.span();
-                if let Some(validated_value) = self.value.unwrap().vv_validate(helper, parent) {
-                    TomlValue::new_ok(validated_value, span)
+                let mut maybe_validated = self.value.unwrap().vv_validate(helper, parent);
+                maybe_validated.verify(helper, parent);
+                if maybe_validated.can_concrete() {
+                    TomlValue::new_ok(maybe_validated, span)
                 } else {
-                    TomlValue::new_validation_failed(span, "Validation failed".to_string(), None)
+                    TomlValue::new_nested(Some(maybe_validated))
                 }
             }
             _ => self,
@@ -132,7 +144,7 @@ pub fn deserialize_toml<P>(
     vec_mode: VecMode,
 ) -> Result<P::Concrete, DeserError<P>>
 where
-    P: Visitor + VerifyVisitor<Root>+std::fmt::Debug,
+    P: Visitor + VerifyVisitor<Root> + VerifyIn<Root> + std::fmt::Debug,
 {
     let parsed_toml = toml_str
         .parse::<Document<String>>()
@@ -165,46 +177,6 @@ where
 }
 
 impl<R> VerifyVisitor<R> for u8 {}
-impl<R, T: VerifyVisitor<R>> VerifyVisitor<R> for Option<T> {}
-
-impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Vec<TomlValue<T>> {
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Option<Self>
-    where
-        Self: Sized + Visitor,
-    {
-        let v: Vec<TomlValue<T>> = self
-            .into_iter()
-            .map(|entry| entry.tpd_verify(helper, parent))
-            .collect();
-        if v.iter().all(|item| item.is_ok()) {
-            Some(v)
-        } else {
-            None
-        }
-    }
-}
-
-impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R>
-    for IndexMap<K, TomlValue<T>>
-{
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Option<Self>
-    where
-        Self: Sized + Visitor,
-    {
-        let out: IndexMap<K, TomlValue<T>> = self
-            .into_iter()
-            .map(|(k, v)| {
-                let validated_value = v.tpd_verify(helper, parent);
-                (k, validated_value)
-            })
-            .collect();
-        if out.values().all(|v| v.is_ok()) {
-            Some(out)
-        } else {
-            None
-        }
-    }
-}
 
 impl Visitor for u8 {
     type Concrete = u8;
@@ -263,6 +235,40 @@ impl Visitor for String {
     }
 }
 
+impl<T: Visitor> Visitor for Option<T> {
+    type Concrete = Option<T>;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        //Optional etc is being handled upstream by get_with_alias / tpd_get_* ..into_optional()
+        let p = T::fill_from_toml(helper);
+        if p.is_ok() {
+            TomlValue::new_ok(Some(p.value.unwrap()), helper.span())
+        } else {
+            p.convert_failed_type()
+        }
+    }
+
+    fn can_concrete(&self) -> bool {
+        match self {
+            Some(v) => v.can_concrete(),
+            None => true,
+        }
+    }
+
+    fn register_errors(&self, col: &TomlCollector) {
+        match self {
+            Some(v) => v.register_errors(col),
+            None => {}
+        }
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        self
+    }
+}
+
+impl<R, T: VerifyVisitor<R>> VerifyVisitor<R> for Option<T> {}
+
 impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
     type Concrete = Vec<T::Concrete>;
 
@@ -300,6 +306,19 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
         self.into_iter()
             .map(|item| item.value.unwrap().into_concrete())
             .collect()
+    }
+}
+
+impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R> for Vec<TomlValue<T>> {
+    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        let v: Vec<TomlValue<T>> = self
+            .into_iter()
+            .map(|entry| entry.tpd_verify(helper, parent))
+            .collect();
+        v
     }
 }
 
@@ -346,34 +365,20 @@ where
     }
 }
 
-impl<T: Visitor> Visitor for Option<T> {
-    type Concrete = Option<T>;
-
-    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        //Optional etc is being handled upstream by get_with_alias / tpd_get_* ..into_optional()
-        let p = T::fill_from_toml(helper);
-        if p.is_ok() {
-            TomlValue::new_ok(Some(p.value.unwrap()), helper.span())
-        } else {
-            p.convert_failed_type()
-        }
-    }
-
-    fn can_concrete(&self) -> bool {
-        match self {
-            Some(v) => v.can_concrete(),
-            None => true,
-        }
-    }
-
-    fn register_errors(&self, col: &TomlCollector) {
-        match self {
-            Some(v) => v.register_errors(col),
-            None => {}
-        }
-    }
-
-    fn into_concrete(self) -> Self::Concrete {
-        self
+impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R>
+    for IndexMap<K, TomlValue<T>>
+{
+    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        let out: IndexMap<K, TomlValue<T>> = self
+            .into_iter()
+            .map(|(k, v)| {
+                let validated_value = v.tpd_verify(helper, parent);
+                (k, validated_value)
+            })
+            .collect();
+        out
     }
 }
