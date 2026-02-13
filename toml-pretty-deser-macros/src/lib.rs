@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Data, DeriveInput, Fields, GenericArgument, Lit, PathArguments, Type, TypePath,
-    parse_macro_input,
+    parse_macro_input, Data, DeriveInput, Fields, GenericArgument, Lit, PathArguments, Type,
+    TypePath,
 };
 
 /// Attribute macro for generating TOML deserialization code.
@@ -205,6 +205,7 @@ fn extract_single_generic(args: &PathArguments) -> Type {
     panic!("Expected single generic argument");
 }
 
+// Generate recursive register_errors code for a nested type
 fn extract_two_generics(args: &PathArguments) -> (Type, Type) {
     if let PathArguments::AngleBracketed(ab) = args {
         let mut iter = ab.args.iter();
@@ -452,38 +453,81 @@ fn gen_register_errors(
     // But NOT for Option-wrapped types (they don't have register_errors on Option<T>)
     enum DescentKind {
         None,
-        TpdDeserialize, // Vec/Map: use TpdDeserialize::register_errors
-        Inherent,       // Partial types: use inherent .register_errors()
+        TpdDeserializeVec, // Vec: use TpdDeserialize::register_errors + iterate elements
+        TpdDeserializeMap, // Map: use TpdDeserialize::register_errors + iterate elements
+        Optional(Box<DescentKind>), // Option<T>: unwrap and handle inner
+        Inherent,          // Partial types: use inherent .register_errors()
     }
 
-    let descent = match kind {
-        TypeKind::Leaf(_) => {
-            if has_partial {
-                DescentKind::Inherent
-            } else {
-                DescentKind::None
+    fn determine_descent(kind: &TypeKind, has_partial: bool) -> DescentKind {
+        match kind {
+            TypeKind::Leaf(_) => {
+                if has_partial {
+                    DescentKind::Inherent
+                } else {
+                    DescentKind::None
+                }
+            }
+            TypeKind::Vector(_) => DescentKind::TpdDeserializeVec,
+            TypeKind::Map(_, _) => DescentKind::TpdDeserializeMap,
+            TypeKind::Optional(inner) => {
+                DescentKind::Optional(Box::new(determine_descent(inner, has_partial)))
+            }
+            TypeKind::Boxed(_) => {
+                if has_partial {
+                    DescentKind::Inherent
+                } else {
+                    DescentKind::None
+                }
             }
         }
-        TypeKind::Vector(_) | TypeKind::Map(_, _) => DescentKind::TpdDeserialize,
-        TypeKind::Optional(_) => DescentKind::None,
-        TypeKind::Boxed(_) => {
-            if has_partial {
-                DescentKind::Inherent
-            } else {
-                DescentKind::None
-            }
-        }
-    };
+    }
+
+    let descent = determine_descent(kind, has_partial);
 
     match descent {
         DescentKind::None => base_register,
-        DescentKind::TpdDeserialize => {
-            quote! {
-                #base_register
-                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
-                        && let Some(ref inner) = self.#field_ident.value {
-                        toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
-
+        DescentKind::TpdDeserializeVec => {
+            // Propagate register_errors if the field has #[tpd(nested)]
+            if has_partial {
+                quote! {
+                    #base_register
+                    if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
+                            && let Some(ref inner) = self.#field_ident.value {
+                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
+                            // Also call RegisterErrors::register_errors which handles nested containers
+                            toml_pretty_deser::helpers::RegisterErrors::register_errors(inner, col);
+                    }
+                }
+            } else {
+                quote! {
+                    #base_register
+                    if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
+                            && let Some(ref inner) = self.#field_ident.value {
+                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
+                    }
+                }
+            }
+        }
+        DescentKind::TpdDeserializeMap => {
+            // Propagate register_errors if the field has #[tpd(nested)]
+            if has_partial {
+                quote! {
+                    #base_register
+                    if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
+                            && let Some(ref inner) = self.#field_ident.value {
+                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
+                            // Also call RegisterErrors::register_errors which handles nested containers
+                            toml_pretty_deser::helpers::RegisterErrors::register_errors(inner, col);
+                    }
+                }
+            } else {
+                quote! {
+                    #base_register
+                    if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
+                            && let Some(ref inner) = self.#field_ident.value {
+                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
+                    }
                 }
             }
         }
@@ -493,6 +537,53 @@ fn gen_register_errors(
                 if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
                     && let Some(ref inner) = self.#field_ident.value {
                         inner.register_errors(col);
+                }
+            }
+        }
+        DescentKind::Optional(inner_descent) => {
+            // For Option<T>, unwrap and handle the inner type
+            let inner_code = match inner_descent.as_ref() {
+                DescentKind::None => quote! {},
+                DescentKind::TpdDeserializeVec => {
+                    if has_partial {
+                        quote! {
+                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(opt_inner, col);
+                            toml_pretty_deser::helpers::RegisterErrors::register_errors(opt_inner, col);
+                        }
+                    } else {
+                        quote! {
+                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(opt_inner, col);
+                        }
+                    }
+                }
+                DescentKind::TpdDeserializeMap => {
+                    if has_partial {
+                        quote! {
+                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(opt_inner, col);
+                            toml_pretty_deser::helpers::RegisterErrors::register_errors(opt_inner, col);
+                        }
+                    } else {
+                        quote! {
+                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(opt_inner, col);
+                        }
+                    }
+                }
+                DescentKind::Inherent => {
+                    quote! {
+                        opt_inner.register_errors(col);
+                    }
+                }
+                DescentKind::Optional(_) => {
+                    // Nested Option is unusual, but handle it recursively
+                    quote! {}
+                }
+            };
+
+            quote! {
+                #base_register
+                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
+                    && let Some(opt_inner) = self.#field_ident.value.as_ref() {
+                        #inner_code
                 }
             }
         }
@@ -761,6 +852,12 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
                 }
             }
 
+            impl toml_pretty_deser::helpers::RegisterErrors for #partial_name {
+                fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+                    #(#register_errors_calls)*
+                }
+            }
+
              impl toml_pretty_deser::FromTomlItem for #partial_name {
                 fn from_toml_item(
                     item: &toml_edit::Item,
@@ -818,6 +915,12 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
                 }
 
                 #vis fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+                    #(#register_errors_calls)*
+                }
+            }
+
+            impl toml_pretty_deser::helpers::RegisterErrors for #partial_name {
+                fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
                     #(#register_errors_calls)*
                 }
             }
@@ -1196,6 +1299,14 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
             }
 
             #vis fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+                match self {
+                    #(#register_errors_arms)*
+                }
+            }
+        }
+
+        impl toml_pretty_deser::helpers::RegisterErrors for #partial_name {
+            fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
                 match self {
                     #(#register_errors_arms)*
                 }
