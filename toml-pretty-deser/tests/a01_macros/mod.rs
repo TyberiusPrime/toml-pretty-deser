@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    TomlCollector, TomlHelper, TomlValue, VerifyVisitor, Visitor, suggest_alternatives,
+    TomlCollector, TomlHelper, TomlValue, VerifyVisitor, Visitor, helpers::{Root, VerifyIn}, suggest_alternatives
 };
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
@@ -112,16 +112,33 @@ impl Visitor for PartialOuter {
     }
 }
 
+impl VerifyVisitor<Root> for PartialOuter {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.a_u8 = self.a_u8.take().tpd_validate(helper, &self);
+        self.opt_u8 = self.opt_u8.take().tpd_validate(helper, &self);
+        self.vec_u8 = self.vec_u8.take().tpd_validate(helper, &self);
+        self.map_u8 = self.map_u8.take().tpd_validate(helper, &self);
+        self.nested_struct = self.nested_struct.take().tpd_validate(helper, &self);
+        self.simple_enum = self.simple_enum.take().tpd_validate(helper, &self);
+        self
+    }
+}
+impl VerifyIn<Root> for PartialOuter {}
+
 impl VerifyVisitor<PartialOuter> for PartialNestedStruct {
     #[allow(unused_variables)]
     fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &PartialOuter) -> Self {
-        self.other_u8 = self.other_u8.take().tpd_verify(helper, &self);
-        self.double = self.double.take().tpd_verify(helper, &self);
+        self.other_u8 = self.other_u8.take().tpd_validate(helper, &self);
+        self.double = self.double.take().tpd_validate(helper, &self);
         self
     }
 }
 
 impl<R> VerifyVisitor<R> for AnEnum {}
+impl<R> VerifyIn<R> for AnEnum {}
 
 impl Visitor for AnEnum {
     type Concrete = AnEnum;
@@ -236,10 +253,12 @@ impl Visitor for PartialDoubleNestedStruct {
 
 impl VerifyVisitor<PartialNestedStruct> for PartialDoubleNestedStruct {
     fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &PartialNestedStruct) -> Self {
-        self.double_u8 = self.double_u8.take().tpd_verify(helper, parent);
+        self.double_u8 = self.double_u8.take().tpd_validate(helper, parent);
         self
     }
 }
+
+impl VerifyIn<PartialNestedStruct> for PartialDoubleNestedStruct {}
 
 // #[tpd]
 #[derive(Debug)]

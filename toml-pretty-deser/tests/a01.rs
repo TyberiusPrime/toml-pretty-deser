@@ -1,8 +1,8 @@
 use indexmap::IndexMap;
-use toml_pretty_deser::{DeserError, TomlCollector, TomlHelper, TomlValue, suggest_alternatives};
+use toml_pretty_deser::{DeserError, TomlHelper};
 //library code
 //
-use toml_pretty_deser::helpers::{Root, VerifyIn, VerifyVisitor, Visitor, deserialize_toml};
+use toml_pretty_deser::helpers::{ VerifyIn,  deserialize_toml};
 
 mod a01_macros;
 use a01_macros::*;
@@ -25,21 +25,6 @@ pub struct Outer {
     nested_tagged_enum: TaggedEnum,
 }
 
-impl VerifyVisitor<Root> for PartialOuter {
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
-    where
-        Self: Sized + Visitor,
-    {
-        self.a_u8 = self.a_u8.take().tpd_verify(helper, &self);
-        self.opt_u8 = self.opt_u8.take().tpd_verify(helper, &self);
-        self.vec_u8 = self.vec_u8.take().tpd_verify(helper, &self);
-        self.map_u8 = self.map_u8.take().tpd_verify(helper, &self);
-        self.nested_struct = self.nested_struct.take().tpd_verify(helper, &self);
-        self.simple_enum = self.simple_enum.take().tpd_verify(helper, &self);
-        self
-    }
-}
-
 // #[tpd]
 #[derive(Debug)]
 pub struct NestedStruct {
@@ -50,10 +35,9 @@ pub struct NestedStruct {
 impl VerifyIn<PartialOuter> for PartialNestedStruct {
     fn verify(
         &mut self,
-        helper: &mut TomlHelper<'_>,
+        _helper: &mut TomlHelper<'_>,
         parent: &PartialOuter,
-    ) -> Result<(), ((String, Option<String>))>
-    {
+    ) -> Result<(), (String, Option<String>)> {
         if let Some(value) = self.other_u8.as_mut()
             && let Some(parent_value) = parent.a_u8.value
         {
