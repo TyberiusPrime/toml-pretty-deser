@@ -1,8 +1,10 @@
 use indexmap::IndexMap;
-use toml_pretty_deser::{DeserError, FieldMatchMode, TomlHelper, VecMode};
+use toml_pretty_deser::{DeserError, FieldMatchMode, TomlHelper, TomlValue, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
+
+};
 //library code
 //
-use toml_pretty_deser::helpers::{Root, VerifyIn};
+use toml_pretty_deser::helpers::{Root};
 
 mod a01_macros;
 use a01_macros::*;
@@ -1013,3 +1015,135 @@ fn test_absorb_remaining_bad() {
     }
 }
 
+#[derive(Debug)]
+pub struct TypesTest {
+    a_i8: i8,
+    a_i16: i16,
+    a_i32: i32,
+    a_i64: i64,
+    a_isize: isize,
+    a_u8: u8,
+    a_u16: u16,
+    a_u32: u32,
+    a_u64: u64,
+    a_usize: usize,
+    a_f64: f64,
+    a_bool: bool,
+    a_string: String,
+    a_from_string: MyFromString,
+    a_try_from_string: MyTryFromString,
+    //#[tpd(with=adapt_to_upper_case]
+    an_adapted_string: String,
+    //#[tpd(with=adapt_from_u8)]
+    a_string_from_int: String,
+}
+
+pub fn adapt_to_upper_case(input: TomlValue<String>) -> TomlValue<String> {
+    input.map(|s| s.to_uppercase())
+}
+
+pub fn adapt_from_u8(input: TomlValue<u8>) -> TomlValue<String> {
+    input.map(|num| num.to_string())
+}
+
+#[derive(Debug)]
+struct MyFromString(String);
+
+impl From<&str> for MyFromString {
+    fn from(value: &str) -> Self {
+        MyFromString(value.to_string())
+    }
+}
+impl_visitor_for_from_str!(MyFromString);
+
+#[derive(Debug)]
+struct MyTryFromString(String);
+
+impl_visitor_for_try_from_str!(MyTryFromString, "Longer than 5 letters please");
+
+impl TryFrom<&str> for MyTryFromString {
+    type Error = String;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.len() > 5 {
+            Ok(MyTryFromString(value.to_string()))
+        } else {
+            Err("String too short".to_string())
+        }
+    }
+}
+
+#[test]
+fn test_types() {
+    let toml_str = "
+        a_i8 = -12
+        a_i16 = -123    
+        a_i32 = -123456
+        a_i64 = -1234567890123
+        a_isize = -12345
+        a_u8 = 12
+        a_u16 = 123
+        a_u32 = 123456
+        a_u64 = 1234567890123
+        a_usize = 12345
+        a_f64 = 34.487
+        a_bool = true
+        a_string = 'hello'
+        a_from_string = 'world'
+        a_try_from_string = 'longer than 5'
+        an_adapted_string = 'of tomorrow'
+        a_string_from_int = 23
+";
+    let parsed = TypesTest::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.a_i8, -12);
+        assert_eq!(parsed.a_i16, -123);
+        assert_eq!(parsed.a_i32, -123456);
+        assert_eq!(parsed.a_i64, -1234567890123);
+        assert_eq!(parsed.a_isize, -12345);
+        assert_eq!(parsed.a_u8, 12);
+        assert_eq!(parsed.a_u16, 123);
+        assert_eq!(parsed.a_u32, 123456);
+        assert_eq!(parsed.a_u64, 1234567890123);
+        assert_eq!(parsed.a_f64, 34.487);
+        assert_eq!(parsed.a_usize, 12345);
+        assert_eq!(parsed.a_bool, true);
+        assert_eq!(parsed.a_string, "hello");
+        assert_eq!(parsed.a_from_string.0, "world");
+        assert_eq!(parsed.an_adapted_string, "OF TOMORROW");
+        assert_eq!(parsed.a_from_string.0, "world");
+        assert_eq!(parsed.a_try_from_string.0, "longer than 5");
+        assert_eq!(parsed.a_string_from_int, "23");
+    } else {
+        panic!("Parsing failed: {:?}", parsed.err());
+    }
+}
+
+//next type test, string, other integer values, bool
+#[test]
+fn test_tryfrom_failure() {
+    let toml_str = "
+        a_i8 = -12
+        a_i16 = -123    
+        a_i32 = -123456
+        a_i64 = -1234567890123
+        a_isize = -12345
+        a_u8 = 12
+        a_u16 = 123
+        a_u32 = 123456
+        a_u64 = 1234567890123
+        a_f64 = 34.487
+        a_usize = 12345
+        a_bool = true
+        a_string = 'hello'
+        a_from_string = 'w'
+        an_adapted_string = 'of tomorrow'
+        a_try_from_string = 'shrt'
+        a_string_from_int = 'no'
+";
+    let parsed = TypesTest::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    } else {
+        panic!("Parsing succeeded?");
+    }
+}

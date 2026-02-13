@@ -10,6 +10,6 @@ expression: "errors[0].pretty(\"test.toml\")"
 4 │         vec_u8 = ['a']
   ┆                   ─┬─
   ┆                    │
-  ┆                    ╰─── Wrong type: expected u8, found string
+  ┆                    ╰─── Wrong type: expected u8, found string.
 ──╯
 Hint: This value has the wrong type.

@@ -9,6 +9,6 @@ Error 1/1
 7 │             a = 300
   ┆                 ─┬─
   ┆                  │
-  ┆                  ╰── Wrong type: expected integer (u8), range exceeded, found integer
+  ┆                  ╰── integer (u8), range exceeded
 ──╯
-Hint: This value has the wrong type.
+Hint: Use a number between 0 and 255 inclusive.

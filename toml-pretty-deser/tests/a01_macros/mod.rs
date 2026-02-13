@@ -1,11 +1,12 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::{
     DeserError, TomlCollector, TomlHelper, TomlValue, VerifyVisitor, Visitor,
-    helpers::{Root, VerifyIn, deserialize_toml},
+    helpers::{Root, deserialize_toml},
     suggest_alternatives,
+    VerifyIn,
 };
 
-use crate::{Absorb, MapTest, OtherOuter, WithDefaults, WithVecOfTaggedEnums};
+use crate::{Absorb, MapTest, MyFromString, MyTryFromString, OtherOuter, TypesTest, WithDefaults, WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case};
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
 use super::{AnEnum, DoubleNestedStruct, InnerA, InnerB, NestedStruct, Outer, TaggedEnum};
@@ -924,4 +925,133 @@ impl VerifyVisitor<Root> for PartialAbsorb {
     }
 }
 
+// types
+//
+impl TypesTest {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<TypesTest, DeserError<PartialTypesTest>> {
+        deserialize_toml::<PartialTypesTest>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PartialTypesTest {
+    a_i8: TomlValue<i8>,
+    a_i16: TomlValue<i16>,
+    a_i32: TomlValue<i32>,
+    a_i64: TomlValue<i64>,
+    a_isize: TomlValue<isize>,
+    a_u8: TomlValue<u8>,
+    a_u16: TomlValue<u16>,
+    a_u32: TomlValue<u32>,
+    a_u64: TomlValue<u64>,
+    a_usize: TomlValue<usize>,
+
+    a_f64: TomlValue<f64>,
+    a_bool: TomlValue<bool>,
+    a_string: TomlValue<String>,
+    a_from_string: TomlValue<MyFromString>,
+    a_try_from_string: TomlValue<MyTryFromString>,
+    an_adapted_string: TomlValue<String>,
+    a_string_from_int: TomlValue<String>,
+}
+
+impl Visitor for PartialTypesTest {
+    type Concrete = TypesTest;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut p = PartialTypesTest {
+            a_i8: helper.get_with_aliases("a_i8", &[]),
+            a_i16: helper.get_with_aliases("a_i16", &[]),
+            a_i32: helper.get_with_aliases("a_i32", &[]),
+            a_i64: helper.get_with_aliases("a_i64", &[]),
+            a_isize: helper.get_with_aliases("a_isize", &[]),
+            a_u8: helper.get_with_aliases("a_u8", &[]),
+            a_u16: helper.get_with_aliases("a_u16", &[]),
+            a_u32: helper.get_with_aliases("a_u32", &[]),
+            a_u64: helper.get_with_aliases("a_u64", &[]),
+            a_usize: helper.get_with_aliases("a_usize", &[]),
+
+            a_f64: helper.get_with_aliases("a_f64", &[]),
+            a_bool: helper.get_with_aliases("a_bool", &[]),
+            a_string: helper.get_with_aliases("a_string", &[]),
+            a_from_string: helper.get_with_aliases("a_from_string", &[]),
+            a_try_from_string: helper.get_with_aliases("a_try_from_string", &[]),
+            an_adapted_string: adapt_to_upper_case(helper.get_with_aliases("an_adapted_string", &[])),
+            a_string_from_int: adapt_from_u8(helper.get_with_aliases("a_string_from_int", &[])),
+        };
+
+        TomlValue::from_visitor(p, helper)
+    }
+
+fn can_concrete(&self) -> bool {
+        self.a_i8.is_ok()
+            && self.a_i16.is_ok()
+            && self.a_i32.is_ok()
+            && self.a_i64.is_ok()
+            && self.a_isize.is_ok()
+            && self.a_u8.is_ok()
+            && self.a_u16.is_ok()
+            && self.a_u32.is_ok()
+            && self.a_u64.is_ok()
+            && self.a_usize.is_ok()
+            && self.a_f64.is_ok()
+            && self.a_bool.is_ok()
+            && self.a_string.is_ok()
+            && self.a_from_string.is_ok()
+            && self.a_try_from_string.is_ok()
+            && self.an_adapted_string.is_ok()
+            && self.a_string_from_int.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        TypesTest {
+            a_i8: self.a_i8.value.unwrap() as i8,
+            a_i16: self.a_i16.value.unwrap() as i16,
+            a_i32: self.a_i32.value.unwrap() as i32,
+            a_i64: self.a_i64.value.unwrap() as i64,
+            a_isize: self.a_isize.value.unwrap(),
+            a_u8: self.a_u8.value.unwrap(),
+            a_u16: self.a_u16.value.unwrap(),
+            a_u32: self.a_u32.value.unwrap(),
+            a_u64: self.a_u64.value.unwrap(),
+            a_usize: self.a_usize.value.unwrap(),
+
+            a_f64: self.a_f64.value.unwrap(),
+            a_bool: self.a_bool.value.unwrap(),
+            a_string: self.a_string.value.unwrap(),
+            a_from_string: self.a_from_string.value.unwrap(),
+            a_try_from_string: self.a_try_from_string.value.unwrap(),
+            an_adapted_string: self.an_adapted_string.value.unwrap(),
+            a_string_from_int: self.a_string_from_int.value.unwrap(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.a_i8.register_error(col);
+        self.a_i16.register_error(col);
+        self.a_i32.register_error(col);
+        self.a_i64.register_error(col);
+        self.a_isize.register_error(col);
+        self.a_u8.register_error(col);
+        self.a_u16.register_error(col);
+        self.a_u32.register_error(col);
+        self.a_u64.register_error(col);
+        self.a_usize.register_error(col);
+
+        self.a_f64.register_error(col);
+        self.a_bool.register_error(col);
+        self.a_string.register_error(col);
+        self.a_from_string.register_error(col);
+        self.a_try_from_string.register_error(col);
+        self.an_adapted_string.register_error(col);
+        self.a_string_from_int.register_error(col);
+    }
+}
+
+impl VerifyIn<Root> for PartialTypesTest {}
+impl VerifyVisitor<Root> for PartialTypesTest {}
 

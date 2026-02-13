@@ -9,10 +9,10 @@ mod tablelike;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
 mod case;
 pub mod helpers;
+mod visitors;
 
 pub use case::{FieldMatchMode, suggest_alternatives};
 pub use helpers::{VerifyVisitor, Visitor};
-
 
 /// The failure states of deserialization
 ///
@@ -54,6 +54,20 @@ impl<P> DeserError<P> {
             }
         }
         out
+    }
+}
+
+pub trait VerifyIn<Parent> {
+    #[allow(unused_variables)]
+    fn verify(
+        &mut self,
+        helper: &mut TomlHelper<'_>,
+        parent: &Parent,
+    ) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + Visitor,
+    {
+        Ok(())
     }
 }
 
@@ -600,7 +614,7 @@ impl<'a> TomlHelper<'a> {
     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, TomlValue<T>>>
     where
         K: From<String> + std::hash::Hash + Eq,
-        T: Visitor+Default 
+        T: Visitor + Default,
     {
         // Build set of observed normalized names (keys that matched other fields)
         let observed_set: IndexSet<String> = self.observed.iter().cloned().collect();
@@ -821,6 +835,31 @@ impl<T> TomlValue<T> {
             },
         }
     }
+
+    pub fn map<R, F>(&self, map_function: F) -> TomlValue<R>
+    where
+        F: FnOnce(&T) -> R,
+    {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                TomlValue::new_ok(map_function(self.value.as_ref().unwrap()), span.clone())
+            }
+            _ => self.convert_failed_type(),
+        }
+    }
+    /// Adapt failed types, eating the none
+    pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
+        match &self.state {
+            TomlValueState::Ok { span } => {
+                panic!("called convert_failed_type on a TomlValue that is Ok. Span was: {span:?}")
+            }
+            _ => TomlValue {
+                value: None,
+                state: self.state.clone(),
+            },
+        }
+    }
+
     pub fn take(&mut self) -> Self {
         std::mem::replace(
             self,
@@ -917,11 +956,11 @@ impl<T> TomlValue<T> {
     }
 
     #[must_use]
-    pub fn or_default(self) -> Self 
+    pub fn or_default(self) -> Self
     where
-        T: Default {
+        T: Default,
+    {
         self.or_with(Default::default)
-
     }
 }
 

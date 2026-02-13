@@ -1,12 +1,13 @@
 use std::{cell::RefCell, rc::Rc};
 
-use indexmap::IndexMap;
 use toml_edit::Document;
 
 use crate::{
-    AnnotatedError, AnnotatedErrorExt, AsTableLikePlus, DeserError, FieldMatchMode, SpannedMessage,
-    TomlCollector, TomlHelper, TomlValue, TomlValueState, VecMode,
+    AnnotatedError, AnnotatedErrorExt, DeserError, FieldMatchMode, SpannedMessage, TomlCollector,
+    TomlHelper, TomlValue, TomlValueState, VecMode, VerifyIn,
 };
+
+//use crate::visitors::*;
 
 pub trait Visitor: Sized + std::fmt::Debug {
     type Concrete;
@@ -31,20 +32,6 @@ pub trait VerifyVisitor<Parent> {
         Self: Sized + Visitor,
     {
         self
-    }
-}
-
-pub trait VerifyIn<Parent> {
-    #[allow(unused_variables)]
-    fn verify(
-        &mut self,
-        helper: &mut TomlHelper<'_>,
-        parent: &Parent,
-    ) -> Result<(), (String, Option<String>)>
-    where
-        Self: Sized + Visitor,
-    {
-        Ok(())
     }
 }
 
@@ -135,8 +122,8 @@ where
             TomlValueState::MultiDefined { key, spans } => {
                 let mut err = AnnotatedError::placed(
                     spans[0].clone(),
-                    "Key/alias conflict (defined multiple times)",
-                    &format!("Use only one of the keys involved. Canonical is '{key}'"),
+                    "Key/alias conflict (defined multiple times).",
+                    &format!("Use only one of the keys involved. Canonical is '{key}'."),
                 );
                 for span in spans.iter().skip(1) {
                     err.add_span(span.clone(), "Also defined here");
@@ -149,7 +136,7 @@ where
                 found,
             } => vec![AnnotatedError::placed(
                 span.clone(),
-                &format!("Wrong type: expected {expected}, found {found}"),
+                &format!("Wrong type: expected {expected}, found {found}."),
                 "This value has the wrong type.",
             )],
             TomlValueState::ValidationFailed {
@@ -223,246 +210,4 @@ where
             root.value.unwrap(),
         ))
     }
-}
-
-impl<R> VerifyVisitor<R> for u8 {}
-impl<R> VerifyIn<R> for u8 {}
-
-impl Visitor for u8 {
-    type Concrete = u8;
-
-    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        match helper.item.as_integer() {
-            Some(v) => match TryInto::<u8>::try_into(v) {
-                Ok(v) => {
-                    return TomlValue::new_ok(v, helper.span());
-                }
-                Err(_) => {
-                    return TomlValue::new_wrong_type(
-                        &helper.item,
-                        helper.span(),
-                        "integer (u8), range exceeded",
-                    );
-                }
-            },
-            None => {
-                return TomlValue::new_wrong_type(&helper.item, helper.span(), "u8");
-            }
-        }
-    }
-
-    fn can_concrete(&self) -> bool {
-        true
-    }
-
-    fn v_register_errors(&self, _col: &TomlCollector) {}
-
-    fn into_concrete(self) -> Self::Concrete {
-        self
-    }
-}
-
-impl<R> VerifyVisitor<R> for String {}
-impl<R> VerifyIn<R> for String {}
-
-impl Visitor for String {
-    type Concrete = String;
-
-    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        match helper.item.as_str() {
-            Some(v) => TomlValue::new_ok(v.to_string(), helper.span()),
-            None => TomlValue::new_wrong_type(&helper.item, helper.span(), "integer (u8)"),
-        }
-    }
-
-    fn can_concrete(&self) -> bool {
-        true
-    }
-
-    fn v_register_errors(&self, _col: &TomlCollector) {}
-
-    fn into_concrete(self) -> Self::Concrete {
-        self
-    }
-}
-
-impl<T: Visitor> Visitor for Option<T> {
-    type Concrete = Option<T::Concrete>;
-
-    fn fill_from_toml(_helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        unreachable!(); // since we always start with a concrete TomlValue<T>
-        // and then convert the missing into Some(None) in into_optional
-    }
-
-    fn can_concrete(&self) -> bool {
-        unreachable!("or is it?");
-    }
-
-    fn v_register_errors(&self, col: &TomlCollector) {
-        match self {
-            Some(v) => v.v_register_errors(col),
-            None => {}
-        }
-    }
-
-    fn into_concrete(self) -> Option<T::Concrete> {
-        self.map(|t| t.into_concrete())
-    }
-}
-
-impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Option<T> {
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self {
-        match self {
-            Some(v) => Some(v.vv_validate(helper, parent)),
-            None => None,
-        }
-    }
-}
-
-impl<R, T: VerifyIn<R>> VerifyIn<R> for Option<T> {}
-
-impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
-    type Concrete = Vec<T::Concrete>;
-
-    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        match helper.item {
-            toml_edit::Item::ArrayOfTables(array) => {
-                {
-                    let res: Vec<TomlValue<T>> = array
-                        .iter()
-                        .map(|entry| {
-                            T::fill_from_toml(&mut TomlHelper::from_item(
-                                &toml_edit::Item::Table(entry.clone()), //todo: can we do this without
-                                //clone
-                                helper.col.clone(),
-                            ))
-                        })
-                        .collect();
-                    if res.can_concrete() {
-                        TomlValue::new_ok(res, helper.span())
-                    } else {
-                        TomlValue::new_nested(Some(res))
-                    }
-                }
-            }
-            toml_edit::Item::Value(toml_edit::Value::Array(array)) => {
-                let res: Vec<TomlValue<T>> = array
-                    .iter()
-                    .map(|entry| {
-                        T::fill_from_toml(&mut TomlHelper::from_item(
-                            &toml_edit::Item::Value(entry.clone()), //todo: can we do this without
-                            //clone
-                            helper.col.clone(),
-                        ))
-                    })
-                    .collect();
-                if res.can_concrete() {
-                    TomlValue::new_ok(res, helper.span())
-                } else {
-                    TomlValue::new_nested(Some(res))
-                }
-            }
-            _ => TomlValue::new_wrong_type(&helper.item, helper.span(), "array"),
-        }
-    }
-
-    fn can_concrete(&self) -> bool {
-        self.iter().all(|item| item.is_ok())
-    }
-
-    fn v_register_errors(&self, col: &TomlCollector) {
-        for v in self.iter() {
-            v.register_error(col);
-        }
-    }
-
-    fn into_concrete(self) -> Self::Concrete {
-        self.into_iter()
-            .map(|item| item.value.unwrap().into_concrete())
-            .collect()
-    }
-}
-
-impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R> for Vec<TomlValue<T>> {
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self
-    where
-        Self: Sized + Visitor,
-    {
-        let v: Vec<TomlValue<T>> = self
-            .into_iter()
-            .map(|entry| entry.tpd_validate(helper, parent))
-            .collect();
-        v
-    }
-}
-impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R> for Vec<TomlValue<T>> {}
-
-impl<T, K: From<String> + std::hash::Hash + Eq + std::fmt::Debug> Visitor
-    for IndexMap<K, TomlValue<T>>
-where
-    T: Visitor,
-{
-    type Concrete = IndexMap<K, T::Concrete>;
-
-    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        match helper.item.as_table_like_plus() {
-            Some(table) => {
-                let mut result = IndexMap::new();
-                let mut all_ok = true;
-                for (key, value) in table.iter() {
-                    let key: K = key.to_string().into();
-                    let mut value_helper = TomlHelper::from_item(value, helper.col.clone());
-                    let deserialized_value = T::fill_from_toml(&mut value_helper);
-                    if !deserialized_value.is_ok() {
-                        all_ok = false;
-                    }
-                    result.insert(key, deserialized_value);
-                }
-                if all_ok {
-                    TomlValue::new_ok(result, helper.span())
-                } else {
-                    TomlValue::new_nested(Some(result))
-                }
-            }
-            None => TomlValue::new_wrong_type(&helper.item, helper.span(), "table"),
-        }
-    }
-
-    fn can_concrete(&self) -> bool {
-        self.values().all(|v| v.is_ok())
-    }
-
-    fn v_register_errors(&self, col: &TomlCollector) {
-        for (_key,value) in self.iter() {
-            value.register_error(col);
-
-        }
-
-    }
-
-    fn into_concrete(self) -> Self::Concrete {
-        self.into_iter()
-            .map(|(k, v)| (k, v.value.unwrap().into_concrete()))
-            .collect()
-    }
-}
-
-impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R>
-    for IndexMap<K, TomlValue<T>>
-{
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self
-    where
-        Self: Sized + Visitor,
-    {
-        let out: IndexMap<K, TomlValue<T>> = self
-            .into_iter()
-            .map(|(k, v)| (k, v.tpd_validate(helper, parent)))
-            .collect();
-        out
-    }
-}
-
-impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R>
-    for IndexMap<K, TomlValue<T>>
-{
 }

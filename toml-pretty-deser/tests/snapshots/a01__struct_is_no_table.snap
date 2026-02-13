@@ -13,6 +13,6 @@ Error 1/1
 6 │         nested_struct = 5
   ┆                         ┬
   ┆                         │
-  ┆                         ╰─ Wrong type: expected table or inline table, found integer
+  ┆                         ╰─ Wrong type: expected table or inline table, found integer.
 ──╯
 Hint: This value has the wrong type.

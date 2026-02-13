@@ -11,6 +11,6 @@ Error 1/1
 4 │         more ='a'
   ┆               ─┬─
   ┆                │
-  ┆                ╰── Wrong type: expected u8, found string
+  ┆                ╰── Wrong type: expected u8, found string.
 ──╯
 Hint: This value has the wrong type.

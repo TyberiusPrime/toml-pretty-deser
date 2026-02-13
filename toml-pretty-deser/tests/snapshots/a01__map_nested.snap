@@ -10,7 +10,7 @@ Error 1/3
 4 │             double.double_u8 = 'a' # wrong type
   ┆                                ─┬─
   ┆                                 │
-  ┆                                 ╰─────────────── Wrong type: expected u8, found string
+  ┆                                 ╰─────────────── Wrong type: expected u8, found string.
 ──╯
 Hint: This value has the wrong type.
 
@@ -33,6 +33,6 @@ Error 3/3
 32 │             a = 'x' # wrong type
    ┆                 ─┬─
    ┆                  │
-   ┆                  ╰─────────────── Wrong type: expected u8, found string
+   ┆                  ╰─────────────── Wrong type: expected u8, found string.
 ───╯
 Hint: This value has the wrong type.
