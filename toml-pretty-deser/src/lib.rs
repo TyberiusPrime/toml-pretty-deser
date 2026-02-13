@@ -415,7 +415,6 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-
     /// Find a key in the table that matches the given field name (considering aliases and match mode)
     fn find_matching_keys(
         &self,

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use indexmap::IndexMap;
 use toml_edit::Document;
@@ -8,7 +8,7 @@ use crate::{
     TomlCollector, TomlHelper, TomlValue, TomlValueState, VecMode,
 };
 
-pub trait Visitor: Sized {
+pub trait Visitor: Sized + std::fmt::Debug {
     type Concrete;
 
     /// Populate self from TOML. Called by TomlValue<Self>::fill_from_toml,
@@ -55,6 +55,14 @@ impl<T> TomlValue<T>
 where
     T: Visitor,
 {
+    pub fn from_visitor(visitor: T, span: Range<usize>) -> Self {
+        if visitor.can_concrete() {
+            TomlValue::new_ok(visitor, span)
+        } else {
+            TomlValue::new_nested(Some(visitor))
+        }
+    }
+
     pub fn tpd_validate<R>(self, helper: &mut TomlHelper, parent: &R) -> TomlValue<T>
     where
         T: Visitor + VerifyVisitor<R> + VerifyIn<R>,
@@ -62,15 +70,28 @@ where
         match self.state {
             TomlValueState::Ok { .. } => {
                 let span = self.span();
+                dbg!(&self);
                 let mut maybe_validated = self.value.unwrap().vv_validate(helper, parent);
-                if maybe_validated.can_concrete() {
-                    match maybe_validated.verify(helper, parent) {
-                        Ok(()) => TomlValue::new_ok(maybe_validated, span),
+                match maybe_validated.verify(helper, parent) {
+                    Ok(()) => TomlValue::new_ok(maybe_validated, span),
 
-                        Err((msg, hint)) => TomlValue::new_validation_failed(span, msg, hint),
-                    }
-                } else {
+                    Err((msg, hint)) => TomlValue::new_validation_failed(span, msg, hint),
+                }
+            }
+            TomlValueState::Nested => {
+                if let Some(value) = self.value {
+                    dbg!("before", &value);
+                    let mut maybe_validated = value.vv_validate(helper, parent);
+                    maybe_validated.verify(helper, parent).ok();
+                    dbg!("after", &maybe_validated);
                     TomlValue::new_nested(Some(maybe_validated))
+                    // {
+                    //     Ok(()) => TomlValue::new_nested(Some(maybe_validated)),
+                    //
+                    //     Err((msg, hint)) => TomlValue::new_validation_failed(helper.span(), msg, hint),
+                    // }
+                } else {
+                    self
                 }
             }
             _ => self,
@@ -166,7 +187,6 @@ where
     let root = P::fill_from_toml(&mut helper);
     let root = root.tpd_validate(&mut helper, &Root);
 
-    dbg!(&root);
     if helper.no_unknown() && root.is_ok() {
         Ok(root.value.unwrap().into_concrete())
     } else {
@@ -200,7 +220,7 @@ impl Visitor for u8 {
                 }
             },
             None => {
-                return TomlValue::new_wrong_type(&helper.item, helper.span(), "integer (u8)");
+                return TomlValue::new_wrong_type(&helper.item, helper.span(), "u8");
             }
         }
     }
@@ -314,7 +334,11 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
         self.iter().all(|item| item.is_ok())
     }
 
-    fn register_errors(&self, _col: &TomlCollector) {}
+    fn register_errors(&self, col: &TomlCollector) {
+        for v in self.iter() {
+            v.register_error(col);
+        }
+    }
 
     fn into_concrete(self) -> Self::Concrete {
         self.into_iter()
@@ -337,7 +361,8 @@ impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R> for Vec<To
 }
 impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R> for Vec<TomlValue<T>> {}
 
-impl<T, K: From<String> + std::hash::Hash + Eq> Visitor for IndexMap<K, TomlValue<T>>
+impl<T, K: From<String> + std::hash::Hash + Eq + std::fmt::Debug> Visitor
+    for IndexMap<K, TomlValue<T>>
 where
     T: Visitor,
 {
@@ -389,9 +414,7 @@ impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> Ve
     {
         let out: IndexMap<K, TomlValue<T>> = self
             .into_iter()
-            .map(|(k, v)| {
-                (k, v.tpd_validate(helper, parent))
-            })
+            .map(|(k, v)| (k, v.tpd_validate(helper, parent)))
             .collect();
         out
     }
