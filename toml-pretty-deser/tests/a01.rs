@@ -1393,6 +1393,7 @@ fn test_map_validation_failure() {
 
 // () to register arbitrary casess..
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct UnitField {
     add_error: (),
     remainder: IndexMap<String, String>,
@@ -1454,6 +1455,7 @@ fn test_unit_field() {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct NestedUnitField {
     inner: UnitField,
 }
@@ -1481,7 +1483,7 @@ impl VerifyIn<Root> for PartialNestedUnitField {}
 impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
     fn verify(
         &mut self,
-        helper: &mut TomlHelper<'_>,
+        _helper: &mut TomlHelper<'_>,
         _parent: &PartialNestedUnitField,
     ) -> Result<(), (String, Option<String>)>
     where

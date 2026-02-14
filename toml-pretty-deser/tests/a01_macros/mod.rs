@@ -127,8 +127,8 @@ impl Visitor for PartialOuter {
     }
 }
 
-impl VerifyVisitor<Root> for PartialOuter {
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
+impl <R>VerifyVisitor<R> for PartialOuter {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &R) -> Self
     where
         Self: Sized + Visitor,
     {
@@ -146,9 +146,9 @@ impl VerifyVisitor<Root> for PartialOuter {
 impl VerifyIn<Root> for PartialOuter {}
 impl VerifyIn<PartialNestedStruct> for PartialDoubleNestedStruct {}
 
-impl VerifyVisitor<PartialOuter> for PartialNestedStruct {
+impl <R> VerifyVisitor<R> for PartialNestedStruct {
     #[allow(unused_variables)]
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &PartialOuter) -> Self {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &R) -> Self {
         self.other_u8 = self.other_u8.take().tpd_validate(helper, &self);
         self.double = self.double.take().tpd_validate(helper, &self);
         self
@@ -270,8 +270,8 @@ impl Visitor for PartialDoubleNestedStruct {
     }
 }
 
-impl VerifyVisitor<PartialNestedStruct> for PartialDoubleNestedStruct {
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &PartialNestedStruct) -> Self {
+impl <R>VerifyVisitor<R> for PartialDoubleNestedStruct {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &R) -> Self {
         self.double_u8 = self.double_u8.take().tpd_validate(helper, parent);
         self
     }
@@ -283,8 +283,6 @@ pub enum PartialTaggedEnum {
     KindA(TomlValue<PartialInnerA>),
     KindB(TomlValue<PartialInnerB>),
 }
-
-impl VerifyIn<PartialOuter> for PartialTaggedEnum {}
 
 #[derive(Default, Debug)]
 pub struct PartialInnerA {
@@ -444,16 +442,9 @@ impl OtherOuter {
 
 impl VerifyIn<Root> for PartialOtherOuter {}
 
-impl VerifyVisitor<Root> for PartialOtherOuter {
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self {
+impl <R>VerifyVisitor<R> for PartialOtherOuter {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &R) -> Self {
         self.nested_struct = self.nested_struct.take().tpd_validate(helper, &self);
-        self
-    }
-}
-impl VerifyVisitor<PartialOtherOuter> for PartialNestedStruct {
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &PartialOtherOuter) -> Self {
-        self.other_u8 = self.other_u8.take().tpd_validate(helper, &self);
-        self.double = self.double.take().tpd_validate(helper, &self);
         self
     }
 }
@@ -549,32 +540,56 @@ impl WithVecOfTaggedEnums {
 }
 
 impl VerifyIn<Root> for PartialWithVecOfTaggedEnums {}
-impl VerifyVisitor<Root> for PartialWithVecOfTaggedEnums {}
-
-impl VerifyIn<PartialWithVecOfTaggedEnums> for PartialTaggedEnum {}
-
-impl VerifyVisitor<PartialWithVecOfTaggedEnums> for PartialTaggedEnum {
-    fn vv_validate(
-        mut self,
-        helper: &mut TomlHelper<'_>,
-        parent: &PartialWithVecOfTaggedEnums,
-    ) -> Self {
-        match &mut self {
-            PartialTaggedEnum::KindA(toml_value) => {
-                *toml_value = toml_value.take().tpd_validate(helper, parent);
-            }
-            PartialTaggedEnum::KindB(toml_value) => {
-                *toml_value = toml_value.take().tpd_validate(helper, parent);
-            }
-        }
+impl <R>VerifyVisitor<R> for PartialWithVecOfTaggedEnums {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &R) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.items = self.items
+            .take()
+            .tpd_validate(helper, &self);
         self
     }
 }
 
-impl VerifyIn<PartialWithVecOfTaggedEnums> for PartialInnerA {}
-impl VerifyIn<PartialWithVecOfTaggedEnums> for PartialInnerB {}
-impl VerifyVisitor<PartialWithVecOfTaggedEnums> for PartialInnerA {}
-impl VerifyVisitor<PartialWithVecOfTaggedEnums> for PartialInnerB {}
+impl <R>VerifyIn<R> for PartialTaggedEnum {}
+
+//when exactly can't we do <R>VerifyVisitor<R>?
+// impl VerifyVisitor<PartialWithVecOfTaggedEnums> for PartialTaggedEnum {
+//     fn vv_validate(
+//         mut self,
+//         helper: &mut TomlHelper<'_>,
+//         parent: &PartialWithVecOfTaggedEnums,
+//     ) -> Self {
+//         match &mut self {
+//             PartialTaggedEnum::KindA(toml_value) => {
+//                 *toml_value = toml_value.take().tpd_validate(helper, parent);
+//             }
+//             PartialTaggedEnum::KindB(toml_value) => {
+//                 *toml_value = toml_value.take().tpd_validate(helper, parent);
+//             }
+//         }
+//         self
+//     }
+// }
+
+impl <R>VerifyIn<R> for PartialInnerA {}
+impl <R>VerifyIn<R> for PartialInnerB {}
+
+impl <R>VerifyVisitor<R> for PartialInnerA {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &R) -> Self {
+        self.a = self.a.take().tpd_validate(helper, &self);
+        self
+    }
+}
+impl <R>VerifyVisitor<R> for PartialInnerB {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &R) -> Self
+        where
+            Self: Sized + Visitor, {
+        self.b = self.b.take().tpd_validate(helper, parent);
+        self
+    }
+}
 
 // Vec of nested struct
 #[derive(Debug, Default)]
@@ -628,7 +643,19 @@ impl super::WithVecOfStructs {
 }
 
 impl VerifyIn<Root> for PartialWithVecOfStructs {}
-impl VerifyVisitor<Root> for PartialWithVecOfStructs {}
+impl <R>VerifyVisitor<R> for PartialWithVecOfStructs {
+
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &R) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.items = self.items
+            .take()
+            .tpd_validate(helper, &self);
+        self
+    }
+
+}
 impl VerifyIn<PartialWithVecOfStructs> for PartialNestedStruct {}
 
 // OptStruct of nested struct
@@ -714,7 +741,35 @@ impl super::OptionNested {
 }
 
 impl VerifyIn<Root> for PartialOptionNested {}
-impl VerifyVisitor<Root> for PartialOptionNested {}
+impl <R>VerifyVisitor<R> for PartialOptionNested {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &R) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.a_struct = self.a_struct.take().tpd_validate(helper, &self);
+        self.tag = self.tag.take().tpd_validate(helper, &self);
+        self.structs = self.structs.take().tpd_validate(helper, &self);
+        self.tagged = self.tagged.take().tpd_validate(helper, &self);
+        self
+    }
+
+}
+
+impl <R>VerifyVisitor<R> for PartialTaggedEnum {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &R) -> Self {
+        match &mut self {
+            PartialTaggedEnum::KindA(toml_value) => {
+                *toml_value = toml_value.take().tpd_validate(helper, parent);
+            }
+            PartialTaggedEnum::KindB(toml_value) => {
+                *toml_value = toml_value.take().tpd_validate(helper, parent);
+            }
+        }
+        self
+    }
+}
+
+
 impl VerifyIn<PartialOptionNested> for PartialNestedStruct {}
 
 // map test
@@ -835,7 +890,7 @@ impl Visitor for PartialMapTest {
 }
 
 impl VerifyIn<Root> for PartialMapTest {}
-impl VerifyVisitor<Root> for PartialMapTest {}
+impl <R>VerifyVisitor<R> for PartialMapTest {}
 
 // defaults
 //
@@ -891,7 +946,7 @@ impl Visitor for PartialWithDefaults {
     }
 }
 
-impl VerifyVisitor<Root> for PartialWithDefaults {}
+impl <R>VerifyVisitor<R> for PartialWithDefaults {}
 
 //Absord
 impl Absorb {
@@ -1284,7 +1339,7 @@ pub struct PartialUnitField {
 impl PartialUnitField {
     fn tpd_get_add_error(
         &self,
-        helper: &mut TomlHelper<'_>,
+        _helper: &mut TomlHelper<'_>,
         _parent_span: std::ops::Range<usize>,
     ) -> TomlValue<()> {
         TomlValue::new_ok((), 0..0)
@@ -1318,8 +1373,8 @@ impl Visitor for PartialUnitField {
     }
 }
 
-impl VerifyVisitor<Root> for PartialUnitField {
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &Root) -> Self
+impl <R>VerifyVisitor<R> for PartialUnitField {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &R) -> Self
     where
         Self: Sized + Visitor,
     {
@@ -1329,16 +1384,6 @@ impl VerifyVisitor<Root> for PartialUnitField {
     }
 }
 
-impl VerifyVisitor<PartialNestedUnitField> for PartialUnitField {
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &PartialNestedUnitField) -> Self
-    where
-        Self: Sized + Visitor,
-    {
-        //again, no add_error here.
-        self.remainder = self.remainder.take().tpd_validate(helper, &self);
-        self
-    }
-}
 impl NestedUnitField {
     pub fn tpd_from_toml(
         toml_str: &str,
@@ -1358,7 +1403,7 @@ impl Visitor for PartialNestedUnitField {
     type Concrete = NestedUnitField;
 
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        let mut p = PartialNestedUnitField {
+        let p = PartialNestedUnitField {
             inner: helper.get_with_aliases("inner", &[]),
         };
 
@@ -1381,7 +1426,7 @@ impl Visitor for PartialNestedUnitField {
 }
 
 impl VerifyVisitor<Root> for PartialNestedUnitField {
-    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &Root) -> Self
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
     where
         Self: Sized + Visitor,
     {
