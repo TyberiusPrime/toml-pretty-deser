@@ -553,26 +553,6 @@ impl <R>VerifyVisitor<R> for PartialWithVecOfTaggedEnums {
 }
 
 impl <R>VerifyIn<R> for PartialTaggedEnum {}
-
-//when exactly can't we do <R>VerifyVisitor<R>?
-// impl VerifyVisitor<PartialWithVecOfTaggedEnums> for PartialTaggedEnum {
-//     fn vv_validate(
-//         mut self,
-//         helper: &mut TomlHelper<'_>,
-//         parent: &PartialWithVecOfTaggedEnums,
-//     ) -> Self {
-//         match &mut self {
-//             PartialTaggedEnum::KindA(toml_value) => {
-//                 *toml_value = toml_value.take().tpd_validate(helper, parent);
-//             }
-//             PartialTaggedEnum::KindB(toml_value) => {
-//                 *toml_value = toml_value.take().tpd_validate(helper, parent);
-//             }
-//         }
-//         self
-//     }
-// }
-
 impl <R>VerifyIn<R> for PartialInnerA {}
 impl <R>VerifyIn<R> for PartialInnerB {}
 

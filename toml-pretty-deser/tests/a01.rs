@@ -12,7 +12,29 @@ use a01_macros::*;
 
 // Manually implemented example on how I want the API to look like
 //
-// USER Code
+// High level description
+//
+//
+// User tag struct T with #[tdp]
+// Lib creates 
+// a) a tpd_from_toml implementation
+// b) a PartialT struct with TomlValue<T> of the fields. Note how container types are
+//    TomlValue<Container<..., TomlValue<T>>
+// c) a VerifyVisitor impl
+// d) optionally a blanket <R>VerifyIn<R> impl, if user said #[tdp(no_verify)]
+//    Otherwise the user must implement one!
+// e) when #[tdp] is applied to enums, they must be either simple enums (then we decode them 
+//    by their string value +- FieldMatchMode) or tagged single struct containing enums
+//    (then they PartialTaggedEnum variants with all the same variants, but inner values replaced
+//    with TomlValue<PartialInner> of the inner struct
+// f) non type field variations: 
+//              #[tpd_skip] (ignores the field), 
+//              #[tpd_default] - set's it's default value iff missing.. 
+//              #[tpd_absorb_remaining] - absorb all remaining values on this key into an IndexMap
+//              #[tpd_with=function)] - convert type while deserializing
+//
+//
+// Guess I haven't been veriy diligent in tagging everything in here with commented out #[tdp] 
 //#[tpd]
 #[derive(Debug)]
 pub struct Outer {
@@ -272,9 +294,6 @@ fn test_basic_missing() {
         assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
-        //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
-        //assert_eq!(inner.value.nested_struct.other_u8, 6); //1 added in verify
-        //assert_eq!(inner.value.nested_struct.double.double_u8, 6);
     }
 }
 
@@ -370,9 +389,6 @@ fn test_struct_is_no_table() {
     assert!(!parsed.is_ok());
     if let Err(e) = parsed {
         insta::assert_snapshot!(e.pretty("test.toml"));
-        //assert_eq!(inner.map_u8.get("a").unwrap(), &4);
-        //assert_eq!(inner.value.nested_struct.other_u8, 6); //1 added in verify
-        //assert_eq!(inner.value.nested_struct.double.double_u8, 6);
     }
 }
 #[test]
@@ -667,7 +683,6 @@ pub struct WithVecOfStructs {
 
 #[test]
 fn test_vec_of_nested_structs() {
-    // Demonstrate that FromTomlItem works with Vec<NestedStruct>
     let toml_str = "
         [[items]]
         other_u8 = 10
@@ -1136,9 +1151,9 @@ pub struct TypesTest {
     a_string: String,
     a_from_string: MyFromString,
     a_try_from_string: MyTryFromString,
-    //#[tpd(with=adapt_to_upper_case]
+    //#[tpd_with=adapt_to_upper_case]
     an_adapted_string: String,
-    //#[tpd(with=adapt_from_u8)]
+    //#[tpd_with=adapt_from_u8]
     a_string_from_int: String,
 }
 
