@@ -635,7 +635,7 @@ impl<'a> TomlHelper<'a> {
         };
 
         let mut result_map: IndexMap<K, TomlValue<T>> = IndexMap::new();
-        let mut all_ok = true;
+        // let mut all_ok = true;
         let mut first_span: Option<Range<usize>> = None;
 
         for (key, item) in table.iter() {
@@ -659,23 +659,25 @@ impl<'a> TomlHelper<'a> {
             let mut helper = TomlHelper::from_item(item, self.col.clone());
             let value_result = T::fill_from_toml(&mut helper);
 
-            if !value_result.is_ok() {
-                all_ok = false;
-            }
+            // if !value_result.is_ok() {
+            //     all_ok = false;
+            // }
             result_map.insert(K::from(key_str), value_result);
         }
 
         let span = first_span.unwrap_or(0..0);
 
-        if all_ok {
-            TomlValue::new_ok(result_map, span)
-        } else {
-            // Return the partial map but indicate nested errors
-            TomlValue {
-                value: Some(result_map),
-                state: TomlValueState::Nested {},
-            }
-        }
+        // if all_ok {
+        //feels wrong, but we're calling can_concrete on it 
+        //which in turn asks the values, and  that does the check
+        TomlValue::new_ok(result_map, span)
+        // } else {
+        //     // Return the partial map but indicate nested errors
+        //     TomlValue {
+        //         value: Some(result_map),
+        //         state: TomlValueState::Nested {},
+        //     }
+        // }
     }
 
     pub fn has_unknown(&self) -> bool {
