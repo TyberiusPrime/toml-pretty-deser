@@ -46,9 +46,7 @@ where
         if helper.has_unknown() {
             TomlValue {
                 value: Some(visitor),
-                state: TomlValueState::UnknownKeys {
-                    spans: helper.unknown_spans(),
-                },
+                state: TomlValueState::UnknownKeys(helper.unknown_spans()),
             }
         } else if visitor.can_concrete() {
             TomlValue::new_ok(visitor, helper.span())
@@ -149,14 +147,19 @@ where
                 message,
                 help.as_ref().map_or("", std::string::String::as_str),
             )],
-            TomlValueState::UnknownKeys { spans } => {
+            TomlValueState::UnknownKeys(unknown_keys) => {
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
                 };
-                spans
+                unknown_keys
                     .iter()
-                    .map(|(_key, span, help)| {
-                        AnnotatedError::placed(span.clone(), "Unknown key.", help)
+                    .map(|uk| {
+                        let mut err =
+                            AnnotatedError::placed(uk.span.clone(), "Unknown key.", &uk.help);
+                        for (span, msg) in &uk.additional_spans {
+                            err.add_span(span.clone(), msg);
+                        }
+                        err
                     })
                     .collect()
             }
@@ -197,9 +200,7 @@ where
     let root = P::fill_from_toml(&mut helper);
     let mut root = root.tpd_validate(&mut helper, &Root);
     if helper.has_unknown() {
-        root.state = TomlValueState::UnknownKeys {
-            spans: helper.unknown_spans(),
-        }
+        root.state = TomlValueState::UnknownKeys(helper.unknown_spans())
     }
 
     if root.is_ok() {

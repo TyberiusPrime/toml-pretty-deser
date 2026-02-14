@@ -668,7 +668,7 @@ impl<'a> TomlHelper<'a> {
         let span = first_span.unwrap_or(0..0);
 
         // if all_ok {
-        //feels wrong, but we're calling can_concrete on it 
+        //feels wrong, but we're calling can_concrete on it
         //which in turn asks the values, and  that does the check
         TomlValue::new_ok(result_map, span)
         // } else {
@@ -709,7 +709,7 @@ impl<'a> TomlHelper<'a> {
         return false;
     }
 
-    pub fn unknown_spans(&self) -> Vec<(String, Range<usize>, String)> {
+    pub fn unknown_spans(&self) -> Vec<UnknownKey> {
         // Build set of normalized expected names (including aliases)
         let mut expected_normalized: IndexSet<String> = IndexSet::new();
         for field_info in &self.expected {
@@ -741,11 +741,12 @@ impl<'a> TomlHelper<'a> {
                         .key(&key)
                         .and_then(toml_edit::Key::span)
                         .unwrap_or(0..0);
-                    res.push((
-                        key.to_string(),
+                    res.push(UnknownKey {
+                        key: key.to_string(),
                         span,
-                        suggest_alternatives(&normalized_key, &still_available),
-                    ));
+                        help: suggest_alternatives(&normalized_key, &still_available),
+                        additional_spans: vec![],
+                    });
                 }
             }
             res
@@ -995,6 +996,14 @@ impl<T> Default for TomlValue<T> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct UnknownKey {
+    key: String,
+    span: Range<usize>,
+    help: String,
+    pub additional_spans: Vec<(Range<usize>, String)>,
+}
+
 /// Captures precisely what went wrong
 #[derive(Debug, Clone)]
 pub enum TomlValueState {
@@ -1017,9 +1026,7 @@ pub enum TomlValueState {
         message: String,
         help: Option<String>,
     },
-    UnknownKeys {
-        spans: Vec<(String, Range<usize>, String)>,
-    },
+    UnknownKeys(Vec<UnknownKey>),
     Nested,
     Ok {
         span: Range<usize>,

@@ -1,12 +1,15 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    DeserError, TomlCollector, TomlHelper, TomlValue, VerifyIn, VerifyVisitor, Visitor,
+    DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyIn, VerifyVisitor,
+    Visitor,
     helpers::{Root, deserialize_toml},
     suggest_alternatives,
 };
 
 use crate::{
-    Absorb, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString, MyTryFromString, OtherOuter, OuterWithBox, TypesTest, WithDefaults, WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case
+    Absorb, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString,
+    MyTryFromString, OtherOuter, OuterWithBox, TypesTest, WithDefaults, WithVecOfTaggedEnums,
+    adapt_from_u8, adapt_to_upper_case,
 };
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
@@ -360,13 +363,25 @@ impl Visitor for PartialTaggedEnum {
 
         match tag.as_str() {
             "KindA" => {
-                let partial_inner = PartialInnerA::fill_from_toml(helper);
+                let mut partial_inner = PartialInnerA::fill_from_toml(helper);
                 let is_ok = partial_inner.is_ok();
-                let visitor = PartialTaggedEnum::KindA(partial_inner);
-                if is_ok {
-                    TomlValue::new_ok(visitor, helper.span())
-                } else {
-                    TomlValue::new_nested(Some(visitor))
+
+                match &mut partial_inner.state {
+                    TomlValueState::Ok { .. } => {
+                        let visitor = PartialTaggedEnum::KindA(partial_inner);
+                        TomlValue::new_ok(visitor, helper.span())
+                    }
+                    TomlValueState::UnknownKeys ( unknown_keys ) => {
+                        for k in unknown_keys.iter_mut() {
+                            k.additional_spans.push((tag_span.clone(), "Involving this enum variant.".to_string()));
+                        }
+                        let visitor = PartialTaggedEnum::KindA(partial_inner);
+                        TomlValue::new_nested(Some(visitor))
+                    }
+                    _ => {
+                        let visitor = PartialTaggedEnum::KindA(partial_inner);
+                        TomlValue::new_nested(Some(visitor))
+                    }
                 }
             }
             "KindB" => {
@@ -836,6 +851,7 @@ pub struct PartialWithDefaults {
     pub a: TomlValue<u8>,
     pub b: TomlValue<u8>,
     pub c: TomlValue<u8>,
+    pub d: TomlValue<u8>,
 }
 
 impl Visitor for PartialWithDefaults {
@@ -846,18 +862,20 @@ impl Visitor for PartialWithDefaults {
         p.a = helper.get_with_aliases("a", &[]);
         p.b = helper.get_with_aliases("b", &[]);
         p.c = helper.get_with_aliases("c", &[]);
+        p.d = helper.get_with_aliases("d", &[]).or_default();
 
         TomlValue::from_visitor(p, helper)
     }
 
     fn can_concrete(&self) -> bool {
-        self.a.is_ok() && self.b.is_ok() && self.c.is_ok()
+        self.a.is_ok() && self.b.is_ok() && self.c.is_ok() && self.d.is_ok()
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
         self.a.register_error(col);
         self.b.register_error(col);
         self.c.register_error(col);
+        self.d.register_error(col);
     }
 
     fn into_concrete(self) -> Self::Concrete {
@@ -865,6 +883,8 @@ impl Visitor for PartialWithDefaults {
             a: self.a.value.unwrap(),
             b: self.b.value.unwrap(),
             c: self.c.value.unwrap(),
+            d: self.d.value.unwrap(),
+            s: Default::default(),
         }
     }
 }

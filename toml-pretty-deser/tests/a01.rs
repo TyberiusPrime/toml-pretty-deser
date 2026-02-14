@@ -613,8 +613,8 @@ fn test_tagged_enum_struct_fail() {
         [nested_struct.double]
             double_u8 = 6
         [nested_tagged_enum]
-            kind = 'KindA'
             b = 10
+            kind = 'KindA'
     ";
     let parsed = Outer::tpd_from_toml(
         toml,
@@ -953,6 +953,11 @@ pub struct WithDefaults {
     a: u8,
     b: u8,
     c: u8,
+    //#[tpd_default]
+    d: u8,
+
+    //#[tpd_skip]
+    s: u8
 }
 
 impl VerifyIn<Root> for PartialWithDefaults {
@@ -989,6 +994,8 @@ fn test_default() {
         assert_eq!(parsed.a, 0); // default for u8
         assert_eq!(parsed.b, 55); // custom default
         assert_eq!(parsed.c, 33); // custom default
+        assert_eq!(parsed.d, 0); // Default::default
+        assert_eq!(parsed.s, 0); // Default::default
     } else {
         panic!("Parsing failed: {:?}", parsed.err());
     }
@@ -1380,3 +1387,4 @@ fn test_map_validation_failure() {
         insta::assert_snapshot!(e.pretty("test.toml"));
     }
 }
+

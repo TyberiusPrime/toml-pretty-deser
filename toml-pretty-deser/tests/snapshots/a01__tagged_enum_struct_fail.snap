@@ -15,10 +15,13 @@ Error 2/2
    ╭─test.toml
    ┆
 12 │         [nested_tagged_enum]
-13 │             kind = 'KindA'
-14 │             b = 10
+13 │             b = 10
    ┆             ┬
    ┆             │
    ┆             ╰────── Unknown key.
+14 │             kind = 'KindA'
+   ┆                    ───┬───
+   ┆                       │
+   ┆                       ╰──── Involving this enum variant.
 ───╯
 Hint: Did you mean: 'a'?
