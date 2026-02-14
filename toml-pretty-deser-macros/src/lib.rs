@@ -9,17 +9,18 @@ use syn::{
 ///
 /// # Usage
 /// - `#[tpd(root)]` on struct - Top-level deserialization target
-/// - `#[tpd]` on struct - Nested struct
+/// - `#[tpd(root, no_verify)]` on struct - Root with blanket VerifyIn
+/// - `#[tpd]` on struct - Nested struct (user must provide VerifyIn impls)
+/// - `#[tpd(no_verify)]` on struct - Nested struct with blanket VerifyIn
 /// - `#[tpd(tag = "key")]` on enum - Tagged enum
 /// - `#[tpd]` on enum - Simple string enum
 ///
 /// # Field-level attributes
 /// - `#[tpd(nested)]` - Type has a Partial variant (nested struct or tagged enum)
 /// - `#[tpd(alias("name1", "name2"))]` - Field aliases
-/// - `#[tpd(skip)]` - Skip field, use `Default::default()` in `to_concrete`
+/// - `#[tpd(skip)]` - Skip field, use `Default::default()` in `into_concrete`
 /// - `#[tpd(default)]` - Use `Default::default()` if field is missing from TOML
 /// - `#[tpd(with = "func")]` - Adapter function
-/// - `#[tpd(with = "func", from = "Type")]` - Adapter function with type change
 /// - `#[tpd(absorb_remaining)]` - Absorb all remaining unmatched fields
 ///
 /// # Variant-level attributes (simple enum)
@@ -39,17 +40,18 @@ pub fn tpd(attr: TokenStream, item: TokenStream) -> TokenStream {
 // Attribute parsing
 // ============================================================================
 
-/// Parse top-level attribute args (the content inside `#[tpd(...)]`)
 fn is_root_attr(attr_args: &str) -> bool {
     attr_args.contains("root")
+}
+
+fn is_no_verify_attr(attr_args: &str) -> bool {
+    attr_args.contains("no_verify")
 }
 
 /// Strip #[tpd(...)] attributes from a DeriveInput and return the cleaned item as tokens
 fn emit_original_item(input: &DeriveInput) -> proc_macro2::TokenStream {
     let mut cleaned = input.clone();
-    // Remove #[tpd(...)] from item-level attrs (already consumed by proc_macro_attribute)
     cleaned.attrs.retain(|a| !a.path().is_ident("tpd"));
-    // Remove #[tpd(...)] from fields/variants
     match &mut cleaned.data {
         Data::Struct(data) => {
             if let Fields::Named(named) = &mut data.fields {
@@ -100,7 +102,6 @@ struct FieldAttrs {
 }
 
 impl FieldAttrs {
-    /// Whether the field's type has a Partial variant (nested struct or tagged enum)
     fn has_partial(&self) -> bool {
         matches!(self.nested, NestedState::Nested | NestedState::Tagged)
     }
@@ -130,7 +131,6 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
                     attrs.with_fn = Some(s.value());
                 }
             } else if meta.path.is_ident("alias") {
-                // #[tpd(alias("name1", "name2"))]
                 let content;
                 syn::parenthesized!(content in meta.input);
                 let lits =
@@ -161,7 +161,7 @@ enum TypeKind {
     Leaf(Type),
     Optional(Box<TypeKind>),
     Vector(Box<TypeKind>),
-    Map(Type, Box<TypeKind>), // key type, value type
+    Map(Type, Box<TypeKind>),
     Boxed(Box<TypeKind>),
 }
 
@@ -205,7 +205,6 @@ fn extract_single_generic(args: &PathArguments) -> Type {
     panic!("Expected single generic argument");
 }
 
-// Generate recursive register_errors code for a nested type
 fn extract_two_generics(args: &PathArguments) -> (Type, Type) {
     if let PathArguments::AngleBracketed(ab) = args {
         let mut iter = ab.args.iter();
@@ -218,7 +217,6 @@ fn extract_two_generics(args: &PathArguments) -> (Type, Type) {
     panic!("Expected two generic arguments");
 }
 
-/// Get the leaf type name (last path segment without generics)
 fn leaf_type_name(ty: &Type) -> String {
     if let Type::Path(TypePath { path, .. }) = ty {
         if let Some(last) = path.segments.last() {
@@ -262,330 +260,23 @@ fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> proc_macro2::Toke
     }
 }
 
-/// Strip Optional/Boxed wrappers to get to the container/leaf core
-fn strip_wrappers(kind: &TypeKind) -> &TypeKind {
-    match kind {
-        TypeKind::Optional(inner) | TypeKind::Boxed(inner) => strip_wrappers(inner),
-        _ => kind,
+/// Check if a type is the unit type `()`
+fn is_unit_type(kind: &TypeKind) -> bool {
+    if let TypeKind::Leaf(ty) = kind {
+        if let Type::Tuple(tuple) = ty {
+            return tuple.elems.is_empty();
+        }
     }
+    false
 }
 
-/// Check if a type contains a container (Vec/Map) inside it
-fn has_container(kind: &TypeKind) -> bool {
-    match kind {
-        TypeKind::Leaf(_) => false,
-        TypeKind::Optional(inner) | TypeKind::Boxed(inner) => has_container(inner),
-        TypeKind::Vector(_) | TypeKind::Map(_, _) => true,
-    }
-}
-
-/// Generate verify wrapping for a nested field based on its TypeKind.
-/// Returns None if no verify is needed, or Some(token stream) with the verify call.
-fn gen_verify_getter(
-    kind: &TypeKind,
-    base_call: proc_macro2::TokenStream,
-    is_nested: bool,
-) -> Option<proc_macro2::TokenStream> {
-    let core = strip_wrappers(kind);
-    match core {
-        TypeKind::Leaf(_) => {
-            // Direct nested leaf: wrap with verify_struct
-            Some(quote! {
-                toml_pretty_deser::helpers::verify_struct(#base_call, helper, self)
-            })
-        }
-        TypeKind::Vector(inner) => {
-            let inner_core = strip_wrappers(inner);
-            match inner_core {
-                TypeKind::Leaf(_) => {
-                    // Vec<Nested>: call verify_vec_elements
-                    let inner_ty = gen_partial_inner_type(inner, is_nested);
-                    Some(quote! {
-                        {
-                            let mut __r = #base_call;
-                            toml_pretty_deser::helpers::verify_vec_elements::<#inner_ty, _>(&mut __r, helper, self);
-                            __r
-                        }
-                    })
-                }
-                _ => None,
-            }
-        }
-        TypeKind::Map(_, inner) => {
-            let inner_core = strip_wrappers(inner);
-            match inner_core {
-                TypeKind::Leaf(_) => {
-                    // Map<K, Nested>: call verify_map_elements
-                    let inner_ty = gen_partial_inner_type(inner, is_nested);
-                    Some(quote! {
-                        {
-                            let mut __r = #base_call;
-                            toml_pretty_deser::helpers::verify_map_elements::<#inner_ty, _, _>(&mut __r, helper, self);
-                            __r
-                        }
-                    })
-                }
-                TypeKind::Vector(vec_inner) => {
-                    let vec_inner_core = strip_wrappers(vec_inner);
-                    match vec_inner_core {
-                        TypeKind::Leaf(_) => {
-                            // Map<K, Vec<Nested>>: use verify_map_vec_elements helper
-                            let vec_inner_ty = gen_partial_inner_type(vec_inner, is_nested);
-                            Some(quote! {
-                                {
-                                    let mut __r = #base_call;
-                                    toml_pretty_deser::helpers::verify_map_vec_elements::<#vec_inner_ty, _, _>(&mut __r, helper, self);
-                                    __r
-                                }
-                            })
-                        }
-                        _ => None,
-                    }
-                }
-                _ => None,
-            }
-        }
-        TypeKind::Boxed(_) => unreachable!("strip_wrappers should have removed Boxed"),
-        TypeKind::Optional(_) => unreachable!("strip_wrappers should have removed Optional"),
-    }
-}
-
-/// Check if any conversion is needed inside this type (for Optional wrapping decisions)
-fn needs_any_conversion(kind: &TypeKind, has_partial: bool) -> bool {
+/// Check if into_concrete() needs to be called on the unwrapped value
+fn needs_into_concrete(kind: &TypeKind, has_partial: bool) -> bool {
     match kind {
         TypeKind::Leaf(_) => has_partial,
-        TypeKind::Optional(inner) | TypeKind::Boxed(inner) => {
-            needs_any_conversion(inner, has_partial)
-        }
         TypeKind::Vector(_) | TypeKind::Map(_, _) => true,
-    }
-}
-
-/// Check if manual iteration is needed (vs simple .to_concrete()) for Vec/Map inner types
-fn needs_manual_conversion(kind: &TypeKind, has_partial: bool) -> bool {
-    match kind {
-        TypeKind::Leaf(_) => has_partial,
         TypeKind::Optional(inner) | TypeKind::Boxed(inner) => {
-            needs_manual_conversion(inner, has_partial)
-        }
-        TypeKind::Vector(inner) | TypeKind::Map(_, inner) => {
-            has_container(inner) || needs_manual_conversion(inner, has_partial)
-        }
-    }
-}
-
-/// Generate the to_concrete expression for a field
-fn gen_to_concrete_expr(
-    field_ident: &syn::Ident,
-    kind: &TypeKind,
-    has_partial: bool,
-    is_default: bool,
-) -> proc_macro2::TokenStream {
-    if is_default {
-        return quote! {
-            self.#field_ident.value.unwrap().unwrap_or_default()
-        };
-    }
-
-    let base = quote! { self.#field_ident.value.unwrap() };
-    gen_concrete_inner(base, kind, has_partial)
-}
-
-/// Generate the inner concrete conversion expression
-fn gen_concrete_inner(
-    expr: proc_macro2::TokenStream,
-    kind: &TypeKind,
-    has_partial: bool,
-) -> proc_macro2::TokenStream {
-    match kind {
-        TypeKind::Leaf(_) => {
-            if has_partial {
-                quote! { #expr.to_concrete() }
-            } else {
-                expr
-            }
-        }
-        TypeKind::Optional(inner) => {
-            if needs_any_conversion(inner, has_partial) {
-                let inner_conv = gen_concrete_inner(quote! { __v }, inner, has_partial);
-                quote! { #expr.map(|__v| #inner_conv) }
-            } else {
-                expr
-            }
-        }
-        TypeKind::Vector(inner) => {
-            if needs_manual_conversion(inner, has_partial) || has_container(inner) {
-                let inner_conv =
-                    gen_concrete_inner(quote! { __v.value.unwrap() }, inner, has_partial);
-                quote! {
-                    #expr.into_iter().map(|__v| #inner_conv).collect()
-                }
-            } else {
-                quote! { toml_pretty_deser::helpers::TpdDeserialize::to_concrete(#expr) }
-            }
-        }
-        TypeKind::Map(_, inner) => {
-            if needs_manual_conversion(inner, has_partial) || has_container(inner) {
-                let inner_conv =
-                    gen_concrete_inner(quote! { __v.value.unwrap() }, inner, has_partial);
-                quote! {
-                    #expr.into_iter().map(|(__k, __v)| (__k, #inner_conv)).collect()
-                }
-            } else {
-                quote! { toml_pretty_deser::helpers::TpdDeserialize::to_concrete(#expr) }
-            }
-        }
-        TypeKind::Boxed(inner) => gen_concrete_inner(expr, inner, has_partial),
-    }
-}
-
-/// Generate the register_errors code for a field
-fn gen_register_errors(
-    field_ident: &syn::Ident,
-    kind: &TypeKind,
-    has_partial: bool,
-) -> proc_macro2::TokenStream {
-    let base_register = quote! {
-        self.#field_ident.register_error(col);
-    };
-
-    // Descent into nested state for Vec, Map, nested structs, tagged enums
-    // But NOT for Option-wrapped types (they don't have register_errors on Option<T>)
-    enum DescentKind {
-        None,
-        TpdDeserializeVec, // Vec: use TpdDeserialize::register_errors + iterate elements
-        TpdDeserializeMap, // Map: use TpdDeserialize::register_errors + iterate elements
-        Optional(Box<DescentKind>), // Option<T>: unwrap and handle inner
-        Inherent,          // Partial types: use inherent .register_errors()
-    }
-
-    fn determine_descent(kind: &TypeKind, has_partial: bool) -> DescentKind {
-        match kind {
-            TypeKind::Leaf(_) => {
-                if has_partial {
-                    DescentKind::Inherent
-                } else {
-                    DescentKind::None
-                }
-            }
-            TypeKind::Vector(_) => DescentKind::TpdDeserializeVec,
-            TypeKind::Map(_, _) => DescentKind::TpdDeserializeMap,
-            TypeKind::Optional(inner) => {
-                DescentKind::Optional(Box::new(determine_descent(inner, has_partial)))
-            }
-            TypeKind::Boxed(_) => {
-                if has_partial {
-                    DescentKind::Inherent
-                } else {
-                    DescentKind::None
-                }
-            }
-        }
-    }
-
-    let descent = determine_descent(kind, has_partial);
-
-    match descent {
-        DescentKind::None => base_register,
-        DescentKind::TpdDeserializeVec => {
-            // Propagate register_errors if the field has #[tpd(nested)]
-            if has_partial {
-                quote! {
-                    #base_register
-                    if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
-                            && let Some(ref inner) = self.#field_ident.value {
-                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
-                            // Also call RegisterErrors::register_errors which handles nested containers
-                            toml_pretty_deser::helpers::RegisterErrors::register_errors(inner, col);
-                    }
-                }
-            } else {
-                quote! {
-                    #base_register
-                    if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
-                            && let Some(ref inner) = self.#field_ident.value {
-                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
-                    }
-                }
-            }
-        }
-        DescentKind::TpdDeserializeMap => {
-            // Propagate register_errors if the field has #[tpd(nested)]
-            if has_partial {
-                quote! {
-                    #base_register
-                    if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
-                            && let Some(ref inner) = self.#field_ident.value {
-                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
-                            // Also call RegisterErrors::register_errors which handles nested containers
-                            toml_pretty_deser::helpers::RegisterErrors::register_errors(inner, col);
-                    }
-                }
-            } else {
-                quote! {
-                    #base_register
-                    if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
-                            && let Some(ref inner) = self.#field_ident.value {
-                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(inner, col);
-                    }
-                }
-            }
-        }
-        DescentKind::Inherent => {
-            quote! {
-                #base_register
-                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
-                    && let Some(ref inner) = self.#field_ident.value {
-                        inner.register_errors(col);
-                }
-            }
-        }
-        DescentKind::Optional(inner_descent) => {
-            // For Option<T>, unwrap and handle the inner type
-            let inner_code = match inner_descent.as_ref() {
-                DescentKind::None => quote! {},
-                DescentKind::TpdDeserializeVec => {
-                    if has_partial {
-                        quote! {
-                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(opt_inner, col);
-                            toml_pretty_deser::helpers::RegisterErrors::register_errors(opt_inner, col);
-                        }
-                    } else {
-                        quote! {
-                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(opt_inner, col);
-                        }
-                    }
-                }
-                DescentKind::TpdDeserializeMap => {
-                    if has_partial {
-                        quote! {
-                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(opt_inner, col);
-                            toml_pretty_deser::helpers::RegisterErrors::register_errors(opt_inner, col);
-                        }
-                    } else {
-                        quote! {
-                            toml_pretty_deser::helpers::TpdDeserialize::register_errors(opt_inner, col);
-                        }
-                    }
-                }
-                DescentKind::Inherent => {
-                    quote! {
-                        opt_inner.register_errors(col);
-                    }
-                }
-                DescentKind::Optional(_) => {
-                    // Nested Option is unusual, but handle it recursively
-                    quote! {}
-                }
-            };
-
-            quote! {
-                #base_register
-                if let toml_pretty_deser::TomlValueState::Nested = self.#field_ident.state
-                    && let Some(opt_inner) = self.#field_ident.value.as_ref() {
-                        #inner_code
-                }
-            }
+            needs_into_concrete(inner, has_partial)
         }
     }
 }
@@ -597,6 +288,7 @@ fn gen_register_errors(
 fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
     let original_item = emit_original_item(&input);
     let is_root = is_root_attr(attr_args);
+    let no_verify = is_no_verify_attr(attr_args);
     let name = &input.ident;
     let partial_name = format_ident!("Partial{}", name);
     let vis = &input.vis;
@@ -609,7 +301,6 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         _ => unreachable!(),
     };
 
-    // Collect field info
     struct FieldInfo {
         ident: syn::Ident,
         attrs: FieldAttrs,
@@ -632,29 +323,19 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         })
         .collect();
 
-    // Generate partial struct fields (skip #[tpd(skip)] fields)
+    // --- Partial struct fields (skip #[tpd(skip)] fields) ---
     let partial_fields: Vec<proc_macro2::TokenStream> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip)
         .map(|f| {
             let ident = &f.ident;
             let fvis = &f.vis;
-            if f.attrs.absorb_remaining {
-                // absorb_remaining: same type transformation as normal IndexMap
-                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
-                quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> }
-            } else if f.attrs.default {
-                // default fields: wrap in Option
-                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
-                quote! { #fvis #ident: toml_pretty_deser::TomlValue<Option<#inner_ty>> }
-            } else {
-                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
-                quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> }
-            }
+            let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
+            quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> }
         })
         .collect();
 
-    // Generate getter methods (skip absorb_remaining and skip fields)
+    // --- Getter methods ---
     let getter_methods: Vec<proc_macro2::TokenStream> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip && !f.attrs.absorb_remaining)
@@ -662,6 +343,16 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
             let ident = &f.ident;
             let getter_name = format_ident!("tpd_get_{}", ident);
             let field_name_str = ident.to_string();
+            let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
+
+            // Unit type () fields: no TOML lookup
+            if is_unit_type(&f.kind) {
+                return quote! {
+                    fn #getter_name(&self, _helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<()> {
+                        toml_pretty_deser::TomlValue::new_ok((), 0..0)
+                    }
+                };
+            }
 
             let aliases_expr = if f.attrs.aliases.is_empty() {
                 quote! { &[] }
@@ -670,74 +361,66 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
                 quote! { &[#(#aliases),*] }
             };
 
-            // Determine the getter return type
             let is_option = matches!(&f.kind, TypeKind::Optional(_));
-            let base_get = quote! { helper.get_with_aliases(#field_name_str, #aliases_expr) };
-            let getter_call = if f.attrs.has_partial() {
-                if let Some(verify_wrapped) = gen_verify_getter(&f.kind, base_get.clone(), f.attrs.has_partial()) {
-                    verify_wrapped
-                } else {
-                    base_get
-                }
-            } else {
-                base_get
-            };
+
             if let Some(ref with_fn) = f.attrs.with_fn {
                 let with_fn_ident: syn::Path = syn::parse_str(with_fn).unwrap();
-
-                // with only: get as field type, then apply adapter
-                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
                 quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
                         #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr))
                     }
                 }
             } else if f.attrs.default {
-                // default field: get as base type, then into_optional
-                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
                 quote! {
-                    fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Option<#inner_ty>> {
-                        #getter_call.into_optional()
+                    fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
+                        helper.get_with_aliases(#field_name_str, #aliases_expr).or_default()
                     }
                 }
             } else if is_option {
-                // Option<T> field: get inner, then into_optional
-                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
                 quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
-                        #getter_call.into_optional()
+                        helper.get_with_aliases(#field_name_str, #aliases_expr).into_optional()
                     }
                 }
             } else {
-                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
                 quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
-                        #getter_call
+                        helper.get_with_aliases(#field_name_str, #aliases_expr)
                     }
                 }
             }
         })
         .collect();
 
-    // Generate to_concrete method
-    let to_concrete_fields: Vec<proc_macro2::TokenStream> = field_infos
+    // --- fill_from_toml statements ---
+    let fill_stmts: Vec<(proc_macro2::TokenStream, bool)> = field_infos
         .iter()
+        .filter(|f| !f.attrs.skip)
         .map(|f| {
             let ident = &f.ident;
-            if f.attrs.skip {
-                quote! { #ident: Default::default() }
-            } else if f.attrs.absorb_remaining {
-                let expr = gen_to_concrete_expr(ident, &f.kind, f.attrs.has_partial(), false);
-                quote! { #ident: #expr }
+            let is_absorb = f.attrs.absorb_remaining;
+            let stmt = if is_absorb {
+                quote! { partial.#ident = helper.absorb_remaining(); }
             } else {
-                let expr =
-                    gen_to_concrete_expr(ident, &f.kind, f.attrs.has_partial(), f.attrs.default);
-                quote! { #ident: #expr }
-            }
+                let getter_name = format_ident!("tpd_get_{}", ident);
+                quote! { partial.#ident = partial.#getter_name(helper); }
+            };
+            (stmt, is_absorb)
         })
         .collect();
 
-    // Generate can_concrete checks
+    let regular_fill_stmts: Vec<&proc_macro2::TokenStream> = fill_stmts
+        .iter()
+        .filter(|(_, is_absorb)| !is_absorb)
+        .map(|(s, _)| s)
+        .collect();
+    let absorb_fill_stmts: Vec<&proc_macro2::TokenStream> = fill_stmts
+        .iter()
+        .filter(|(_, is_absorb)| *is_absorb)
+        .map(|(s, _)| s)
+        .collect();
+
+    // --- can_concrete checks ---
     let can_concrete_checks: Vec<proc_macro2::TokenStream> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip)
@@ -747,143 +430,68 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         })
         .collect();
 
-    // Generate register_errors calls
+    // --- v_register_errors ---
     let register_errors_calls: Vec<proc_macro2::TokenStream> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip)
         .map(|f| {
             let ident = &f.ident;
-            gen_register_errors(ident, &f.kind, f.attrs.has_partial())
+            quote! { self.#ident.register_error(col); }
         })
         .collect();
 
-    // Generate from_toml_table body
-    let from_toml_table_stmts: Vec<proc_macro2::TokenStream> = field_infos
+    // --- into_concrete fields ---
+    let into_concrete_fields: Vec<proc_macro2::TokenStream> = field_infos
         .iter()
-        .filter(|f| !f.attrs.skip && !f.attrs.absorb_remaining)
         .map(|f| {
             let ident = &f.ident;
-            let getter_name = format_ident!("tpd_get_{}", ident);
-
-            let get_stmt = quote! { partial.#ident = partial.#getter_name(helper); };
-
-            // For nested fields, add finalize_nested_field
-            let is_direct_nested = f.attrs.has_partial() && matches!(&f.kind, TypeKind::Leaf(_));
-            if is_direct_nested {
-                quote! {
-                    #get_stmt
-                    toml_pretty_deser::helpers::finalize_nested_field(&mut partial.#ident, helper);
-                }
+            if f.attrs.skip {
+                quote! { #ident: Default::default() }
+            } else if is_unit_type(&f.kind) {
+                quote! { #ident: () }
+            } else if needs_into_concrete(&f.kind, f.attrs.has_partial()) {
+                quote! { #ident: self.#ident.value.unwrap().into_concrete() }
             } else {
-                get_stmt
+                quote! { #ident: self.#ident.value.unwrap() }
             }
         })
         .collect();
 
-    if is_root {
-        // Root struct: generate TpdDeserializeStruct
+    // --- vv_validate statements ---
+    let vv_validate_stmts: Vec<proc_macro2::TokenStream> = field_infos
+        .iter()
+        .filter(|f| !f.attrs.skip && !is_unit_type(&f.kind))
+        .map(|f| {
+            let ident = &f.ident;
+            quote! { self.#ident = self.#ident.take().tpd_validate(helper, &self); }
+        })
+        .collect();
 
-        // Generate fill_fields body
-        let fill_fields_stmts: Vec<proc_macro2::TokenStream> = field_infos
-            .iter()
-            .filter(|f| !f.attrs.skip)
-            .map(|f| {
-                let ident = &f.ident;
-                let getter_name = format_ident!("tpd_get_{}", ident);
-
-                if f.attrs.absorb_remaining {
-                    quote! { self.#ident = helper.absorb_remaining(); }
-                } else if matches!(f.attrs.nested, NestedState::Nested)
-                    && !matches!(&f.kind, TypeKind::Optional(_))
-                {
-                    // Nested struct fields use verify_struct (not tagged enums)
-                    // Only for direct nested types, not Vec<Nested> etc.
-                    // TODO: I'm almost certain this is wrong and we need to do it on nested as
-                    // well..
-                    // But shouldn't we be doing this in tpd_get...
-                    quote! { self.#ident = self.#getter_name(helper); }
-                } else {
-                    quote! { self.#ident = self.#getter_name(helper); }
-                }
-            })
-            .collect();
-
-        // Reorder: absorb_remaining goes last
-        let (regular_stmts, absorb_stmts): (Vec<_>, Vec<_>) = fill_fields_stmts
-            .into_iter()
-            .zip(field_infos.iter().filter(|f| !f.attrs.skip))
-            .partition(|(_, f)| !f.attrs.absorb_remaining);
-
-        let regular_stmts: Vec<_> = regular_stmts.into_iter().map(|(s, _)| s).collect();
-        let absorb_stmts: Vec<_> = absorb_stmts.into_iter().map(|(s, _)| s).collect();
-
-        let output = quote! {
-            #original_item
-
-            #[derive(Default, Debug)]
-            #vis struct #partial_name {
-                #(#partial_fields,)*
+    // --- is_table check for non-root ---
+    let is_table_check = if !is_root {
+        quote! {
+            if !helper.is_table() {
+                return toml_pretty_deser::TomlValue::new_wrong_type(helper.item, helper.span(), "table or inline table");
             }
+        }
+    } else {
+        quote! {}
+    };
 
-            impl #partial_name {
-                #(#getter_methods)*
-            }
+    // --- no_verify impl ---
+    let no_verify_impl = if no_verify {
+        quote! {
+            impl<__TpdR> toml_pretty_deser::VerifyIn<__TpdR> for #partial_name {}
+        }
+    } else {
+        quote! {}
+    };
 
-            impl toml_pretty_deser::helpers::TpdDeserializeStruct for #partial_name {
-                type Concrete = #name;
-
-                fn fill_fields(&mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>) {
-                    #(#regular_stmts)*
-                    #(#absorb_stmts)*
-                }
-
-                fn can_concrete(&self) -> bool {
-                    #(#can_concrete_checks)&&*
-                }
-
-                fn to_concrete(self) -> #name {
-                    #name {
-                        #(#to_concrete_fields,)*
-                    }
-                }
-
-                fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
-                    #(#register_errors_calls)*
-                }
-            }
-
-            impl toml_pretty_deser::helpers::RegisterErrors for #partial_name {
-                fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
-                    #(#register_errors_calls)*
-                }
-            }
-
-             impl toml_pretty_deser::FromTomlItem for #partial_name {
-                fn from_toml_item(
-                    item: &toml_edit::Item,
-                    parent_span: std::ops::Range<usize>,
-                    col: &toml_pretty_deser::TomlCollector,
-                ) -> toml_pretty_deser::TomlValue<Self> {
-                    toml_pretty_deser::helpers::from_toml_item_via_table(item, parent_span, col)
-                }
-            }
-
-            impl toml_pretty_deser::helpers::FromTomlTable for #partial_name {
-                fn from_toml_table(helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Self> {
-                    let mut partial = Self::default();
-                    #(#from_toml_table_stmts)*
-                    toml_pretty_deser::TomlValue {
-                        value: Some(partial),
-                        state: toml_pretty_deser::TomlValueState::Nested,
-                    }
-                }
-
-                fn can_concrete(&self) -> bool {
-                    #(#can_concrete_checks)&&*
-                }
-            }
+    // --- root tpd_from_toml ---
+    let root_impl = if is_root {
+        quote! {
             impl #name {
-                #vis fn from_toml_str(
+                #vis fn tpd_from_toml(
                     toml_str: &str,
                     field_match_mode: toml_pretty_deser::FieldMatchMode,
                     vec_mode: toml_pretty_deser::VecMode,
@@ -891,68 +499,65 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
                     toml_pretty_deser::helpers::deserialize_toml::<#partial_name>(toml_str, field_match_mode, vec_mode)
                 }
             }
-        };
-
-        output.into()
+        }
     } else {
-        // Nested struct: generate FromTomlTable + FromTomlItem
+        quote! {}
+    };
 
-        let output = quote! {
-            #original_item
+    let output = quote! {
+        #original_item
 
-            #[derive(Default, Debug)]
-            #vis struct #partial_name {
-                #(#partial_fields,)*
+        #[derive(Default, Debug)]
+        #vis struct #partial_name {
+            #(#partial_fields,)*
+        }
+
+        impl #partial_name {
+            #(#getter_methods)*
+        }
+
+        impl toml_pretty_deser::Visitor for #partial_name {
+            type Concrete = #name;
+
+            fn fill_from_toml(helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Self> {
+                #is_table_check
+                let mut partial = Self::default();
+                #(#regular_fill_stmts)*
+                #(#absorb_fill_stmts)*
+                toml_pretty_deser::TomlValue::from_visitor(partial, helper)
             }
 
-            impl #partial_name {
-                #(#getter_methods)*
-
-                #vis fn to_concrete(self) -> #name {
-                    #name {
-                        #(#to_concrete_fields,)*
-                    }
-                }
-
-                #vis fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
-                    #(#register_errors_calls)*
-                }
+            fn can_concrete(&self) -> bool {
+                #(#can_concrete_checks)&&*
             }
 
-            impl toml_pretty_deser::helpers::RegisterErrors for #partial_name {
-                fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
-                    #(#register_errors_calls)*
-                }
+            fn v_register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+                #(#register_errors_calls)*
             }
 
-            impl toml_pretty_deser::helpers::FromTomlTable for #partial_name {
-                fn from_toml_table(helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Self> {
-                    let mut partial = Self::default();
-                    #(#from_toml_table_stmts)*
-                    toml_pretty_deser::TomlValue {
-                        value: Some(partial),
-                        state: toml_pretty_deser::TomlValueState::Nested,
-                    }
-                }
-
-                fn can_concrete(&self) -> bool {
-                    #(#can_concrete_checks)&&*
+            fn into_concrete(self) -> #name {
+                #name {
+                    #(#into_concrete_fields,)*
                 }
             }
+        }
 
-            impl toml_pretty_deser::FromTomlItem for #partial_name {
-                fn from_toml_item(
-                    item: &toml_edit::Item,
-                    parent_span: std::ops::Range<usize>,
-                    col: &toml_pretty_deser::TomlCollector,
-                ) -> toml_pretty_deser::TomlValue<Self> {
-                    toml_pretty_deser::helpers::from_toml_item_via_table(item, parent_span, col)
-                }
+        impl<__TpdR> toml_pretty_deser::VerifyVisitor<__TpdR> for #partial_name {
+            fn vv_validate(mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>, _parent: &__TpdR) -> Self
+            where
+                Self: Sized + toml_pretty_deser::Visitor,
+            {
+                #(#vv_validate_stmts)*
+                self
             }
-        };
+        }
 
-        output.into()
-    }
+        #no_verify_impl
+
+        #root_impl
+    };
+
+    output.into()
 }
 
 // ============================================================================
@@ -1032,7 +637,6 @@ fn derive_simple_enum(input: DeriveInput) -> TokenStream {
         _ => unreachable!(),
     };
 
-    // Collect variant info
     struct VariantInfo {
         ident: syn::Ident,
         attrs: VariantAttrs,
@@ -1062,14 +666,14 @@ fn derive_simple_enum(input: DeriveInput) -> TokenStream {
             if v.attrs.aliases.is_empty() {
                 quote! {
                     if str_val == #name_str {
-                        return toml_pretty_deser::TomlValue::new_ok(#name::#ident, parent_span);
+                        return toml_pretty_deser::TomlValue::new_ok(#name::#ident, helper.span());
                     }
                 }
             } else {
                 let aliases = &v.attrs.aliases;
                 quote! {
                     if str_val == #name_str #(|| str_val == #aliases)* {
-                        return toml_pretty_deser::TomlValue::new_ok(#name::#ident, parent_span);
+                        return toml_pretty_deser::TomlValue::new_ok(#name::#ident, helper.span());
                     }
                 }
             }
@@ -1089,27 +693,34 @@ fn derive_simple_enum(input: DeriveInput) -> TokenStream {
     let output = quote! {
         #original_item
 
-        impl toml_pretty_deser::FromTomlItem for #name {
-            fn from_toml_item(
-                item: &toml_edit::Item,
-                parent_span: std::ops::Range<usize>,
-                _col: &toml_pretty_deser::TomlCollector,
-            ) -> toml_pretty_deser::TomlValue<Self>
-            where
-                Self: Sized,
-            {
-                if let Some(str_val) = item.as_str() {
+        impl toml_pretty_deser::Visitor for #name {
+            type Concrete = #name;
+
+            fn fill_from_toml(helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Self> {
+                if let Some(str_val) = helper.item.as_str() {
                     #(#match_arms)*
-                    toml_pretty_deser::TomlValue::new_validation_failed(
-                        item.span().unwrap_or(parent_span.clone()),
-                        "Invalid value.".to_string(),
+                    return toml_pretty_deser::TomlValue::new_validation_failed(
+                        helper.span(),
+                        format!("Invalid enum variant: {}", str_val),
                         Some(toml_pretty_deser::suggest_alternatives(str_val, &[#(#all_names),*])),
-                    )
-                } else {
-                    toml_pretty_deser::TomlValue::new_wrong_type(item, parent_span, "string")
+                    );
                 }
+                toml_pretty_deser::TomlValue::new_wrong_type(helper.item, helper.span(), "string")
+            }
+
+            fn can_concrete(&self) -> bool {
+                true
+            }
+
+            fn v_register_errors(&self, _col: &toml_pretty_deser::TomlCollector) {}
+
+            fn into_concrete(self) -> Self::Concrete {
+                self
             }
         }
+
+        impl<__TpdR> toml_pretty_deser::VerifyVisitor<__TpdR> for #name {}
+        impl<__TpdR> toml_pretty_deser::VerifyIn<__TpdR> for #name {}
     };
 
     output.into()
@@ -1126,7 +737,6 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
         _ => unreachable!(),
     };
 
-    // Collect variant info
     struct TaggedVariantInfo {
         ident: syn::Ident,
         inner_type: Type,
@@ -1156,52 +766,21 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
         })
         .collect();
 
-    // Generate PartialTaggedEnum variants
+    // Generate PartialTaggedEnum variants: Variant(TomlValue<PartialInner>)
     let partial_variants: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
         .map(|v| {
             let ident = &v.ident;
             let inner_name = leaf_type_name(&v.inner_type);
             let partial_inner = format_ident!("Partial{}", inner_name);
-            quote! { #ident(#partial_inner) }
+            quote! { #ident(toml_pretty_deser::TomlValue<#partial_inner>) }
         })
         .collect();
 
-    // Generate to_concrete match arms
-    let to_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
-        .iter()
-        .map(|v| {
-            let ident = &v.ident;
-            quote! {
-                Self::#ident(inner) => #name::#ident(inner.to_concrete())
-            }
-        })
-        .collect();
-
-    let can_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
-        .iter()
-        .map(|v| {
-            let ident = &v.ident;
-            quote! {
-                Self::#ident(inner) => inner.can_concrete()
-            }
-        })
-        .collect();
-
-    // Generate register_errors match arms
-    let register_errors_arms: Vec<proc_macro2::TokenStream> = variant_infos
-        .iter()
-        .map(|v| {
-            let ident = &v.ident;
-            quote! {
-                Self::#ident(inner) => { inner.register_errors(col); }
-            }
-        })
-        .collect();
-
-    // Generate FromTomlItem match arms for tag dispatch
+    // Variant names for suggest_alternatives
     let variant_names: Vec<String> = variant_infos.iter().map(|v| v.ident.to_string()).collect();
 
+    // fill_from_toml tag dispatch match arms
     let tag_match_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
         .map(|v| {
@@ -1212,42 +791,74 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
 
             quote! {
                 #ident_str => {
-                    let partial_inner = <#partial_inner as toml_pretty_deser::helpers::FromTomlTable>
-                        ::from_toml_table(helper);
-                    if let Some(inner) = partial_inner.value {
-                        if inner.can_concrete() && helper.no_unknown() {
-                            toml_pretty_deser::TomlValue::new_ok(#partial_name::#ident(inner), parent_span)
-                        } else {
-                            helper.register_unknown();
-                            toml_pretty_deser::TomlValue {
-                                value: Some(#partial_name::#ident(inner)),
-                                state: toml_pretty_deser::TomlValueState::Nested,
-                            }
+                    let mut partial_inner = <#partial_inner as toml_pretty_deser::Visitor>::fill_from_toml(helper);
+                    match &mut partial_inner.state {
+                        toml_pretty_deser::TomlValueState::Ok { .. } => {
+                            let visitor = #partial_name::#ident(partial_inner);
+                            toml_pretty_deser::TomlValue::new_ok(visitor, helper.span())
                         }
-                    } else {
-                        partial_inner.convert_failed_type()
+                        toml_pretty_deser::TomlValueState::UnknownKeys(unknown_keys) => {
+                            for k in unknown_keys.iter_mut() {
+                                k.additional_spans.push((
+                                    tag_span.clone(),
+                                    "Involving this enum variant.".to_string(),
+                                ));
+                            }
+                            let visitor = #partial_name::#ident(partial_inner);
+                            toml_pretty_deser::TomlValue::new_nested(Some(visitor))
+                        }
+                        _ => {
+                            let visitor = #partial_name::#ident(partial_inner);
+                            toml_pretty_deser::TomlValue::new_nested(Some(visitor))
+                        }
                     }
                 }
             }
         })
         .collect();
 
-    // Generate VerifyTomlItem delegation where clauses and match arms
-    let verify_where_clauses: Vec<proc_macro2::TokenStream> = variant_infos
-        .iter()
-        .map(|v| {
-            let inner_name = leaf_type_name(&v.inner_type);
-            let partial_inner = format_ident!("Partial{}", inner_name);
-            quote! { #partial_inner: toml_pretty_deser::VerifyTomlItem<__TpdR> }
-        })
-        .collect();
-
-    let verify_match_arms: Vec<proc_macro2::TokenStream> = variant_infos
+    // can_concrete match arms
+    let can_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
         .map(|v| {
             let ident = &v.ident;
             quote! {
-                Self::#ident(inner) => Self::#ident(inner.verify_struct(helper, partial))
+                #partial_name::#ident(toml_value) => toml_value.is_ok()
+            }
+        })
+        .collect();
+
+    // v_register_errors match arms
+    let register_errors_arms: Vec<proc_macro2::TokenStream> = variant_infos
+        .iter()
+        .map(|v| {
+            let ident = &v.ident;
+            quote! {
+                #partial_name::#ident(toml_value) => { toml_value.register_error(col); }
+            }
+        })
+        .collect();
+
+    // into_concrete match arms
+    let into_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
+        .iter()
+        .map(|v| {
+            let ident = &v.ident;
+            quote! {
+                #partial_name::#ident(toml_value) => #name::#ident(toml_value.value.unwrap().into_concrete())
+            }
+        })
+        .collect();
+
+    // vv_validate match arms
+    let vv_validate_arms: Vec<proc_macro2::TokenStream> = variant_infos
+        .iter()
+        .map(|v| {
+            let ident = &v.ident;
+            quote! {
+                #partial_name::#ident(toml_value) => {
+                    *toml_value = toml_value.take().tpd_validate(helper, parent);
+                }
             }
         })
         .collect();
@@ -1260,84 +871,65 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
             #(#partial_variants,)*
         }
 
-        impl toml_pretty_deser::helpers::FromTomlTable for #partial_name {
-            fn from_toml_table(helper: &mut TomlHelper<'_>) -> TomlValue<Self>{
+        impl toml_pretty_deser::Visitor for #partial_name {
+            type Concrete = #name;
 
-                 let tag_value: toml_pretty_deser::TomlValue<String> = helper.get_with_aliases(#tag_key, &[]);
+            fn fill_from_toml(helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Self> {
+                if !helper.is_table() {
+                    return toml_pretty_deser::TomlValue::new_wrong_type(helper.item, helper.span(), "table or inline table");
+                }
+                let tag_value: toml_pretty_deser::TomlValue<String> = helper.get_with_aliases(#tag_key, &[]);
+                if !tag_value.is_ok() {
+                    return toml_pretty_deser::TomlValue {
+                        value: None,
+                        state: tag_value.state,
+                    };
+                }
+                let tag = tag_value.value.as_ref().unwrap();
+                let tag_span = tag_value.span();
 
-                    if !tag_value.is_ok() {
-                        return toml_pretty_deser::TomlValue {
-                            value: None,
-                            state: tag_value.state,
-                        };
-                    }
-                    //
-                    let tag = tag_value.value.as_ref().unwrap();
-                    let tag_span = tag_value.span();
-                    let parent_span = helper.span();
-                    match tag.as_str() {
-                        #(#tag_match_arms)*
-                        _ => toml_pretty_deser::TomlValue::new_validation_failed(
-                            tag_span,
-                            format!("Invalid tag value: {}", tag),
-                            Some(toml_pretty_deser::suggest_alternatives(tag, &[#(#variant_names),*])),
-                        ),
-                    }
+                match tag.as_str() {
+                    #(#tag_match_arms)*
+                    _ => toml_pretty_deser::TomlValue::new_validation_failed(
+                        tag_span,
+                        format!("Invalid tag value: {}", tag),
+                        Some(toml_pretty_deser::suggest_alternatives(tag, &[#(#variant_names),*])),
+                    ),
+                }
             }
-            fn can_concrete(&self) -> bool{
-                 match self {
+
+            fn can_concrete(&self) -> bool {
+                match self {
                     #(#can_concrete_arms,)*
-                 }
-           }
-        }
-
-        impl #partial_name {
-            #vis fn to_concrete(self) -> #name {
-                match self {
-                    #(#to_concrete_arms,)*
                 }
             }
 
-            #vis fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+            fn v_register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
                 match self {
                     #(#register_errors_arms)*
                 }
             }
-        }
 
-        impl toml_pretty_deser::helpers::RegisterErrors for #partial_name {
-            fn register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
+            fn into_concrete(self) -> #name {
                 match self {
-                    #(#register_errors_arms)*
+                    #(#into_concrete_arms,)*
                 }
             }
         }
 
-        impl toml_pretty_deser::FromTomlItem for #partial_name {
-            fn from_toml_item(
-                item: &toml_edit::Item,
-                parent_span: std::ops::Range<usize>,
-                col: &toml_pretty_deser::TomlCollector,
-            ) -> toml_pretty_deser::TomlValue<Self> {
-                if let Some(table) = <toml_edit::Item as toml_pretty_deser::AsTableLikePlus>::as_table_like_plus(item) {
-                    let mut tag_helper = toml_pretty_deser::TomlHelper::from_table(table, col.clone());
-                    toml_pretty_deser::helpers::FromTomlTable::from_toml_table(&mut tag_helper)
-                } else {
-                    toml_pretty_deser::TomlValue::new_wrong_type(item, parent_span, "table or inline table")
+        impl<__TpdR> toml_pretty_deser::VerifyVisitor<__TpdR> for #partial_name {
+            fn vv_validate(mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>, parent: &__TpdR) -> Self
+            where
+                Self: Sized + toml_pretty_deser::Visitor,
+            {
+                match &mut self {
+                    #(#vv_validate_arms)*
                 }
+                self
             }
         }
 
-        impl<__TpdR> toml_pretty_deser::VerifyTomlItem<__TpdR> for #partial_name
-        where
-            #(#verify_where_clauses,)*
-        {
-            fn verify_struct(self, helper: &mut toml_pretty_deser::TomlHelper<'_>, partial: &__TpdR) -> Self {
-                match self {
-                    #(#verify_match_arms,)*
-                }
-            }
-        }
+        impl<__TpdR> toml_pretty_deser::VerifyIn<__TpdR> for #partial_name {}
     };
 
     output.into()
