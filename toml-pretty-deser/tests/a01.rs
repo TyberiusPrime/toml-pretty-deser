@@ -791,7 +791,44 @@ fn test_options_left_off() {
         assert!(parsed.tagged.is_none());
     }
 }
+#[test]
+fn test_options_fail() {
+    // Demonstrate that FromTomlItem works with Vec<NestedStruct>
+    let toml_str = "
+        [a_struct]
+            other_u8 = 299
+        [a_struct.double]
+            double_u8 = 11
 
+        [[structs]]
+            other_u8 = 'a'
+            double.double_u8 = 12
+        [[structs]]
+            other_u8 = 13
+            double.double_u8 = 14
+
+        [tag]
+            kind = 'KindA'
+            a = 1500
+        [[tagged]]
+            kind = 'KindA'
+            a = 1600
+
+        [[tagged]]
+            kind = 'KindB'
+            b = 1700
+    ";
+
+    let parsed = OptionNested::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&parsed);
+
+    assert!(!parsed.is_ok());
+    if let Err(e) = parsed {
+        let pretty = e.pretty("test.toml");
+        insta::assert_snapshot!(pretty);
+    }
+
+}
 #[derive(Debug)]
 pub struct MapTest {
     map_nested: IndexMap<String, NestedStruct>,
@@ -1410,6 +1447,9 @@ impl VerifyIn<Root> for PartialUnitField {
     {
         let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
         if len % 2 != 0 {
+            //this is barely useful since we could just return the Err()
+            //and end up with pretty much the same error message.
+            //Maybe when you need to return multi span errors?
             self.add_error = TomlValue::new_validation_failed(
                 helper.span(),
                 "There must be an even number of fields".to_string(),

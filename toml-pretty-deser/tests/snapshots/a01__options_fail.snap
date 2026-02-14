@@ -1,0 +1,61 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: pretty
+---
+Error 1/5
+  ╭─test.toml
+  ┆
+2 │         [a_struct]
+3 │             other_u8 = 299
+  ┆                        ─┬─
+  ┆                         │
+  ┆                         ╰── integer (u8), range exceeded
+──╯
+Hint: Use a number between 0 and 255 inclusive.
+
+Error 2/5
+   ╭─test.toml
+   ┆
+14 │         [tag]
+15 │             kind = 'KindA'
+16 │             a = 1500
+   ┆                 ──┬─
+   ┆                   │
+   ┆                   ╰── integer (u8), range exceeded
+───╯
+Hint: Use a number between 0 and 255 inclusive.
+
+Error 3/5
+  ╭─test.toml
+  ┆
+7 │         [[structs]]
+8 │             other_u8 = 'a'
+  ┆                        ─┬─
+  ┆                         │
+  ┆                         ╰── Wrong type: expected u8, found string.
+──╯
+Hint: This value has the wrong type.
+
+Error 4/5
+   ╭─test.toml
+   ┆
+17 │         [[tagged]]
+18 │             kind = 'KindA'
+19 │             a = 1600
+   ┆                 ──┬─
+   ┆                   │
+   ┆                   ╰── integer (u8), range exceeded
+───╯
+Hint: Use a number between 0 and 255 inclusive.
+
+Error 5/5
+   ╭─test.toml
+   ┆
+21 │         [[tagged]]
+22 │             kind = 'KindB'
+23 │             b = 1700
+   ┆                 ──┬─
+   ┆                   │
+   ┆                   ╰── integer (u8), range exceeded
+───╯
+Hint: Use a number between 0 and 255 inclusive.

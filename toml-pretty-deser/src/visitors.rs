@@ -140,6 +140,7 @@ impl_visitor_for_from_str!(std::path::PathBuf);
 impl<T: Visitor> Visitor for Option<T> {
     type Concrete = Option<T::Concrete>;
 
+    #[mutants::skip]
     fn fill_from_toml(_helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         unreachable!(); // since we always start with a concrete TomlValue<T>
         // and then convert the missing into Some(None) in into_optional
