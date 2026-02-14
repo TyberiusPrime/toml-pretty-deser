@@ -6,27 +6,35 @@ use crate::{
 };
 
 #[macro_export]
+/// Cretae a visitor from your fill_from_toml implementation. The second argument is whether to
+/// also implement an empty VerifyIn, which is usually what we want for 'value types'
+/// that can't fail.
 macro_rules! impl_visitor {
     ($ty:ty, |$helper:ident| $fill_from_toml:expr) => {
+        $crate::impl_visitor!($ty, true, |$helper| $fill_from_toml);
+    };
+    ($ty:ty, false, |$helper:ident| $fill_from_toml:expr) => {
+        $crate::impl_visitor!(@inner $ty, |$helper| $fill_from_toml);
+    };
+    ($ty:ty, true, |$helper:ident| $fill_from_toml:expr) => {
+        $crate::impl_visitor!(@inner $ty, |$helper| $fill_from_toml);
+        impl<R> $crate::VerifyIn<R> for $ty {}
+    };
+    (@inner $ty:ty, |$helper:ident| $fill_from_toml:expr) => {
         impl $crate::Visitor for $ty {
             type Concrete = $ty;
-
             fn fill_from_toml($helper: &mut $crate::TomlHelper<'_>) -> $crate::TomlValue<Self> {
                 $fill_from_toml
             }
-
             fn can_concrete(&self) -> bool {
                 true
             }
-
             fn v_register_errors(&self, _col: &$crate::TomlCollector) {}
-
             fn into_concrete(self) -> Self::Concrete {
                 self
             }
         }
         impl<R> $crate::VerifyVisitor<R> for $ty {}
-        impl<R> $crate::VerifyIn<R> for $ty {}
     };
 }
 
@@ -133,7 +141,7 @@ impl<T: Visitor> Visitor for Option<T> {
     }
 
     fn can_concrete(&self) -> bool {
-        unreachable!("or is it?");
+        self.as_ref().map_or(true, |v| v.can_concrete())
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
@@ -162,12 +170,11 @@ impl<T: Visitor> Visitor for Box<T> {
 
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         let inner = T::fill_from_toml(helper);
-        dbg!(&inner);
         inner.map_any(|x| Box::new(x))
     }
 
     fn can_concrete(&self) -> bool {
-        unreachable!("or is it?");
+        self.as_ref().can_concrete()
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
@@ -183,6 +190,7 @@ impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Box<T> {
         Box::new((*self).vv_validate(helper, parent))
     }
 }
+impl<R, T: Visitor + VerifyVisitor<R>> VerifyIn<R> for Box<T> {}
 
 impl<R, T: VerifyIn<R>> VerifyIn<R> for Option<T> {}
 

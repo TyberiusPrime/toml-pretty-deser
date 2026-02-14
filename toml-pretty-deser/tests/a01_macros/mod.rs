@@ -6,7 +6,7 @@ use toml_pretty_deser::{
 };
 
 use crate::{
-    Absorb, BoxedInner, MapTest, MyFromString, MyTryFromString, OtherOuter, OuterWithBox, TypesTest, WithDefaults, WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case
+    Absorb, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString, MyTryFromString, OtherOuter, OuterWithBox, TypesTest, WithDefaults, WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case
 };
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
@@ -1081,7 +1081,7 @@ impl PartialOuterWithBox {
         &self,
         helper: &mut TomlHelper<'_>,
         _parent_span: std::ops::Range<usize>,
-    ) -> TomlValue<Box<PartialBoxedInner>>{
+    ) -> TomlValue<Box<PartialBoxedInner>> {
         helper.get_with_aliases("boxed", &[])
     }
 }
@@ -1099,8 +1099,7 @@ impl Visitor for PartialOuterWithBox {
     }
 
     fn can_concrete(&self) -> bool {
-        self.boxed.is_ok()
-        && self.regular_field.is_ok()
+        self.boxed.is_ok() && self.regular_field.is_ok()
     }
 
     fn into_concrete(self) -> Self::Concrete {
@@ -1117,7 +1116,15 @@ impl Visitor for PartialOuterWithBox {
 }
 
 impl VerifyIn<Root> for PartialOuterWithBox {}
-impl VerifyVisitor<Root> for PartialOuterWithBox {}
+impl VerifyVisitor<Root> for PartialOuterWithBox {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.boxed = self.boxed.take().tpd_validate(helper, &self);
+        self
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct PartialBoxedInner {
@@ -1176,6 +1183,60 @@ impl VerifyVisitor<PartialOuterWithBox> for PartialBoxedInner {
     fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &PartialOuterWithBox) -> Self {
         self.name = self.name.take().tpd_validate(helper, &self);
         self.value = self.value.take().tpd_validate(helper, &self);
+        self
+    }
+}
+
+// map
+//
+impl MapTestValidationFailure {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<MapTestValidationFailure, DeserError<PartialMapTestValidationFailure>> {
+        deserialize_toml::<PartialMapTestValidationFailure>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PartialMapTestValidationFailure {
+    inner: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<FailString>>>>>,
+}
+
+impl Visitor for PartialMapTestValidationFailure {
+    type Concrete = MapTestValidationFailure;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let p = PartialMapTestValidationFailure {
+            inner: helper.get_with_aliases("inner", &[]),
+        };
+
+        TomlValue::from_visitor(p, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.inner.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        MapTestValidationFailure {
+            inner: self.inner.value.unwrap().into_concrete(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.inner.register_error(col);
+    }
+}
+
+impl VerifyIn<Root> for PartialMapTestValidationFailure {}
+impl VerifyVisitor<Root> for PartialMapTestValidationFailure {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.inner = self.inner.take().tpd_validate(helper, &self);
         self
     }
 }

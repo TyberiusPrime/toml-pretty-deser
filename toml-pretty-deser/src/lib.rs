@@ -504,9 +504,7 @@ impl<'a> TomlHelper<'a> {
             1 => {
                 let (matched_key, item) = found_keys.first().expect("can't fail");
                 let mut helper = TomlHelper::from_item(item, self.col.clone());
-                dbg!("before", &matched_key);
                 let res: TomlValue<T> = T::fill_from_toml(&mut helper);
-                dbg!("after", &matched_key, &res);
                 self.observed
                     .push(self.col.match_mode.normalize(matched_key));
                 res

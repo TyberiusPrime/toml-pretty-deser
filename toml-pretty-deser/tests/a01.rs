@@ -232,6 +232,17 @@ fn test_basic_alias_anycase() {
         assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
         assert_eq!(inner.nested_struct.double.double_u8, 6);
     }
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::AnyCase,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    assert!(!parsed.is_ok());
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    } else {
+        panic!("expected parsing to fail due to vec mode, but it succeeded");
+    }
 }
 
 #[test]
@@ -1318,5 +1329,54 @@ fn test_box_nested_wrong_type() {
                 .iter()
                 .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
         );
+    }
+}
+
+#[derive(Debug)]
+struct FailString(String);
+
+toml_pretty_deser::impl_visitor!(FailString, false, |helper| {
+    match helper.item.as_str() {
+        Some(v) => TomlValue::new_ok(FailString(v.to_string()), helper.span()),
+        None => TomlValue::new_wrong_type(&helper.item, helper.span(), "string"),
+    }
+});
+
+impl VerifyIn<PartialMapTestValidationFailure> for FailString {
+    fn verify(
+        &mut self,
+        _helper: &mut TomlHelper<'_>,
+        _parent: &PartialMapTestValidationFailure,
+    ) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        if self.0.len() <= 5 {
+            Err(("Too short!".to_string(), Some("Longer than 5 letters please".to_string())))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct MapTestValidationFailure {
+    inner: IndexMap<String, Vec<FailString>>,
+}
+
+#[test]
+fn test_map_validation_failure() {
+    let toml_str = "
+        [inner]
+        first = ['short']
+        second = ['this is long enough']
+    ";
+    let parsed =
+        MapTestValidationFailure::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    //dbg!(&parsed);
+    assert!(parsed.is_err());
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
     }
 }

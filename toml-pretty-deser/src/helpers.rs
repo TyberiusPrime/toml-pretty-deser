@@ -65,10 +65,11 @@ where
             TomlValueState::Ok { .. } => {
                 let span = self.span();
                 let mut maybe_validated = self.value.unwrap().vv_validate(helper, parent);
-                match maybe_validated.verify(helper, parent) {
-                    Ok(()) => TomlValue::new_ok(maybe_validated, span),
-
-                    Err((msg, hint)) => TomlValue::new_validation_failed(span, msg, hint),
+                let v = maybe_validated.verify(helper, parent);
+                match (v, maybe_validated.can_concrete()) {
+                    (Ok(()), true) => TomlValue::new_ok(maybe_validated, span),
+                    (Ok(()), false) => TomlValue::new_nested(Some(maybe_validated)),
+                    (Err((msg, hint)), _) => TomlValue::new_validation_failed(span, msg, hint),
                 }
             }
             TomlValueState::Nested => {
