@@ -157,6 +157,33 @@ impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Option<T> {
     }
 }
 
+impl<T: Visitor> Visitor for Box<T> {
+    type Concrete = Box<T::Concrete>;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let inner = T::fill_from_toml(helper);
+        dbg!(&inner);
+        inner.map_any(|x| Box::new(x))
+    }
+
+    fn can_concrete(&self) -> bool {
+        unreachable!("or is it?");
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.as_ref().v_register_errors(col)
+    }
+
+    fn into_concrete(self) -> Box<T::Concrete> {
+        Box::new((*self).into_concrete())
+    }
+}
+impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Box<T> {
+    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self {
+        Box::new((*self).vv_validate(helper, parent))
+    }
+}
+
 impl<R, T: VerifyIn<R>> VerifyIn<R> for Option<T> {}
 
 impl<T: Visitor> Visitor for Vec<TomlValue<T>> {

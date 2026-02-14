@@ -1,10 +1,11 @@
 use indexmap::IndexMap;
-use toml_pretty_deser::{DeserError, FieldMatchMode, TomlHelper, TomlValue, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
-
+use toml_pretty_deser::{
+    DeserError, FieldMatchMode, TomlHelper, TomlValue, VecMode, VerifyIn,
+    impl_visitor_for_from_str, impl_visitor_for_try_from_str,
 };
 //library code
 //
-use toml_pretty_deser::helpers::{Root};
+use toml_pretty_deser::helpers::Root;
 
 mod a01_macros;
 use a01_macros::*;
@@ -1036,6 +1037,19 @@ fn test_absorb_remaining() {
 }
 
 #[test]
+fn test_absorb_remaining_none() {
+    let toml_str = "
+        anton = 1
+";
+    let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.anton, 1);
+        assert_eq!(parsed.remainder.len(), 0);
+    } else {
+        panic!("Parsing failed: {:?}", parsed.err());
+    }
+}
+#[test]
 fn test_absorb_remaining_bad() {
     let toml_str = "
         anton = 1
@@ -1180,5 +1194,129 @@ fn test_tryfrom_failure() {
         insta::assert_snapshot!(e.pretty("test.toml"));
     } else {
         panic!("Parsing succeeded?");
+    }
+}
+
+//box tests
+
+#[derive(Debug)]
+//#[tpd]
+pub struct BoxedInner {
+    name: String,
+    value: i32,
+}
+
+#[derive(Debug)]
+//#[tpd]
+pub struct OuterWithBox {
+    //#[tpd_nested]
+    boxed: Box<BoxedInner>,
+    regular_field: String,
+}
+
+#[test]
+fn test_box_nested_happy() {
+    let toml = "
+        regular_field = 'hello'
+        [boxed]
+            name = 'inner_name'
+            value = 42
+    ";
+
+    let result: Result<_, _> =
+        OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.regular_field, "hello");
+        assert_eq!(output.boxed.name, "inner_name");
+        assert_eq!(output.boxed.value, 42);
+    }
+}
+
+#[test]
+fn test_box_nested_inline_table() {
+    let toml = "
+        regular_field = 'world'
+        boxed = { name = 'inline', value = 100 }
+    ";
+
+    let result: Result<_, _> =
+        OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.regular_field, "world");
+        assert_eq!(output.boxed.name, "inline");
+        assert_eq!(output.boxed.value, 100);
+    }
+}
+
+#[test]
+fn test_box_nested_missing() {
+    let toml = "
+        regular_field = 'test'
+        # boxed is missing
+    ";
+
+    let result: Result<_, _> =
+        OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
+                .msg
+                .contains("Missing required key: 'boxed'.")
+        }));
+    }
+}
+
+#[test]
+fn test_box_nested_inner_field_missing() {
+    let toml = "
+        regular_field = 'test'
+        [boxed]
+            name = 'only_name'
+            # value is missing
+    ";
+
+    let result: Result<_, _> =
+        OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, partial)) = result {
+        assert!(errors.iter().any(|e| {
+            e.inner.spans[0]
+                .msg
+                .contains("Missing required key: 'value'.")
+        }));
+        // Check that we can still access the partial's boxed inner name
+        assert_eq!(
+            partial.boxed.value.as_ref().unwrap().name.as_ref().unwrap(),
+            "only_name"
+        );
+    }
+}
+
+#[test]
+fn test_box_nested_wrong_type() {
+    let toml = "
+        regular_field = 'test'
+        [boxed]
+            name = 123
+            value = 42
+    ";
+
+    let result: Result<_, _> =
+        OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_err());
+    if let Err(DeserError::DeserFailure(errors, _)) = result {
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
+        );
     }
 }

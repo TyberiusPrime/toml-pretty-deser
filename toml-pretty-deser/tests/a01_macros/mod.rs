@@ -6,8 +6,7 @@ use toml_pretty_deser::{
 };
 
 use crate::{
-    Absorb, MapTest, MyFromString, MyTryFromString, OtherOuter, TypesTest, WithDefaults,
-    WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case,
+    Absorb, BoxedInner, MapTest, MyFromString, MyTryFromString, OtherOuter, OuterWithBox, TypesTest, WithDefaults, WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case
 };
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
@@ -1058,3 +1057,125 @@ impl Visitor for PartialTypesTest {
 
 impl VerifyIn<Root> for PartialTypesTest {}
 impl VerifyVisitor<Root> for PartialTypesTest {}
+
+//Box
+//
+impl OuterWithBox {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<OuterWithBox, DeserError<PartialOuterWithBox>> {
+        deserialize_toml::<PartialOuterWithBox>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PartialOuterWithBox {
+    pub boxed: TomlValue<Box<PartialBoxedInner>>,
+    pub regular_field: TomlValue<String>,
+}
+
+impl PartialOuterWithBox {
+    fn tpd_get_boxed_struct(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<Box<PartialBoxedInner>>{
+        helper.get_with_aliases("boxed", &[])
+    }
+}
+
+impl Visitor for PartialOuterWithBox {
+    type Concrete = OuterWithBox;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut partial = PartialOuterWithBox::default();
+        partial.boxed = partial.tpd_get_boxed_struct(helper, 0..0);
+        dbg!(&partial.boxed);
+        partial.regular_field = helper.get_with_aliases("regular_field", &[]);
+
+        TomlValue::from_visitor(partial, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.boxed.is_ok()
+        && self.regular_field.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        OuterWithBox {
+            boxed: self.boxed.value.unwrap().into_concrete(),
+            regular_field: self.regular_field.value.unwrap(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.boxed.register_error(col);
+        self.regular_field.register_error(col);
+    }
+}
+
+impl VerifyIn<Root> for PartialOuterWithBox {}
+impl VerifyVisitor<Root> for PartialOuterWithBox {}
+
+#[derive(Debug, Default)]
+pub struct PartialBoxedInner {
+    pub name: TomlValue<String>,
+    pub value: TomlValue<i32>,
+}
+
+impl PartialBoxedInner {
+    fn tpd_get_name(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<String> {
+        helper.get_with_aliases("name", &[])
+    }
+
+    fn tpd_get_value(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<i32> {
+        helper.get_with_aliases("value", &[])
+    }
+}
+
+impl Visitor for PartialBoxedInner {
+    type Concrete = BoxedInner;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut p = PartialBoxedInner::default();
+        p.name = p.tpd_get_name(helper, 0..0);
+        p.value = p.tpd_get_value(helper, 0..0);
+
+        TomlValue::from_visitor(p, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.name.is_ok() && self.value.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        BoxedInner {
+            name: self.name.value.unwrap(),
+            value: self.value.value.unwrap(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.name.register_error(col);
+        self.value.register_error(col);
+    }
+}
+
+impl VerifyIn<PartialOuterWithBox> for PartialBoxedInner {}
+impl VerifyVisitor<PartialOuterWithBox> for PartialBoxedInner {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &PartialOuterWithBox) -> Self {
+        self.name = self.name.take().tpd_validate(helper, &self);
+        self.value = self.value.take().tpd_validate(helper, &self);
+        self
+    }
+}

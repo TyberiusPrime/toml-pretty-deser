@@ -504,7 +504,9 @@ impl<'a> TomlHelper<'a> {
             1 => {
                 let (matched_key, item) = found_keys.first().expect("can't fail");
                 let mut helper = TomlHelper::from_item(item, self.col.clone());
+                dbg!("before", &matched_key);
                 let res: TomlValue<T> = T::fill_from_toml(&mut helper);
+                dbg!("after", &matched_key, &res);
                 self.observed
                     .push(self.col.match_mode.normalize(matched_key));
                 res
@@ -842,17 +844,31 @@ impl<T> TomlValue<T> {
         }
     }
 
-    pub fn map<R, F>(&self, map_function: F) -> TomlValue<R>
+    /// Change the inner value if state is TomlValueState::Ok,
+    /// otherwise adapt the error type but loose the value
+    pub fn map<R, F>(self, map_function: F) -> TomlValue<R>
     where
-        F: FnOnce(&T) -> R,
+        F: FnOnce(T) -> R,
     {
         match &self.state {
             TomlValueState::Ok { span } => {
-                TomlValue::new_ok(map_function(self.value.as_ref().unwrap()), span.clone())
+                TomlValue::new_ok(map_function(self.value.unwrap()), span.clone())
             }
             _ => self.convert_failed_type(),
         }
     }
+
+    /// change the inner value no matter if we're ok or not.
+    pub fn map_any<R, F>(self, map_function: F) -> TomlValue<R>
+    where
+        F: FnOnce(T) -> R,
+    {
+        TomlValue {
+            state: self.state,
+            value: self.value.map(map_function),
+        }
+    }
+
     /// Adapt failed types, eating the none
     pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
         match &self.state {
