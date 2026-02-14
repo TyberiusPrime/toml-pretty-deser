@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+6 │         [map_u8]
+7 │             a = 300
+  ┆                 ─┬─
+  ┆                  │
+  ┆                  ╰── integer (u8), range exceeded
+──╯
+Hint: Use a number between 0 and 255 inclusive.

@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+2 │         [inner]
+3 │         first = ['short']
+  ┆                  ───┬───
+  ┆                     │
+  ┆                     ╰───── Too short!
+──╯
+Hint: Longer than 5 letters please

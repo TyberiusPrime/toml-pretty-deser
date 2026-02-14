@@ -1,6 +1,5 @@
 ---
-source: toml-pretty-deser/tests/b01.rs
-assertion_line: 213
+source: toml-pretty-deser/tests/a01.rs
 expression: "errors[0].pretty(\"test.toml\")"
 ---
   ╭─test.toml
@@ -10,4 +9,3 @@ expression: "errors[0].pretty(\"test.toml\")"
   ┆ │
   ┆ ╰─ Missing required key: 'a_u8'.
 ──╯
-Hint: This key is required but was not found in the TOML document.

@@ -1,6 +1,5 @@
 ---
-source: toml-pretty-deser/tests/b01.rs
-assertion_line: 1176
+source: toml-pretty-deser/tests/a01.rs
 expression: pretty
 ---
   ╭─test.toml

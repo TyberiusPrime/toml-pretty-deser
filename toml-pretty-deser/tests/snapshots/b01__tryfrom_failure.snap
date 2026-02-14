@@ -1,0 +1,56 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/2
+   ╭─test.toml
+   ┆
+ 1 │ 
+ 2 │         a_i8 = -12
+ 3 │         a_i16 = -123
+ 4 │         a_i32 = -123456
+ 5 │         a_i64 = -1234567890123
+ 6 │         a_isize = -12345
+ 7 │         a_u8 = 12
+ 8 │         a_u16 = 123
+ 9 │         a_u32 = 123456
+10 │         a_u64 = 1234567890123
+11 │         a_f64 = 34.487
+12 │         a_usize = 12345
+13 │         a_bool = true
+14 │         a_string = 'hello'
+15 │         a_from_string = 'w'
+16 │         an_adapted_string = 'of tomorrow'
+17 │         a_try_from_string = 'shrt'
+   ┆                             ───┬──
+   ┆                                │
+   ┆                                ╰─── Unconvertible string
+───╯
+Hint: Longer than 5 letters please
+
+Error 2/2
+   ╭─test.toml
+   ┆
+ 1 │ 
+ 2 │         a_i8 = -12
+ 3 │         a_i16 = -123
+ 4 │         a_i32 = -123456
+ 5 │         a_i64 = -1234567890123
+ 6 │         a_isize = -12345
+ 7 │         a_u8 = 12
+ 8 │         a_u16 = 123
+ 9 │         a_u32 = 123456
+10 │         a_u64 = 1234567890123
+11 │         a_f64 = 34.487
+12 │         a_usize = 12345
+13 │         a_bool = true
+14 │         a_string = 'hello'
+15 │         a_from_string = 'w'
+16 │         an_adapted_string = 'of tomorrow'
+17 │         a_try_from_string = 'shrt'
+18 │         a_string_from_int = 'no'
+   ┆                             ──┬─
+   ┆                               │
+   ┆                               ╰── Wrong type: expected u8, found string.
+───╯
+Hint: This value has the wrong type.

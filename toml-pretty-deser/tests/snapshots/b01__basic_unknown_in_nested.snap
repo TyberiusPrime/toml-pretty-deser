@@ -1,8 +1,8 @@
 ---
-source: toml-pretty-deser/tests/b01.rs
-assertion_line: 286
-expression: "errors[0].pretty(\"test.toml\")"
+source: toml-pretty-deser/tests/a01.rs
+expression: "DeserError::DeserFailure(errors, inner).pretty(\"test.toml\")"
 ---
+Error 1/3
    ╭─test.toml
    ┆
 11 │         [nested_struct.double]
@@ -10,4 +10,25 @@ expression: "errors[0].pretty(\"test.toml\")"
    ┆                    │
    ┆                    ╰─────────── Missing required key: 'double_u8'.
 ───╯
-Hint: This key is required but was not found in the TOML document.
+
+Error 2/3
+   ╭─test.toml
+   ┆
+11 │         [nested_struct.double]
+12 │             sha = 23
+   ┆             ─┬─
+   ┆              │
+   ┆              ╰─────── Unknown key.
+───╯
+Hint: Did you mean: 'double_u8'?
+
+Error 3/3
+  ╭─test.toml
+  ┆
+8 │         [nested_struct]
+9 │             shu = 23
+  ┆             ─┬─
+  ┆              │
+  ┆              ╰─────── Unknown key.
+──╯
+Hint: All known keys have been used.

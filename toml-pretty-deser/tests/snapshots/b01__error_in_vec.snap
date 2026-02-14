@@ -1,6 +1,5 @@
 ---
-source: toml-pretty-deser/tests/b01.rs
-assertion_line: 317
+source: toml-pretty-deser/tests/a01.rs
 expression: "errors[0].pretty(\"test.toml\")"
 ---
   ╭─test.toml
@@ -11,6 +10,6 @@ expression: "errors[0].pretty(\"test.toml\")"
 4 │         vec_u8 = ['a']
   ┆                   ─┬─
   ┆                    │
-  ┆                    ╰─── Wrong type: expected u8, found string
+  ┆                    ╰─── Wrong type: expected u8, found string.
 ──╯
 Hint: This value has the wrong type.
