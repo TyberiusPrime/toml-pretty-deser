@@ -34,7 +34,7 @@ fn normalize_to_no_case(s: &str) -> String {
         .filter_map(|c| match c {
             'A'..='Z' => Some(c.to_lowercase().next().expect("can't fail")),
             'a'..='z' | '0'..='9' => Some(c),
-            '-' | '_' => None,
+            '-' | '_'| '.' => None,
             x => Some(x),
         })
         .collect()
@@ -85,6 +85,7 @@ mod tests {
         assert!(!any_case.matches("=>", "=<"));
         assert!(any_case.matches("something1.3", "Something1.3"));
         assert!(any_case.matches("illumina1.3", "Illumina1.3"));
+        assert!(any_case.matches("i.l.l.u.m.i.n.a.1.3", "Illumina1.3"));
     }
 }
 

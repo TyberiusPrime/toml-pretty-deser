@@ -742,7 +742,7 @@ impl<'a> TomlHelper<'a> {
                         .and_then(toml_edit::Key::span)
                         .unwrap_or(0..0);
                     res.push(UnknownKey {
-                        key: key.to_string(),
+                        // key: key.to_string(),
                         span,
                         help: suggest_alternatives(&normalized_key, &still_available),
                         additional_spans: vec![],
@@ -998,7 +998,7 @@ impl<T> Default for TomlValue<T> {
 
 #[derive(Debug, Clone)]
 pub struct UnknownKey {
-    key: String,
+    // key: String,
     span: Range<usize>,
     help: String,
     pub additional_spans: Vec<(Range<usize>, String)>,

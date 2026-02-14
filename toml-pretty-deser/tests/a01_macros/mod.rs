@@ -8,8 +8,8 @@ use toml_pretty_deser::{
 
 use crate::{
     Absorb, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString,
-    MyTryFromString, OtherOuter, OuterWithBox, TypesTest, WithDefaults, WithVecOfTaggedEnums,
-    adapt_from_u8, adapt_to_upper_case,
+    MyTryFromString, NestedUnitField, OtherOuter, OuterWithBox, TypesTest, UnitField,
+    WithDefaults, WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case,
 };
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
@@ -364,16 +364,18 @@ impl Visitor for PartialTaggedEnum {
         match tag.as_str() {
             "KindA" => {
                 let mut partial_inner = PartialInnerA::fill_from_toml(helper);
-                let is_ok = partial_inner.is_ok();
 
                 match &mut partial_inner.state {
                     TomlValueState::Ok { .. } => {
                         let visitor = PartialTaggedEnum::KindA(partial_inner);
                         TomlValue::new_ok(visitor, helper.span())
                     }
-                    TomlValueState::UnknownKeys ( unknown_keys ) => {
+                    TomlValueState::UnknownKeys(unknown_keys) => {
                         for k in unknown_keys.iter_mut() {
-                            k.additional_spans.push((tag_span.clone(), "Involving this enum variant.".to_string()));
+                            k.additional_spans.push((
+                                tag_span.clone(),
+                                "Involving this enum variant.".to_string(),
+                            ));
                         }
                         let visitor = PartialTaggedEnum::KindA(partial_inner);
                         TomlValue::new_nested(Some(visitor))
@@ -1253,6 +1255,133 @@ impl Visitor for PartialMapTestValidationFailure {
 impl VerifyIn<Root> for PartialMapTestValidationFailure {}
 impl VerifyVisitor<Root> for PartialMapTestValidationFailure {
     fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.inner = self.inner.take().tpd_validate(helper, &self);
+        self
+    }
+}
+
+// unit Fields
+//
+impl UnitField {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<UnitField, DeserError<PartialUnitField>> {
+        deserialize_toml::<PartialUnitField>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PartialUnitField {
+    pub add_error: TomlValue<()>,
+    pub remainder: TomlValue<IndexMap<String, TomlValue<String>>>,
+}
+
+impl PartialUnitField {
+    fn tpd_get_add_error(
+        &self,
+        helper: &mut TomlHelper<'_>,
+        _parent_span: std::ops::Range<usize>,
+    ) -> TomlValue<()> {
+        TomlValue::new_ok((), 0..0)
+    }
+}
+
+impl Visitor for PartialUnitField {
+    type Concrete = UnitField;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut p = PartialUnitField::default();
+        p.add_error = p.tpd_get_add_error(helper, 0..0);
+        p.remainder = helper.absorb_remaining();
+        TomlValue::from_visitor(p, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.add_error.is_ok() && self.remainder.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        UnitField {
+            add_error: (),
+            remainder: self.remainder.value.unwrap().into_concrete(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.add_error.register_error(col);
+        self.remainder.register_error(col);
+    }
+}
+
+impl VerifyVisitor<Root> for PartialUnitField {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &Root) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        //again, no add_error here.
+        self.remainder = self.remainder.take().tpd_validate(helper, &self);
+        self
+    }
+}
+
+impl VerifyVisitor<PartialNestedUnitField> for PartialUnitField {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &PartialNestedUnitField) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        //again, no add_error here.
+        self.remainder = self.remainder.take().tpd_validate(helper, &self);
+        self
+    }
+}
+impl NestedUnitField {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<NestedUnitField, DeserError<PartialNestedUnitField>> {
+        deserialize_toml::<PartialNestedUnitField>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PartialNestedUnitField {
+    pub inner: TomlValue<PartialUnitField>,
+}
+
+impl Visitor for PartialNestedUnitField {
+    type Concrete = NestedUnitField;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let mut p = PartialNestedUnitField {
+            inner: helper.get_with_aliases("inner", &[]),
+        };
+
+        TomlValue::from_visitor(p, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.inner.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        NestedUnitField {
+            inner: self.inner.value.unwrap().into_concrete(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.inner.register_error(col);
+    }
+}
+
+impl VerifyVisitor<Root> for PartialNestedUnitField {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, parent: &Root) -> Self
     where
         Self: Sized + Visitor,
     {

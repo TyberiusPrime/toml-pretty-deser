@@ -957,7 +957,7 @@ pub struct WithDefaults {
     d: u8,
 
     //#[tpd_skip]
-    s: u8
+    s: u8,
 }
 
 impl VerifyIn<Root> for PartialWithDefaults {
@@ -1359,7 +1359,10 @@ impl VerifyIn<PartialMapTestValidationFailure> for FailString {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         if self.0.len() <= 5 {
-            Err(("Too short!".to_string(), Some("Longer than 5 letters please".to_string())))
+            Err((
+                "Too short!".to_string(),
+                Some("Longer than 5 letters please".to_string()),
+            ))
         } else {
             Ok(())
         }
@@ -1385,6 +1388,113 @@ fn test_map_validation_failure() {
     assert!(parsed.is_err());
     if let Err(e) = parsed {
         insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+// () to register arbitrary casess..
+#[derive(Debug)]
+pub struct UnitField {
+    add_error: (),
+    remainder: IndexMap<String, String>,
+}
+
+impl VerifyIn<Root> for PartialUnitField {
+    fn verify(
+        &mut self,
+        helper: &mut TomlHelper<'_>,
+        _parent: &Root,
+    ) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
+        if len % 2 != 0 {
+            self.add_error = TomlValue::new_validation_failed(
+                helper.span(),
+                "There must be an even number of fields".to_string(),
+                Some(format!("There were {} fields", len)),
+            );
+            // return Err((
+            //     "there must be an even number of fields".to_string(),
+            //     Some(format!("There were {} fields", len)),
+            // ));
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn test_unit_field() {
+    let toml = "
+        cheesecake = 'yes'
+        brownies = 'no'
+
+    ";
+
+    let result: Result<_, _> =
+        UnitField::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.remainder.len(), 2);
+    }
+
+    let toml = "
+        cheesecake = 'yes'
+        brownies = 'no'
+        cookies = 'very much'
+
+    ";
+    let result: Result<_, _> =
+        UnitField::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(!result.is_ok());
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+#[derive(Debug)]
+pub struct NestedUnitField {
+    inner: UnitField,
+}
+
+#[test]
+fn test_nested_unit_field() {
+    let toml = "
+        [inner]
+        cheesecake = 'yes'
+        brownies = 'no'
+        cookies = 'very much'
+
+    ";
+    let result: Result<_, _> =
+        NestedUnitField::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(!result.is_ok());
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+impl VerifyIn<Root> for PartialNestedUnitField {}
+
+impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
+    fn verify(
+        &mut self,
+        helper: &mut TomlHelper<'_>,
+        _parent: &PartialNestedUnitField,
+    ) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
+        if len % 2 != 0 {
+            return Err((
+                "there must be an even number of fields".to_string(),
+                Some(format!("There were {} fields", len)),
+            ));
+        }
+        Ok(())
     }
 }
 

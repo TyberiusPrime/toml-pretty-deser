@@ -1,0 +1,13 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │
+  ┆ ┬
+  ┆ │
+  ┆ ╰─ There must be an even number of fields
+──╯
+Hint: There were 3 fields

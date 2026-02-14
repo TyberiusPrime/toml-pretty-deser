@@ -67,7 +67,10 @@ where
                 match (v, maybe_validated.can_concrete()) {
                     (Ok(()), true) => TomlValue::new_ok(maybe_validated, span),
                     (Ok(()), false) => TomlValue::new_nested(Some(maybe_validated)),
-                    (Err((msg, hint)), _) => TomlValue::new_validation_failed(span, msg, hint),
+                    (Err((msg, hint)), _) => TomlValue {
+                        state: TomlValueState::ValidationFailed { span, message: msg, help: hint },
+                        value: Some(maybe_validated),
+                    },
                 }
             }
             TomlValueState::Nested => {
@@ -181,7 +184,7 @@ pub fn deserialize_toml<P>(
     vec_mode: VecMode,
 ) -> Result<P::Concrete, DeserError<P>>
 where
-    P: Visitor + VerifyVisitor<Root> + VerifyIn<Root> + std::fmt::Debug,
+    P: Visitor + VerifyVisitor<Root> + VerifyIn<Root> + std::fmt::Debug + Default,
 {
     let parsed_toml = toml_str
         .parse::<Document<String>>()
@@ -209,7 +212,7 @@ where
         root.register_error(&col);
         Err(DeserError::DeserFailure(
             helper.into_inner(&source),
-            root.value.unwrap(),
+            root.value.unwrap_or_default(),
         ))
     }
 }
