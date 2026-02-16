@@ -1,10 +1,10 @@
 error: custom attribute panicked
  --> compilation_failure_tests/absorb_remaining_wrong_type_hashmap.rs:5:1
   |
-5 | #[tpd]
-  | ^^^^^^
+5 | #[tpd(root)]
+  | ^^^^^^^^^^^^
   |
-  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<K, T> or Option<IndexMap<K, T>>, found: HashMap < String, String >
+  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<FromString<_>, Visitor<>_> , T>>, found: #[tpd(absorb_remaining)] extra : HashMap < String, String > .ty
 
 warning: unused import: `std::collections::HashMap`
  --> compilation_failure_tests/absorb_remaining_wrong_type_hashmap.rs:2:5

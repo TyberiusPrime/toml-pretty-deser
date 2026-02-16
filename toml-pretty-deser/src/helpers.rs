@@ -68,7 +68,11 @@ where
                     (Ok(()), true) => TomlValue::new_ok(maybe_validated, span),
                     (Ok(()), false) => TomlValue::new_nested(Some(maybe_validated)),
                     (Err((msg, hint)), _) => TomlValue {
-                        state: TomlValueState::ValidationFailed { span, message: msg, help: hint },
+                        state: TomlValueState::ValidationFailed {
+                            span,
+                            message: msg,
+                            help: hint,
+                        },
                         value: Some(maybe_validated),
                     },
                 }

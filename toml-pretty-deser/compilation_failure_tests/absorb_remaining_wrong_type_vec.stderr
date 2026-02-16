@@ -4,4 +4,4 @@ error: custom attribute panicked
 4 | #[tpd]
   | ^^^^^^
   |
-  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<K, T> or Option<IndexMap<K, T>>, found: Vec < String >
+  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<FromString<_>, Visitor<>_> , T>>, found: #[tpd(absorb_remaining)] extra : Vec < String > .ty

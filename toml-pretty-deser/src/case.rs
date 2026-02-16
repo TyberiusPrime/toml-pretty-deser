@@ -34,7 +34,7 @@ fn normalize_to_no_case(s: &str) -> String {
         .filter_map(|c| match c {
             'A'..='Z' => Some(c.to_lowercase().next().expect("can't fail")),
             'a'..='z' | '0'..='9' => Some(c),
-            '-' | '_'| '.' => None,
+            '-' | '_' | '.' => None,
             x => Some(x),
         })
         .collect()

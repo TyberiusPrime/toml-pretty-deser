@@ -1,16 +1,18 @@
 use toml_pretty_deser::prelude::*;
 
-#[tpd]
+#[tpd(root)]
 #[derive(Debug)]
 struct Skipped {
     a_u8: u8,
-    #[tpd_skip]
+    #[tpd(skip)]
     skipped: u8,
 }
 
+impl VerifyIn<Root> for PartialSkipped {}
+
 fn main() {
     let toml = "";
-    let result: Result<_, _> = deserialize::<PartialSkipped, Skipped>(toml);
+    let result: Result<_, _> = Skipped::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
     dbg!(&result);
     assert!(!result.is_ok());
     if let Err(DeserError::DeserFailure(_errors, partial)) = result {

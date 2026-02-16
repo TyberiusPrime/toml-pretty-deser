@@ -6,7 +6,7 @@ use toml_pretty_deser::prelude::*;
 #[derive(Debug)]
 struct WrongKeyType {
     name: String,
-    #[tpd_absorb_remaining]
+    #[tpd(absorb_remaining)]
     extra: IndexMap<i32, String>,
 }
 

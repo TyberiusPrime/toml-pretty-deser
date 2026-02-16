@@ -1058,6 +1058,7 @@ impl VerifyIn<Root> for PartialWithDefaults {
             }
         });
         self.c = self.c.take().or(33);
+        self.s = Some(34);
         Ok(())
     }
 }
@@ -1071,7 +1072,7 @@ fn test_default() {
         assert_eq!(parsed.b, 55); // custom default
         assert_eq!(parsed.c, 33); // custom default
         assert_eq!(parsed.d, 0); // Default::default
-        assert_eq!(parsed.s, 0); // Default::default
+        assert_eq!(parsed.s, 34); // Skipped, but set in default
     } else {
         panic!("Parsing failed: {:?}", parsed.err());
     }
@@ -1111,11 +1112,13 @@ pub struct Absorb {
     anton: u8,
     #[tpd(absorb_remaining)]
     remainder: IndexMap<String, u8>,
+    zeta: u8,
 }
 
 #[test]
 fn test_absorb_remaining() {
     let toml_str = "
+        zeta = 4
         anton = 1
         others = 2
         more =3
@@ -1123,6 +1126,7 @@ fn test_absorb_remaining() {
     let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
     if let Ok(parsed) = parsed {
         assert_eq!(parsed.anton, 1);
+        assert_eq!(parsed.zeta, 4);
         assert_eq!(parsed.remainder.get("others").unwrap(), &2);
         assert_eq!(parsed.remainder.get("more").unwrap(), &3);
         assert_eq!(parsed.remainder.len(), 2);
@@ -1135,6 +1139,7 @@ fn test_absorb_remaining() {
 fn test_absorb_remaining_none() {
     let toml_str = "
         anton = 1
+        zeta = 4
  ";
     let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
     if let Ok(parsed) = parsed {
@@ -1150,6 +1155,7 @@ fn test_absorb_remaining_bad() {
         anton = 1
         others = 2
         more ='a'
+        zeta = 4
  ";
     let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
     if let Err(e) = parsed {

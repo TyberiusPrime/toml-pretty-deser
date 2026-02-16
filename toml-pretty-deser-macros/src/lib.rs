@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, Data, DeriveInput, Fields, GenericArgument, Lit, PathArguments, Type,
-    TypePath,
+    Data, DeriveInput, Fields, GenericArgument, Lit, PathArguments, Type, TypePath,
+    parse_macro_input,
 };
 
 /// Attribute macro for generating TOML deserialization code.
@@ -146,9 +146,12 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
         })
         .unwrap();
     }
+
+      
     if attrs.has_partial() && attrs.with_fn.is_some() {
         panic!("Field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]");
     }
+
     attrs
 }
 
@@ -281,6 +284,20 @@ fn needs_into_concrete(kind: &TypeKind, has_partial: bool) -> bool {
     }
 }
 
+
+fn is_indexmap_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if let Some(segment) = path.segments.last() {
+                segment.ident == "IndexMap"
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
 // ============================================================================
 // Struct derivation
 // ============================================================================
@@ -306,6 +323,7 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         attrs: FieldAttrs,
         kind: TypeKind,
         vis: syn::Visibility,
+        ty: Type,
     }
 
     let field_infos: Vec<FieldInfo> = fields
@@ -314,24 +332,49 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
             let ident = f.ident.clone().unwrap();
             let attrs = parse_field_attrs(f);
             let kind = analyze_type(&f.ty);
+
+            if attrs.absorb_remaining &&
+                !is_indexmap_type(&f.ty) 
+            {
+                // Wrong type entirely
+                panic!(
+                    "#[tpd_absorb_remaining] on field '{}' requires type IndexMap<FromString<_>, Visitor<>_> , T>>, found: {}",
+                    ident,
+                    quote!(#f.ty)
+                );
+            }
+
             FieldInfo {
                 ident,
                 attrs,
                 kind,
                 vis: f.vis.clone(),
+                ty: f.ty.clone(),
             }
         })
         .collect();
 
+    let absorb_count = field_infos.iter().filter(|f| f.attrs.absorb_remaining).count();
+    if absorb_count > 1 {
+            panic!(
+                "Only one field can have #[tpd_absorb_remaining]. Found {absorb_count} fields with this attribute.",
+            );
+        }
+
     // --- Partial struct fields (skip #[tpd(skip)] fields) ---
     let partial_fields: Vec<proc_macro2::TokenStream> = field_infos
         .iter()
-        .filter(|f| !f.attrs.skip)
+        //.filter(|f| !f.attrs.skip)
         .map(|f| {
             let ident = &f.ident;
             let fvis = &f.vis;
-            let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
-            quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> }
+            let ftype = &f.ty;
+            if !f.attrs.skip {
+                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
+                quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> }
+            } else {
+                quote! { #fvis #ident: Option<#ftype>}
+            }
         })
         .collect();
 
@@ -446,7 +489,7 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         .map(|f| {
             let ident = &f.ident;
             if f.attrs.skip {
-                quote! { #ident: Default::default() }
+                quote! { #ident: self.#ident.unwrap_or_default() }
             } else if is_unit_type(&f.kind) {
                 quote! { #ident: () }
             } else if needs_into_concrete(&f.kind, f.attrs.has_partial()) {

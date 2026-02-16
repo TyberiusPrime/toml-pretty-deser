@@ -1,23 +1,69 @@
-error[E0277]: the trait bound `i32: From<std::string::String>` is not satisfied
-  --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:10:21
-   |
- 5 | #[tpd]
-   | ------ required by a bound introduced by this call
-...
-10 |     extra: IndexMap<i32, String>,
-   |                     ^^^ the trait `From<std::string::String>` is not implemented for `i32`
-   |
-   = help: the following other types implement trait `From<T>`:
-             `i32` implements `From<bool>`
-             `i32` implements `From<i16>`
-             `i32` implements `From<i8>`
-             `i32` implements `From<u16>`
-             `i32` implements `From<u8>`
-note: required by a bound in `toml_pretty_deser::TomlHelper::<'a>::absorb_remaining`
-  --> src/lib.rs
-   |
-   |     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, T>>
-   |            ---------------- required by a bound in this associated function
-   |     where
-   |         K: From<String> + std::hash::Hash + Eq,
-   |            ^^^^^^^^^^^^ required by this bound in `TomlHelper::<'a>::absorb_remaining`
+error[E0277]: the trait bound `i32: From<String>` is not satisfied
+ --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
+  |
+5 | #[tpd]
+  | ^^^^^^ the trait `From<String>` is not implemented for `i32`
+  |
+  = help: the following other types implement trait `From<T>`:
+            `i32` implements `From<bool>`
+            `i32` implements `From<i16>`
+            `i32` implements `From<i8>`
+            `i32` implements `From<u16>`
+            `i32` implements `From<u8>`
+note: required by a bound in `TomlHelper::<'a>::absorb_remaining`
+ --> src/lib.rs
+  |
+  |     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, TomlValue<T>>>
+  |            ---------------- required by a bound in this associated function
+  |     where
+  |         K: From<String> + std::hash::Hash + Eq,
+  |            ^^^^^^^^^^^^ required by this bound in `TomlHelper::<'a>::absorb_remaining`
+  = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: the method `register_error` exists for struct `TomlValue<IndexMap<i32, TomlValue<String>>>`, but its trait bounds were not satisfied
+ --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
+  |
+5 | #[tpd]
+  | ^^^^^^ method cannot be called on `TomlValue<IndexMap<i32, TomlValue<String>>>` due to unsatisfied trait bounds
+  |
+ ::: $CARGO/indexmap-$VERSION/src/map.rs
+  |
+  | pub struct IndexMap<K, V, S = RandomState> {
+  | ------------------------------------------ doesn't satisfy `IndexMap<i32, TomlValue<String>>: Visitor`
+  |
+  = note: the following trait bounds were not satisfied:
+          `i32: From<String>`
+          which is required by `IndexMap<i32, TomlValue<String>>: Visitor`
+  = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: the method `into_concrete` exists for struct `IndexMap<i32, TomlValue<String>>`, but its trait bounds were not satisfied
+ --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
+  |
+5 | #[tpd]
+  | ^^^^^^ method cannot be called on `IndexMap<i32, TomlValue<String>>` due to unsatisfied trait bounds
+  |
+ ::: $CARGO/indexmap-$VERSION/src/map.rs
+  |
+  | pub struct IndexMap<K, V, S = RandomState> {
+  | ------------------------------------------ doesn't satisfy `IndexMap<i32, TomlValue<String>>: Visitor`
+  |
+  = note: the following trait bounds were not satisfied:
+          `i32: From<String>`
+          which is required by `IndexMap<i32, TomlValue<String>>: Visitor`
+  = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: the method `tpd_validate` exists for struct `TomlValue<IndexMap<i32, TomlValue<String>>>`, but its trait bounds were not satisfied
+ --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
+  |
+5 | #[tpd]
+  | ^^^^^^ method cannot be called on `TomlValue<IndexMap<i32, TomlValue<String>>>` due to unsatisfied trait bounds
+  |
+ ::: $CARGO/indexmap-$VERSION/src/map.rs
+  |
+  | pub struct IndexMap<K, V, S = RandomState> {
+  | ------------------------------------------ doesn't satisfy `IndexMap<i32, TomlValue<String>>: Visitor`
+  |
+  = note: the following trait bounds were not satisfied:
+          `i32: From<String>`
+          which is required by `IndexMap<i32, TomlValue<String>>: Visitor`
+  = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)

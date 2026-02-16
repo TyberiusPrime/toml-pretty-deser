@@ -6,10 +6,10 @@ use toml_pretty_deser::prelude::*;
 #[derive(Debug)]
 struct MultipleAbsorb {
     name: String,
-    #[tpd_absorb_remaining]
-    extra1: IndexMap<String, toml_edit::Item>,
-    #[tpd_absorb_remaining]
-    extra2: IndexMap<String, toml_edit::Item>,
+    #[tpd(absorb_remaining)]
+    extra1: IndexMap<String, String>,
+    #[tpd(absorb_remaining)]
+    extra2: IndexMap<String, String>,
 }
 
 fn main() {}

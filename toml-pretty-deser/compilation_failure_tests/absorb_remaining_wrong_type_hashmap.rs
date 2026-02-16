@@ -2,11 +2,11 @@
 use std::collections::HashMap;
 use toml_pretty_deser::prelude::*;
 
-#[tpd]
+#[tpd(root)]
 #[derive(Debug)]
 struct WrongTypeHashMap {
     name: String,
-    #[tpd_absorb_remaining]
+    #[tpd(absorb_remaining)]
     extra: HashMap<String, String>,
 }
 

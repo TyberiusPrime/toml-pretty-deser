@@ -5,7 +5,7 @@ use toml_pretty_deser::prelude::*;
 #[derive(Debug)]
 struct WrongTypeVec {
     name: String,
-    #[tpd_absorb_remaining]
+    #[tpd(absorb_remaining)]
     extra: Vec<String>,
 }
 

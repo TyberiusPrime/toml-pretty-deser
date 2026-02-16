@@ -16,25 +16,25 @@ use a01_macros::*;
 //
 //
 // User tag struct T with #[tdp]
-// Lib creates 
+// Lib creates
 // a) a tpd_from_toml implementation
 // b) a PartialT struct with TomlValue<T> of the fields. Note how container types are
 //    TomlValue<Container<..., TomlValue<T>>
 // c) a VerifyVisitor impl
 // d) optionally a blanket <R>VerifyIn<R> impl, if user said #[tdp(no_verify)]
 //    Otherwise the user must implement one!
-// e) when #[tdp] is applied to enums, they must be either simple enums (then we decode them 
+// e) when #[tdp] is applied to enums, they must be either simple enums (then we decode them
 //    by their string value +- FieldMatchMode) or tagged single struct containing enums
 //    (then they PartialTaggedEnum variants with all the same variants, but inner values replaced
 //    with TomlValue<PartialInner> of the inner struct
-// f) non type field variations: 
-//              #[tpd_skip] (ignores the field), 
-//              #[tpd_default] - set's it's default value iff missing.. 
+// f) non type field variations:
+//              #[tpd_skip] (ignores the field),
+//              #[tpd_default] - set's it's default value iff missing..
 //              #[tpd_absorb_remaining] - absorb all remaining values on this key into an IndexMap
 //              #[tpd_with=function)] - convert type while deserializing
 //
 //
-// Guess I haven't been veriy diligent in tagging everything in here with commented out #[tdp] 
+// Guess I haven't been veriy diligent in tagging everything in here with commented out #[tdp]
 //#[tpd]
 #[derive(Debug)]
 pub struct Outer {
@@ -842,7 +842,6 @@ fn test_options_fail() {
         let pretty = e.pretty("test.toml");
         insta::assert_snapshot!(pretty);
     }
-
 }
 #[derive(Debug)]
 pub struct MapTest {
@@ -1034,6 +1033,7 @@ impl VerifyIn<Root> for PartialWithDefaults {
             }
         });
         self.c = self.c.take().or(33);
+        self.s = Some(34); // these get turned into option cases
         Ok(())
     }
 }
@@ -1047,7 +1047,7 @@ fn test_default() {
         assert_eq!(parsed.b, 55); // custom default
         assert_eq!(parsed.c, 33); // custom default
         assert_eq!(parsed.d, 0); // Default::default
-        assert_eq!(parsed.s, 0); // Default::default
+        assert_eq!(parsed.s, 34); // set in verify
     } else {
         panic!("Parsing failed: {:?}", parsed.err());
     }
@@ -1086,11 +1086,13 @@ pub struct Absorb {
     anton: u8,
     //#[tdp(absorb_remaining)]
     remainder: IndexMap<String, u8>,
+    zeta: u8,
 }
 
 #[test]
 fn test_absorb_remaining() {
     let toml_str = "
+        zeta = 4
         anton = 1
         others = 2
         more =3
@@ -1098,6 +1100,7 @@ fn test_absorb_remaining() {
     let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
     if let Ok(parsed) = parsed {
         assert_eq!(parsed.anton, 1);
+        assert_eq!(parsed.zeta, 4);
         assert_eq!(parsed.remainder.get("others").unwrap(), &2);
         assert_eq!(parsed.remainder.get("more").unwrap(), &3);
         assert_eq!(parsed.remainder.len(), 2);
@@ -1110,6 +1113,7 @@ fn test_absorb_remaining() {
 fn test_absorb_remaining_none() {
     let toml_str = "
         anton = 1
+        zeta = 4
 ";
     let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
     if let Ok(parsed) = parsed {
@@ -1125,6 +1129,7 @@ fn test_absorb_remaining_bad() {
         anton = 1
         others = 2
         more ='a'
+        zeta = 4
 ";
     let parsed = Absorb::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
     if let Err(e) = parsed {
@@ -1554,4 +1559,3 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
         Ok(())
     }
 }
-

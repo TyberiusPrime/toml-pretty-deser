@@ -98,10 +98,7 @@ impl_visitor!(f64, |helper| {
     }
 });
 
-impl_visitor!((), |helper| {
-        TomlValue::new_ok((), helper.span())
-    }
-);
+impl_visitor!((), |helper|  TomlValue::new_ok((), helper.span()) );
 
 #[macro_export]
 macro_rules! impl_visitor_for_from_str {
