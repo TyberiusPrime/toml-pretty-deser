@@ -616,7 +616,7 @@ fn parse_tag_from_attr(attr_args: &str) -> Option<String> {
     // Parse: tag = "value"
     let meta: syn::Meta = syn::parse_str(&format!("tpd({})", attr_args)).expect("Could not parse attr meta");
     if let syn::Meta::List(list) = meta {
-        let nested: syn::MetaNameValue = syn::parse2(list.tokens).expect("Failed to parse nested");
+        let nested: syn::MetaNameValue = syn::parse2(list.tokens).expect(&format!("Failed to parse '{attr_args}'"));
         if nested.path.is_ident("tag") {
             if let syn::Expr::Lit(syn::ExprLit {
                 lit: Lit::Str(s), ..
@@ -665,7 +665,7 @@ fn derive_enum(input: DeriveInput, attr_args: &str) -> TokenStream {
     let tag = parse_tag_from_attr(attr_args);
 
     if tag.is_some() {
-        derive_tagged_enum(input, tag.expect("Failed to parse tag from attr"))
+        derive_tagged_enum(input, tag.expect("Failed to parse tag #[tdp(tag=\"name\")] from {attr_args}"))
     } else {
         derive_simple_enum(input)
     }

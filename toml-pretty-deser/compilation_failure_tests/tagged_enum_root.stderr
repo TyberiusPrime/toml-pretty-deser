@@ -1,0 +1,7 @@
+error: custom attribute panicked
+ --> compilation_failure_tests/tagged_enum_root.rs:8:1
+  |
+8 | #[tpd(root, tag="kind")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: message: Failed to parse 'root, tag="kind"': Error("expected `=`")
