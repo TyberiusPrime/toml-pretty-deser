@@ -125,8 +125,8 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
             } else if meta.path.is_ident("absorb_remaining") {
                 attrs.absorb_remaining = true;
             } else if meta.path.is_ident("with") {
-                let value = meta.value().unwrap();
-                let lit: Lit = value.parse().unwrap();
+                let value = meta.value().expect("No value on with");
+                let lit: Lit = value.parse().expect("unparsable value on with");
                 if let Lit::Str(s) = lit {
                     attrs.with_fn = Some(s.value());
                 }
@@ -135,7 +135,7 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
                 syn::parenthesized!(content in meta.input);
                 let lits =
                     syn::punctuated::Punctuated::<Lit, syn::Token![,]>::parse_terminated(&content)
-                        .unwrap();
+                        .expect("failed to parse alias");
                 for lit in lits {
                     if let Lit::Str(s) = lit {
                         attrs.aliases.push(s.value());
@@ -144,7 +144,7 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
             }
             Ok(())
         })
-        .unwrap();
+        .expect("failed to parse nested meta");
     }
 
       
@@ -329,7 +329,7 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
     let field_infos: Vec<FieldInfo> = fields
         .iter()
         .map(|f| {
-            let ident = f.ident.clone().unwrap();
+            let ident = f.ident.clone().expect("ident clone failed");
             let attrs = parse_field_attrs(f);
             let kind = analyze_type(&f.ty);
 
@@ -407,7 +407,7 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
             let is_option = matches!(&f.kind, TypeKind::Optional(_));
 
             if let Some(ref with_fn) = f.attrs.with_fn {
-                let with_fn_ident: syn::Path = syn::parse_str(with_fn).unwrap();
+                let with_fn_ident: syn::Path = syn::parse_str(with_fn).expect("with fn_indent parse_str failed");
                 quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
                         #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr))
@@ -493,9 +493,9 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
             } else if is_unit_type(&f.kind) {
                 quote! { #ident: () }
             } else if needs_into_concrete(&f.kind, f.attrs.has_partial()) {
-                quote! { #ident: self.#ident.value.unwrap().into_concrete() }
+                quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false").into_concrete() }
             } else {
-                quote! { #ident: self.#ident.value.unwrap() }
+                quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false") }
             }
         })
         .collect();
@@ -614,9 +614,9 @@ fn parse_tag_from_attr(attr_args: &str) -> Option<String> {
         return None;
     }
     // Parse: tag = "value"
-    let meta: syn::Meta = syn::parse_str(&format!("tpd({})", attr_args)).unwrap();
+    let meta: syn::Meta = syn::parse_str(&format!("tpd({})", attr_args)).expect("Could not parse attr meta");
     if let syn::Meta::List(list) = meta {
-        let nested: syn::MetaNameValue = syn::parse2(list.tokens).unwrap();
+        let nested: syn::MetaNameValue = syn::parse2(list.tokens).expect("Failed to parse nested");
         if nested.path.is_ident("tag") {
             if let syn::Expr::Lit(syn::ExprLit {
                 lit: Lit::Str(s), ..
@@ -647,7 +647,7 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
                 syn::parenthesized!(content in meta.input);
                 let lits =
                     syn::punctuated::Punctuated::<Lit, syn::Token![,]>::parse_terminated(&content)
-                        .unwrap();
+                        .expect("failed to parse alias");
                 for lit in lits {
                     if let Lit::Str(s) = lit {
                         attrs.aliases.push(s.value());
@@ -656,7 +656,7 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
             }
             Ok(())
         })
-        .unwrap();
+        .expect("failed to parse nested meta - case 2");
     }
     attrs
 }
@@ -665,7 +665,7 @@ fn derive_enum(input: DeriveInput, attr_args: &str) -> TokenStream {
     let tag = parse_tag_from_attr(attr_args);
 
     if tag.is_some() {
-        derive_tagged_enum(input, tag.unwrap())
+        derive_tagged_enum(input, tag.expect("Failed to parse tag from attr"))
     } else {
         derive_simple_enum(input)
     }
@@ -795,7 +795,7 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
                         1,
                         "Tagged enum variants must have exactly one unnamed field"
                     );
-                    fields.unnamed.first().unwrap().ty.clone()
+                    fields.unnamed.first().expect("tagged enum variant has no fields").ty.clone()
                 }
                 _ => panic!(
                     "Tagged enum variants must have exactly one unnamed field: {}(InnerType)",
@@ -888,7 +888,7 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
         .map(|v| {
             let ident = &v.ident;
             quote! {
-                #partial_name::#ident(toml_value) => #name::#ident(toml_value.value.unwrap().into_concrete())
+                #partial_name::#ident(toml_value) => #name::#ident(toml_value.value.expect("into_concrete called when can_concrete returned false").into_concrete())
             }
         })
         .collect();
@@ -928,7 +928,7 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
                         state: tag_value.state,
                     };
                 }
-                let tag = tag_value.value.as_ref().unwrap();
+                let tag = tag_value.value.as_ref().expect("tag value missing after is_ok check");
                 let tag_span = tag_value.span();
 
                 match tag.as_str() {
