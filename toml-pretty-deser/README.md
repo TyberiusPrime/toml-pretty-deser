@@ -298,7 +298,8 @@ pub fn adapt_to_upper_case(input: TomlValue<String>) -> TomlValue<String> {
 To enable the deserialization of custom types, implement [`Visitor`] for them.
 
 If they have no inner fields to descend into, 
-you can use the [`impl_visitor`] macro:
+you can use the [`impl_visitor`] macro (see below).
+If they do, plesae read the other Visitor implementation.
 
 
 ```rust
@@ -325,6 +326,51 @@ impl_visitor!(DNA, |helper| {
 });
 
 ```
+
+### Adapt in VerifyIn
+
+On occasion, you need the parent to really to perform final validation
+, for example if you wanted to store a lookup into a vec on the parent.
+
+For this, you may tag fields with `#[tdp(adapt_in_verify(type)]`.
+These field get first deserialized into a `MustAdapt::PreVerify(type)`,
+and you must turn them into `MustAdapt::PostVerify(field_type)` in your VerifyIn
+implementation, or you will receive a `DeserError` 
+
+Example:
+
+```rust
+use toml_pretty_deser::prelude::*;
+
+#[derive(Debug)]
+#[tpd(root)]
+pub struct AdaptInVerify {
+    #[tdp(adapt_in_verify)] //default to toml_edit::Item if not type passed.
+    inner: usize,
+    #[tdp(adapt_in_verify(String))]
+    other: usize,
+}
+
+impl VerifyIn<Root> for PartialAdaptInVerify {
+    fn verify(&mut self, _parent: &Root) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        self.other = self
+            .other
+            .adapt(|value, span| TomlValue::new_ok(value.len(), span));
+
+        self.inner = self.inner.adapt(|value, span| match value.as_str() {
+            Some(v) => TomlValue::new_ok(v.len(), span),
+            None => TomlValue::new_wrong_type(&value, span, "string"),
+        });
+
+        Ok(())
+    }
+}
+```
+
+
 
 
 

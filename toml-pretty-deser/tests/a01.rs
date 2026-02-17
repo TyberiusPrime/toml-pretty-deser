@@ -1603,7 +1603,7 @@ impl VerifyIn<Root> for PartialAdaptInVerify {
 
         self.inner = self.inner.adapt(|value, span| match value.as_str() {
             Some(v) => TomlValue::new_ok(v.len(), span),
-            None => TomlValue::new_wrong_type(&value, span, "string"),
+            None => TomlValue::new_wrong_type(&value, span, "string-to-convert"),
         });
 
         Ok(())
@@ -1626,5 +1626,24 @@ other = 'Europe'
     if let Ok(output) = result {
         assert_eq!(output.inner, 5);
         assert_eq!(output.other, 6);
+    }
+}
+
+#[test]
+fn test_adapt_inner_wrong_types() {
+    let result: Result<_, _> = AdaptInVerify::tpd_from_toml(
+        "
+inner = 4
+other = 123
+
+",
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(!result.is_ok());
+
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
     }
 }

@@ -1,0 +1,26 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+assertion_line: 1647
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/2
+  ╭─test.toml
+  ┆
+2 │ inner = 4
+  ┆         ┬
+  ┆         │
+  ┆         ╰─ Wrong type: expected string-to-convert, found integer.
+──╯
+Hint: This value has the wrong type.
+
+Error 2/2
+  ╭─test.toml
+  ┆
+1 │ 
+2 │ inner = 4
+3 │ other = 123
+  ┆         ─┬─
+  ┆          │
+  ┆          ╰── Wrong type: expected string, found integer.
+──╯
+Hint: This value has the wrong type.
