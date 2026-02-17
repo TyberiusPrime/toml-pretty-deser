@@ -176,7 +176,6 @@ fn pretty_error_message(
     spans: &[SpannedMessage],
     help: Option<&String>,
 ) -> String {
-    use bstr::{BStr, ByteSlice};
     use codesnake::{Block, CodeWidth, Label, LineIndex};
     use std::fmt::Write;
 
@@ -227,8 +226,8 @@ fn pretty_error_message(
         let lines_before = match previous_newline {
             None => String::new(),
             Some(previous_newline) => {
-                let lines: Vec<_> = {
-                    let upto_span = &BStr::new(source.as_bytes())[..previous_newline];
+                let lines: Vec<&str> = {
+                    let upto_span = &source[..previous_newline];
                     upto_span.lines().collect()
                 };
                 let mut seen_opening = false;
@@ -241,7 +240,7 @@ fn pretty_error_message(
                             .enumerate()
                             .rev()
                             .take_while(move |x| {
-                                if BStr::new(x.1).trim_ascii_start().starts_with(b"[") {
+                                if x.1.trim_ascii_start().starts_with('[') {
                                     seen_opening = true;
                                     true
                                 } else {
@@ -250,9 +249,8 @@ fn pretty_error_message(
                             })
                             .map(|(line_no, line)| {
                                 format!(
-                                    "{:>digits_needed$} │ {}",
+                                    "{:>digits_needed$} │ {line}",
                                     line_no + 1,
-                                    std::string::String::from_utf8_lossy(line)
                                 )
                             })
                             .collect()

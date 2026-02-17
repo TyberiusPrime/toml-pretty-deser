@@ -13,7 +13,6 @@
 
 
 [dependencies]
-bstr = "1.12.1"
 codesnake = "0.2.1"
 memchr = "2.7.6"
 toml_edit = "0.24.0"
