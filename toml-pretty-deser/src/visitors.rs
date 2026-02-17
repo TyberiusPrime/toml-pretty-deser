@@ -1,8 +1,9 @@
+
 use indexmap::IndexMap;
 
 use crate::{
     AsTableLikePlus, TomlCollector, TomlHelper, TomlValue, VerifyIn, VerifyVisitor,
-    helpers::Visitor,
+    helpers::Visitor, prelude::MustAdapt,
 };
 
 #[macro_export]
@@ -40,9 +41,7 @@ macro_rules! impl_visitor {
 
 macro_rules! impl_visitor_for_int {
     ($ty:ty) => {
-        impl_visitor!($ty, |helper| 
-        #[allow(clippy::cast_lossless)]
-        {
+        impl_visitor!($ty, |helper| {
             match helper.item.as_integer() {
                 Some(v) => match TryInto::<$ty>::try_into(v) {
                     Ok(v) => {
@@ -100,9 +99,12 @@ impl_visitor!(f64, |helper| {
     }
 });
 
-impl_visitor!((), |helper|  TomlValue::new_ok((), helper.span()) );
+impl_visitor!((), |helper| TomlValue::new_ok((), helper.span()));
 
-impl_visitor!(toml_edit::Item, |helper|  TomlValue::new_ok(helper.item.clone(), helper.span()) );
+impl_visitor!(toml_edit::Item, |helper| TomlValue::new_ok(
+    helper.item.clone(),
+    helper.span()
+));
 
 /// implement a Visitor on a value that implements `From<String>`
 #[macro_export]
@@ -150,11 +152,14 @@ impl<T: Visitor> Visitor for Option<T> {
     }
 
     fn can_concrete(&self) -> bool {
-        self.as_ref().is_none_or(super::helpers::Visitor::can_concrete)
+        self.as_ref()
+            .is_none_or(super::helpers::Visitor::can_concrete)
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
-        if let Some(v) = self { v.v_register_errors(col) }
+        if let Some(v) = self {
+            v.v_register_errors(col)
+        }
     }
 
     fn into_concrete(self) -> Option<T::Concrete> {
@@ -353,4 +358,64 @@ impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> Ve
 impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R>
     for IndexMap<K, TomlValue<T>>
 {
+}
+
+impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> Visitor for MustAdapt<A, B> {
+    type Concrete = B;
+
+    #[mutants::skip]
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let pre_verify: TomlValue<A> = A::fill_from_toml(helper);
+        pre_verify.map(|v| MustAdapt::PreVerify(v))
+    }
+
+    fn can_concrete(&self) -> bool {
+        matches!(self, MustAdapt::PostVerify(_))
+        //self.as_ref().is_none_or(super::helpers::Visitor::can_concrete)
+    }
+
+    fn needs_further_validation(&self) -> bool {
+        
+        matches!(self, Self::PreVerify(_))
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        match self {
+            MustAdapt::PreVerify(v) => v.v_register_errors(col),
+            MustAdapt::PostVerify(_) => {}
+        }
+    }
+
+    fn into_concrete(self) -> B {
+        match self {
+            MustAdapt::PreVerify(_) => panic!("can_concrete invariant violated"),
+            MustAdapt::PostVerify(v) => v,
+        }
+    }
+}
+
+impl<R, A: Visitor + std::fmt::Debug + VerifyVisitor<R>, B: std::fmt::Debug> VerifyVisitor<R>
+    for MustAdapt<A, B>
+{
+    fn vv_validate(self, parent: &R) -> Self {
+        let res = match self {
+            MustAdapt::PreVerify(v) => MustAdapt::PreVerify(v.vv_validate(parent)),
+            MustAdapt::PostVerify(_) => unreachable!(),
+        };
+        res
+    }
+}
+
+impl<R, A: Visitor + std::fmt::Debug + VerifyIn<R>, B: std::fmt::Debug> VerifyIn<R> for
+    MustAdapt<A, B>
+{
+    fn verify(&mut self, parent: &R) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + Visitor,
+    {
+        match self {
+            MustAdapt::PreVerify(v) => v.verify(parent),
+            MustAdapt::PostVerify(_) => unreachable!(),
+        }
+    }
 }

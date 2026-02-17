@@ -68,7 +68,6 @@ struct ShowOffTwoValueErrors {
 impl VerifyIn<Root> for PartialShowOffTwoValueErrors {
     fn verify(
         &mut self,
-        helper: &mut TomlHelper<'_>,
         parent: &Root,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -124,7 +123,7 @@ let toml = "
 
 ### Supported types
 
-- 'simple' types: integers, strings, booleans, `std::path::PathBufs`
+- 'simple' types: integers, strings, booleans, `std::path::PathBufs`, toml_edit::Items
 - Nested structs (tag struct definition with `#[tpd]` and use with `#[tpd(nested)]`
 - String->simple Enums  (tag enum definition with `#[tpd]`
 - Table->tagged enums with one struct each (`#[tpd(tag="toml-key")]` on enum, `#[tpd]` on inner structs, `#[tpd(nested)]` on fields
@@ -194,7 +193,6 @@ Alternatively, you can always apply defaults in your `VerifyIn` implementation
 impl VerifyIn<Root> for PartialWithDefaults {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &Root,
     ) -> Result<(), (String, Option<String>)>
     self.field = self.field.take().or_default() // equivalent to #[tpd(default)]

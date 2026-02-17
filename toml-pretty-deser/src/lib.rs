@@ -948,6 +948,7 @@ impl<T> TomlValue<T> {
             TomlValueState::MultiDefined { spans, .. } => spans[0].clone(), //just return the first one
             TomlValueState::UnknownKeys(_) => panic!("don't call span on UnknownKeys?"),
             TomlValueState::Custom { spans, .. } => spans[0].0.clone(),
+            TomlValueState::NeedsFurtherValidation { span, .. } => span.clone(),
         }
     }
 
@@ -1079,6 +1080,8 @@ pub enum TomlValueState {
         help: Option<String>,
         spans: Vec<(Range<usize>, String)>,
     },
+    /// used in #tdp(adapt_in_verify(..)]
+    NeedsFurtherValidation { span: Range<usize> },
     /// This value was deserialized correctly.
     Ok { span: Range<usize> },
 }

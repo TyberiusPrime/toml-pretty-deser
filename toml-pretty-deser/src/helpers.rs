@@ -20,6 +20,10 @@ pub trait Visitor: Sized {
     /// Macro-derived: recursively checks all `TomlValue`<_> fields are .`is_ok()`
     fn can_concrete(&self) -> bool;
 
+    fn needs_further_validation(&self) -> bool {
+        false
+    }
+
     /// Macro-derived, recursively turn `TomlValues` into `AnnotatedError`
     fn v_register_errors(&self, col: &TomlCollector);
 
@@ -77,15 +81,21 @@ where
         match self.state {
             TomlValueState::Ok { .. } => {
                 let span = self.span();
-                let mut maybe_validated = self
-                    .value
-                    .expect("ok, but no value?")
-                    .vv_validate(parent);
+                let mut maybe_validated =
+                    self.value.expect("ok, but no value?").vv_validate(parent);
                 let v = maybe_validated.verify(parent);
-                match (v, maybe_validated.can_concrete()) {
-                    (Ok(()), true) => TomlValue::new_ok(maybe_validated, span),
-                    (Ok(()), false) => TomlValue::new_nested(Some(maybe_validated)),
-                    (Err((msg, hint)), _) => TomlValue {
+                match (
+                    v,
+                    maybe_validated.can_concrete(),
+                    maybe_validated.needs_further_validation(),
+                ) {
+                    (Ok(()), true, _) => TomlValue::new_ok(maybe_validated, span),
+                    (Ok(()), false, false) => TomlValue::new_nested(Some(maybe_validated)),
+                    (Ok(()), false, true) => TomlValue {
+                        value: Some(maybe_validated),
+                        state: TomlValueState::NeedsFurtherValidation { span },
+                    },
+                    (Err((msg, hint)), _, _) => TomlValue {
                         state: TomlValueState::ValidationFailed {
                             span,
                             message: msg,
@@ -126,7 +136,7 @@ where
         let errs: Vec<AnnotatedError> = match &self.state {
             TomlValueState::NotSet | TomlValueState::Ok { .. } => {
                 return;
-            } //ignored, we expect the errors below to have been added
+            }
             TomlValueState::Nested => {
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
@@ -200,6 +210,11 @@ where
                 }
                 vec![err]
             }
+            TomlValueState::NeedsFurtherValidation { span } => vec![AnnotatedError::placed(
+                span.clone(),
+                "This value was expected to go further transformation in VerifyIn",
+                "This points to a bug in the deserilization code, please report it.",
+            )],
         };
 
         for mut err in errs {
@@ -260,5 +275,57 @@ where
             helper.into_inner(&source),
             root.value.map(Box::new).unwrap_or_default(),
         ))
+    }
+}
+
+#[derive(Debug)]
+pub enum MustAdapt<A: std::fmt::Debug, B: std::fmt::Debug> {
+    PreVerify(A),
+    PostVerify(B),
+}
+
+impl<A: std::fmt::Debug, B: std::fmt::Debug> MustAdapt<A, B> {
+    pub fn unwrap_post(self) -> B {
+        match self {
+            Self::PreVerify(a) => panic!(
+                "MustAdapt was not adapted before verification. Value: {:?}",
+                a
+            ),
+            Self::PostVerify(b) => b,
+        }
+    }
+
+    pub fn unwrap_pre(self) -> A {
+        match self {
+            Self::PreVerify(a) => a,
+            Self::PostVerify(b) => panic!(
+                "MustAdapt was adapted before verification, but unwrap_pre was called. Value: {:?}",
+                b
+            ),
+        }
+    }
+}
+
+pub trait MustAdaptHelper<T, S> {
+    fn adapt<F>(&mut self, map_func: F) -> Self
+    where
+        F: FnOnce(T, std::ops::Range<usize>) -> TomlValue<S>,
+        Self: Sized;
+}
+
+impl<A: std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B> for TomlValue<MustAdapt<A, B>> {
+    fn adapt<F>(&mut self, map_func: F) -> Self
+    where
+        F: FnOnce(A, std::ops::Range<usize>) -> TomlValue<B>,
+        Self: Sized,
+    {
+        let t = self.take();
+        match (t.state, t.value) {
+            (TomlValueState::NeedsFurtherValidation { span }, Some(MustAdapt::PreVerify(v))) => {
+                let value = map_func(v, span);
+                value.map(|x| MustAdapt::PostVerify(x))
+            }
+            (state, value) => TomlValue { state, value },
+        }
     }
 }

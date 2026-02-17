@@ -7,9 +7,10 @@
 #![allow(clippy::redundant_closure_for_method_calls)]
 #![allow(clippy::uninlined_format_args)]
 use indexmap::IndexMap;
+use toml_pretty_deser::prelude::MustAdaptHelper;
 use toml_pretty_deser::{
-    DeserError, FieldMatchMode, TomlValue, VecMode, VerifyIn,
-    impl_visitor_for_from_str, impl_visitor_for_try_from_str,
+    DeserError, FieldMatchMode, TomlValue, VecMode, VerifyIn, impl_visitor_for_from_str,
+    impl_visitor_for_try_from_str,
 };
 //library code
 //
@@ -65,10 +66,7 @@ pub struct NestedStruct {
 }
 
 impl VerifyIn<PartialOuter> for PartialNestedStruct {
-    fn verify(
-        &mut self,
-        parent: &PartialOuter,
-    ) -> Result<(), (String, Option<String>)> {
+    fn verify(&mut self, parent: &PartialOuter) -> Result<(), (String, Option<String>)> {
         if let Some(value) = self.other_u8.as_mut()
             && let Some(parent_value) = parent.a_u8.value
         {
@@ -157,10 +155,7 @@ pub struct OtherOuter {
     pub nested_struct: NestedStruct,
 }
 impl VerifyIn<PartialOtherOuter> for PartialNestedStruct {
-    fn verify(
-        &mut self,
-        _parent: &PartialOtherOuter,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &PartialOtherOuter) -> Result<(), (String, Option<String>)>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -333,7 +328,7 @@ fn test_basic_missing() {
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
         assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
-        assert_ne!(inner.nested_struct.span(),  0..0);
+        assert_ne!(inner.nested_struct.span(), 0..0);
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
     }
 }
@@ -1053,10 +1048,7 @@ pub struct WithDefaults {
 }
 
 impl VerifyIn<Root> for PartialWithDefaults {
-    fn verify(
-        &mut self,
-        _parent: &Root,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &Root) -> Result<(), (String, Option<String>)>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1496,10 +1488,7 @@ pub struct UnitField {
 }
 
 impl VerifyIn<Root> for PartialUnitField {
-    fn verify(
-        &mut self,
-        _parent: &Root,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &Root) -> Result<(), (String, Option<String>)>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1579,10 +1568,7 @@ fn test_nested_unit_field() {
 impl VerifyIn<Root> for PartialNestedUnitField {}
 
 impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
-    fn verify(
-        &mut self,
-        _parent: &PartialNestedUnitField,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &PartialNestedUnitField) -> Result<(), (String, Option<String>)>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1600,30 +1586,45 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
 #[derive(Debug)]
 //#[tpd(root)]
 pub struct AdaptInVerify {
-    //   #[tdp(adapt_in_verify)]
+    //   #[tdp(adapt_in_verify)] //default to toml_edit::Item if not set.
     inner: usize,
+    //   #[tdp(adapt_in_verify(String))]
+    other: usize,
 }
 
 impl VerifyIn<Root> for PartialAdaptInVerify {
-    fn verify(
-        &mut self,
-        _parent: &Root,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &Root) -> Result<(), (String, Option<String>)>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        // TODO: adapt_in_verify feature needs redesign without helper
+        self.other = self
+            .other
+            .adapt(|value, span| TomlValue::new_ok(value.len(), span));
+
+        self.inner = self.inner.adapt(|value, span| match value.as_str() {
+            Some(v) => TomlValue::new_ok(v.len(), span),
+            None => TomlValue::new_wrong_type(&value, span, "string"),
+        });
+
         Ok(())
     }
 }
 
 #[test]
 fn test_adapt_inner() {
-    let result: Result<_, _> =
-        AdaptInVerify::tpd_from_toml("inner = 'hello'", FieldMatchMode::Exact, VecMode::Strict);
+    let result: Result<_, _> = AdaptInVerify::tpd_from_toml(
+        "
+inner = 'hello'
+other = 'Europe'
+
+",
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
     dbg!(&result);
     assert!(result.is_ok());
     if let Ok(output) = result {
         assert_eq!(output.inner, 5);
+        assert_eq!(output.other, 6);
     }
 }

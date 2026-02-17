@@ -9,11 +9,14 @@ use toml_pretty_deser::{
     DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyIn, VerifyVisitor,
     Visitor,
     helpers::{Root, deserialize_toml},
+    prelude::MustAdapt,
     suggest_alternatives,
 };
 
 use crate::{
-    Absorb, AdaptInVerify, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString, MyTryFromString, NestedUnitField, OtherOuter, OuterWithBox, TypesTest, UnitField, WithDefaults, WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case
+    Absorb, AdaptInVerify, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString,
+    MyTryFromString, NestedUnitField, OtherOuter, OuterWithBox, TypesTest, UnitField, WithDefaults,
+    WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case,
 };
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
@@ -1430,15 +1433,23 @@ impl AdaptInVerify {
 
 #[derive(Debug, Default)]
 pub struct PartialAdaptInVerify {
-    pub inner: TomlValue<usize>,
+    pub inner: TomlValue<MustAdapt<toml_edit::Item, usize>>,
+    pub other: TomlValue<MustAdapt<String, usize>>,
 }
 
 impl PartialAdaptInVerify {
     pub fn tpd_get_inner(
         &self,
         helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<toml_edit::Item> {
+    ) -> TomlValue<MustAdapt<toml_edit::Item, usize>> {
         helper.get_with_aliases("inner", &[])
+    }
+    pub fn tpd_get_other(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<MustAdapt<String, usize>> {
+
+        helper.get_with_aliases("other", &[])
     }
 }
 
@@ -1446,7 +1457,9 @@ impl Visitor for PartialAdaptInVerify {
     type Concrete = AdaptInVerify;
 
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        let p = PartialAdaptInVerify::default();
+        let mut p = PartialAdaptInVerify::default();
+        p.inner = p.tpd_get_inner(helper);
+        p.other = p.tpd_get_other(helper);
         //not setting inner
 
         TomlValue::from_visitor(p, helper)
@@ -1458,12 +1471,14 @@ impl Visitor for PartialAdaptInVerify {
 
     fn into_concrete(self) -> Self::Concrete {
         AdaptInVerify {
-            inner: self.inner.value.unwrap(),
+            inner: self.inner.value.unwrap().unwrap_post(),
+            other: self.other.value.unwrap().unwrap_post(),
         }
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
         self.inner.register_error(col);
+        self.other.register_error(col);
     }
 }
 
@@ -1473,6 +1488,7 @@ impl VerifyVisitor<Root> for PartialAdaptInVerify {
         Self: Sized + Visitor,
     {
         self.inner = self.inner.take().tpd_validate(&self);
+        self.other = self.other.take().tpd_validate(&self);
         self
     }
 }
