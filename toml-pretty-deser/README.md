@@ -127,8 +127,7 @@ let toml = "
 - 'simple' types: integers, strings, booleans, `std::path::PathBufs`
 - Nested structs (tag struct definition with `#[tpd]` and use with `#[tpd(nested)`
 - String->simple Enums  (tag enum definition with `#[tpd]`
-- Table->tagged enums with one struct each (`#[tpd(tag='toml-key')]` on enum, 
-    `#[tpd]` on inner structs, `#[tpd(nested)]` on fields
+- Table->tagged enums with one struct each (`#[tpd(tag='toml-key')]` on enum, `#[tpd]` on inner structs, `#[tpd(nested)]` on fields
 - Vectors of the above
 - `IndexMaps<FromString, One-of-the-above>`
 
@@ -145,7 +144,7 @@ The `PartialT` consists of all the same fields as your `T`, wrapped in `TomlValu
 deserialization state and where in the TOML document it was.
 
 `T::tpd_from_toml` will then give you an Ok(T) or an Err with a list of errors and the partial
-state (If parsing succeeded. Otherwise you get just a `DeserError::ParsingFailuree. See [`DeserError`].
+state (If parsing succeeded. Otherwise you get just a `DeserError::ParsingFailure`. See [`DeserError`].
 
 
 The errors contain information about what went wrong, and can turn themselves into pretty error messages
@@ -227,7 +226,7 @@ Note the section below on casing for the common case of case- or code-case-insen
 By default, field names and enum variants are matched strictly.
 
 `tpd_from_toml`'s `FieldMatchMode` argument allows you to change this to case-insensitive (upper/lower only) or
-code-case-insensitive (allowing 'snake_case', 'camelCase', 'kebab-case', etc. to match each other).
+code-case-insensitive (allowing '`snake_case`', 'camelCase', 'kebab-case', etc. to match each other).
 
 
 ### Single elements to Vecs
@@ -240,13 +239,13 @@ one-element vectors instead.
 ### Adapter functions
 
 
-Use an attribute #[tpd(with="function_name"] on the field:
+Use an attribute #[`tpd(with="function_name)"`] on the field:
 
 Example:
 
 #[tpd(root)]
-struct ExampleAdapt {
-    #[tpd(with="adapt_to_upper_case")]
+struct `ExampleAdapt` {
+    #[`tpd(with="adapt_to_upper_case`")]
     name: String,
 }
     

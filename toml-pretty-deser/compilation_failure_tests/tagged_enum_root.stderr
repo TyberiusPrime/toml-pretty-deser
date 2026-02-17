@@ -4,4 +4,4 @@ error: custom attribute panicked
 8 | #[tpd(root, tag="kind")]
   | ^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = help: message: Failed to parse 'root, tag="kind"': Error("expected `=`")
+  = help: message: Failed to parse 'root, tag="kind"'

@@ -25,10 +25,11 @@ pub enum DeserError<P> {
     ParsingFailure(TomlError, String),
     /// Parsing suceeded, but deserialization failed. `PartialT` available with whatever could be
     /// understood.
-    DeserFailure(Vec<HydratedAnnotatedError>, P),
+    DeserFailure(Vec<HydratedAnnotatedError>, Box<P>),
 }
 
 impl<P> DeserError<P> {
+    #[must_use]
     pub fn pretty(&self, toml_filename: &str) -> String {
         let mut out = String::new();
         match self {
@@ -83,6 +84,9 @@ impl<P> DeserError<P> {
 ///
 pub trait VerifyIn<Parent> {
     #[allow(unused_variables)]
+    /// # Errors
+    /// When the developer wants to replace this value with
+    /// a `TomlValue` in failed verification state.
     fn verify(
         &mut self,
         helper: &mut TomlHelper<'_>,
@@ -165,6 +169,7 @@ impl AnnotatedErrorExt for AnnotatedError {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn pretty_error_message(
     source_name: &str,
     source: &str,
@@ -215,13 +220,9 @@ fn pretty_error_message(
         let blockf: String = format!("{block}")
             .lines()
             .skip(1)
-            .map(|x| x.trim_end())
+            .map(str::trim_end)
             .fold(String::new(), |acc, line| acc + line + "\n");
-        let digits_needed = blockf
-            .chars()
-            .position(|c| c == '│')
-            .map(|x| x - 1)
-            .unwrap_or(1);
+        let digits_needed = blockf.chars().position(|c| c == '│').map_or(1, |x| x - 1);
 
         let lines_before = match previous_newline {
             None => String::new(),
@@ -266,7 +267,7 @@ fn pretty_error_message(
         writeln!(&mut out, "{}{}", block.prologue(), source_name).expect("can't fail");
         write!(&mut out, "{:digits_needed$} ┆\n{}", " ", lines_before).expect("can't fail");
         if !lines_before.is_empty() {
-            write!(&mut out, "\n").expect("can't fail");
+            writeln!(&mut out).expect("can't fail");
         }
 
         write!(&mut out, "{blockf}").expect("can't fail");
@@ -326,7 +327,7 @@ impl FieldInfo {
 
     /// Get all normalized names for this field (primary name + aliases)
     #[must_use]
-    pub fn all_normalized_names(&self, mode: &FieldMatchMode) -> Vec<String> {
+    pub fn all_normalized_names(&self, mode: FieldMatchMode) -> Vec<String> {
         let mut names = vec![mode.normalize(&self.name)];
         for alias in &self.aliases {
             names.push(mode.normalize(alias));
@@ -368,6 +369,7 @@ pub struct TomlCollector {
 impl TomlCollector {
     /// Add a context span that will be appended to all errors registered while this context is active.
     /// Returns the number of context spans before this one was added (for use with `pop_context_to`).
+    #[must_use]
     pub fn push_context(&self, span: Range<usize>, msg: &str) -> usize {
         let mut contexts = self.context_spans.borrow_mut();
         let count = contexts.len();
@@ -385,6 +387,7 @@ impl TomlCollector {
     }
 
     /// Get a copy of the current context spans.
+    #[must_use]
     pub fn get_context_spans(&self) -> Vec<SpannedMessage> {
         self.context_spans.borrow().clone()
     }
@@ -424,6 +427,7 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
+    #[must_use]
     pub fn span(&self) -> Range<usize> {
         self.item.span().unwrap_or(0..0)
     }
@@ -445,21 +449,13 @@ impl<'a> TomlHelper<'a> {
         let field_info = FieldInfo::new(name).with_aliases(aliases);
         self.expected.push(field_info);
     }
-    ///
-    // /// Register a field with optional aliases
-    // pub fn ignore_field(&mut self, name: impl Into<String>) {
-    //     let name: String = name.into();
-    //     let field_info = FieldInfo::new(name.clone());
-    //     self.expected.push(field_info);
-    //     self.observed.push(name);
-    // }
-    //
+
+    #[must_use]
     pub fn is_table(&self) -> bool {
-        match &self.item {
-            toml_edit::Item::Table(_)
-            | toml_edit::Item::Value(toml_edit::Value::InlineTable(_)) => true,
-            _ => false,
-        }
+        matches!(
+            self.item,
+            toml_edit::Item::Table(_) | toml_edit::Item::Value(toml_edit::Value::InlineTable(_))
+        )
     }
 
     /// Find a key in the table that matches the given field name (considering aliases and match mode)
@@ -489,7 +485,7 @@ impl<'a> TomlHelper<'a> {
                 if self.col.match_mode.matches(candidate, table_key)
                     && let Some(item) = table.get(table_key)
                 {
-                    result.push((table_key.to_string(), <toml_edit::Item>::clone(item))); //xxx
+                    result.push((table_key.clone(), <toml_edit::Item>::clone(item))); //xxx
                     break;
                 }
             }
@@ -519,14 +515,14 @@ impl<'a> TomlHelper<'a> {
         match found_keys.len() {
             0 => {
                 // No match found
-                let res = TomlValue {
+
+                TomlValue {
                     value: None,
                     state: TomlValueState::Missing {
                         key: query_key.to_string(),
                         parent_span,
                     },
-                };
-                res
+                }
             }
             1 => {
                 let (matched_key, item) = found_keys.first().expect("can't fail");
@@ -546,80 +542,16 @@ impl<'a> TomlHelper<'a> {
                         .push(self.col.match_mode.normalize(matched_key));
                 }
 
-                let res = TomlValue {
+                TomlValue {
                     value: None,
                     state: TomlValueState::MultiDefined {
                         key: query_key.to_string(),
                         spans,
                     },
-                };
-                res
+                }
             }
         }
     }
-
-    /// Like `get_with_aliases`, but does not automatically register errors for type mismatches.
-    /// This is useful when you want to try parsing a value as multiple types (e.g., either
-    /// a string or a number) and handle the error yourself.
-    ///
-    /// # Panics
-    /// Shouldn't.
-    // pub fn get_with_aliases_no_auto_error<T>(
-    //     &mut self,
-    //     query_key: &str,
-    //     aliases: &'static [&'static str],
-    // ) -> TomlValue<T>
-    // where
-    //     T: FromTomlItem + std::fmt::Debug,
-    // {
-    //     let parent_span = self.item.span().unwrap_or(0..0);
-    //
-    //     // Register this field as expected
-    //     self.expect_field(query_key, aliases);
-    //
-    //     // Try to find a matching key (considering aliases and match mode)
-    //     let found_keys = self.find_matching_keys(query_key, aliases);
-    //
-    //     match found_keys.len() {
-    //         0 => {
-    //             // No match found
-    //             let res = TomlValue {
-    //                 value: None,
-    //                 state: TomlValueState::Missing {
-    //                     key: query_key.to_string(),
-    //                     parent_span,
-    //                 },
-    //             };
-    //             res
-    //         }
-    //         1 => {
-    //             let (matched_key, item) = found_keys.first().expect("can't fail");
-    //             let res: TomlValue<T> = FromTomlItem::from_toml_item(item, parent_span, &self.col);
-    //             self.observed
-    //                 .push(self.col.match_mode.normalize(matched_key));
-    //             res
-    //         }
-    //         _ => {
-    //             let spans = found_keys
-    //                 .iter()
-    //                 .map(|(matched_key, _item)| self.span_from_key(matched_key))
-    //                 .collect();
-    //             for (matched_key, _) in &found_keys {
-    //                 self.observed
-    //                     .push(self.col.match_mode.normalize(matched_key));
-    //             }
-    //
-    //             let res = TomlValue {
-    //                 value: None,
-    //                 state: TomlValueState::MultiDefined {
-    //                     key: query_key.to_string(),
-    //                     spans,
-    //                 },
-    //             };
-    //             res
-    //         }
-    //     }
-    // }
 
     fn span_from_key(&self, key: &str) -> Range<usize> {
         if let Some(table) = self.item.as_table_like_plus() {
@@ -644,6 +576,7 @@ impl<'a> TomlHelper<'a> {
     /// The absorbed keys are marked as observed, so `deny_unknown()` won't report them.
     ///
     /// Returns a `TomlValue` containing the map. The map preserves insertion order.
+    #[allow(clippy::manual_let_else)]
     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, TomlValue<T>>>
     where
         K: From<String> + std::hash::Hash + Eq,
@@ -707,10 +640,11 @@ impl<'a> TomlHelper<'a> {
         // }
     }
 
+    #[must_use]
     pub fn has_unknown(&self) -> bool {
         let mut expected_normalized: IndexSet<String> = IndexSet::new();
         for field_info in &self.expected {
-            for normalized_name in field_info.all_normalized_names(&self.col.match_mode) {
+            for normalized_name in field_info.all_normalized_names(self.col.match_mode) {
                 expected_normalized.insert(normalized_name);
             }
         }
@@ -733,14 +667,18 @@ impl<'a> TomlHelper<'a> {
                 return true;
             }
         }
-        return false;
+        false
     }
 
+    /// Find the spans+other information of all unknown keys.
+    ///
+    /// # Panics
+    /// when called on a non-table item
     pub fn unknown_spans(&self) -> Vec<UnknownKey> {
         // Build set of normalized expected names (including aliases)
         let mut expected_normalized: IndexSet<String> = IndexSet::new();
         for field_info in &self.expected {
-            for normalized_name in field_info.all_normalized_names(&self.col.match_mode) {
+            for normalized_name in field_info.all_normalized_names(self.col.match_mode) {
                 expected_normalized.insert(normalized_name);
             }
         }
@@ -769,7 +707,7 @@ impl<'a> TomlHelper<'a> {
                         .and_then(toml_edit::Key::span)
                         .unwrap_or(0..0);
                     res.push(UnknownKey {
-                        key: key.to_string(),
+                        key: key.clone(),
                         span,
                         help: suggest_alternatives(&normalized_key, &still_available),
                         additional_spans: vec![],
@@ -798,7 +736,7 @@ pub struct TomlValue<T> {
 }
 
 impl<T> TomlValue<T> {
-    /// Create a new TomlValue in the Ok state with the given value and span.
+    /// Create a new `TomlValue` in the Ok state with the given value and span.
     #[must_use]
     pub const fn new_ok(value: T, span: Range<usize>) -> Self {
         Self {
@@ -807,20 +745,24 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Create a new custom TomlValue error with one or multiple spans
+    /// Create a new custom `TomlValue` error with one or multiple spans
     /// for errors that don't fit the framewrok
     ///
+    ///
+    /// # Panics
+    /// when spans is empty
     #[must_use]
     pub fn new_custom(
         value: Option<T>,
         spans: Vec<(Range<usize>, String)>,
         help: Option<&str>,
     ) -> Self {
-        if spans.is_empty() {
-            panic!("new_custom should have at least one span");
-        }
+        assert!(
+            !spans.is_empty(),
+            "new_custom should have at least one span"
+        );
         Self {
-            value: value,
+            value,
             state: TomlValueState::Custom {
                 help: help.map(ToString::to_string),
                 spans,
@@ -828,7 +770,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Create a new TomlValue in the Missing state with the given parent span.
+    /// Create a new `TomlValue` in the Missing state with the given parent span.
     #[must_use]
     pub const fn new_empty_missing(parent_span: Range<usize>) -> Self {
         Self {
@@ -839,7 +781,7 @@ impl<T> TomlValue<T> {
             },
         }
     }
-    /// Create a new TomlValue with a ValidationFailed state.
+    /// Create a new `TomlValue` with a `ValidationFailed` state.
     #[must_use]
     pub const fn new_validation_failed(
         span: Range<usize>,
@@ -897,7 +839,7 @@ impl<T> TomlValue<T> {
                 value: Some(None),
                 state: TomlValueState::Ok { span: parent_span },
             },
-            TomlValueState::Nested {} => TomlValue {
+            TomlValueState::Nested => TomlValue {
                 value: Some(self.value),
                 state: TomlValueState::Nested {},
             },
@@ -908,8 +850,10 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Change the inner value if state is TomlValueState::Ok,
+    /// Change the inner value if state is `TomlValueState::Ok`,
     /// otherwise adapt the error type but loose the value.
+    /// # Panics
+    /// When the ok -> value present invariant is violated
     pub fn map<R, F>(self, map_function: F) -> TomlValue<R>
     where
         F: FnOnce(T) -> R,
@@ -934,6 +878,10 @@ impl<T> TomlValue<T> {
     }
 
     /// Adapt failed types, eating the value
+    ///
+    /// # Panics
+    ///
+    /// When called on an ok `TomlValue`
     pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
         match &self.state {
             TomlValueState::Ok { span } => {
@@ -946,7 +894,8 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// take the value out of the TomlValue, leaving a `TomlValueState::NotSet` and None in place.
+    /// take the value out of the `TomlValue`, leaving a `TomlValueState::NotSet` and None in place.
+    #[must_use]
     pub fn take(&mut self) -> Self {
         std::mem::replace(
             self,
@@ -957,12 +906,12 @@ impl<T> TomlValue<T> {
         )
     }
 
-    /// Is this TomlValue in the Ok state?
+    /// Is this `TomlValue` in the Ok state?
     pub fn is_ok(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
     }
 
-    /// Get a reference to the inner value iff this TomlValue is in the Ok state, otherwise None.
+    /// Get a reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
     pub fn as_ref(&self) -> Option<&T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value.as_ref(),
@@ -970,7 +919,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Get a mutable reference to the inner value iff this TomlValue is in the Ok state, otherwise None.
+    /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
     pub fn as_mut(&mut self) -> Option<&mut T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value.as_mut(),
@@ -984,7 +933,7 @@ impl<T> TomlValue<T> {
     ///
     /// # Panics
     ///
-    /// When called on UnknownKeys
+    /// When called on `UnknownKeys`
     /// When called on a Custom without spans
     pub fn span(&self) -> Range<usize> {
         match &self.state {
@@ -1003,11 +952,10 @@ impl<T> TomlValue<T> {
 
     /// Verify this TOML value
     ///
-    /// Calls verification_func with a reference to the inner value
-    /// if this TomlValue is in the Ok state,
-    ///     and returns a new TomlValue that reflects the result of the verification:
+    /// Calls `verification_func` with a reference to the inner value
+    /// if this `TomlValue` is in the Ok state,
+    ///     and returns a new `TomlValue` that reflects the result of the verification:
     /// otherwise, it remains in a previous error state.
-
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn verify<F>(self, verification_func: F) -> Self
@@ -1073,7 +1021,7 @@ impl<T> TomlValue<T> {
     }
 }
 
-/// TomlValues default to `NotSet`
+/// `TomlValues` default to `NotSet`
 impl<T> Default for TomlValue<T> {
     fn default() -> Self {
         TomlValue {

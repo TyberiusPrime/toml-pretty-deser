@@ -1,3 +1,11 @@
+#![allow(clippy::float_cmp)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::match_wildcard_for_single_variants)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::nonminimal_bool)]
+#![allow(clippy::bool_assert_comparison)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::uninlined_format_args)]
 use indexmap::IndexMap;
 use toml_pretty_deser::{
     DeserError, FieldMatchMode, TomlHelper, TomlValue, VecMode, VerifyIn,
@@ -1221,15 +1229,15 @@ fn test_types() {
     if let Ok(parsed) = parsed {
         assert_eq!(parsed.a_i8, -12);
         assert_eq!(parsed.a_i16, -123);
-        assert_eq!(parsed.a_i32, -123456);
-        assert_eq!(parsed.a_i64, -1234567890123);
-        assert_eq!(parsed.a_isize, -12345);
+        assert_eq!(parsed.a_i32, -123_456);
+        assert_eq!(parsed.a_i64, -1_234_567_890_123);
+        assert_eq!(parsed.a_isize, -12_345);
         assert_eq!(parsed.a_u8, 12);
         assert_eq!(parsed.a_u16, 123);
-        assert_eq!(parsed.a_u32, 123456);
-        assert_eq!(parsed.a_u64, 1234567890123);
+        assert_eq!(parsed.a_u32, 123_456);
+        assert_eq!(parsed.a_u64, 1_234_567_890_123);
         assert_eq!(parsed.a_f64, 34.487);
-        assert_eq!(parsed.a_usize, 12345);
+        assert_eq!(parsed.a_usize, 12_345);
         assert_eq!(parsed.a_bool, true);
         assert_eq!(parsed.a_string, "hello");
         assert_eq!(parsed.a_from_string.0, "world");
@@ -1402,7 +1410,7 @@ struct FailString(String);
 toml_pretty_deser::impl_visitor!(FailString, false, |helper| {
     match helper.item.as_str() {
         Some(v) => TomlValue::new_ok(FailString(v.to_string()), helper.span()),
-        None => TomlValue::new_wrong_type(&helper.item, helper.span(), "string"),
+        None => TomlValue::new_wrong_type(helper.item, helper.span(), "string"),
     }
 });
 
@@ -1466,7 +1474,7 @@ impl VerifyIn<Root> for PartialUnitField {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
-        if len % 2 != 0 {
+        if ! len.is_multiple_of(2) {
             //this is barely useful since we could just return the Err()
             //and end up with pretty much the same error message.
             //Maybe when you need to return multi span errors?
@@ -1550,7 +1558,7 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
-        if len % 2 != 0 {
+        if ! len.is_multiple_of(2) {
             return Err((
                 "there must be an even number of fields".to_string(),
                 Some(format!("There were {} fields", len)),

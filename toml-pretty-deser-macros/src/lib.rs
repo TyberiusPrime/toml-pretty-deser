@@ -205,11 +205,10 @@ fn analyze_type(ty: &Type) -> TypeKind {
 }
 
 fn extract_single_generic(args: &PathArguments) -> Type {
-    if let PathArguments::AngleBracketed(ab) = args {
-        if let Some(GenericArgument::Type(ty)) = ab.args.first() {
+    if let PathArguments::AngleBracketed(ab) = args
+        && let Some(GenericArgument::Type(ty)) = ab.args.first() {
             return ty.clone();
         }
-    }
     panic!("Expected single generic argument");
 }
 
@@ -226,11 +225,10 @@ fn extract_two_generics(args: &PathArguments) -> (Type, Type) {
 }
 
 fn leaf_type_name(ty: &Type) -> String {
-    if let Type::Path(TypePath { path, .. }) = ty {
-        if let Some(last) = path.segments.last() {
+    if let Type::Path(TypePath { path, .. }) = ty
+        && let Some(last) = path.segments.last() {
             return last.ident.to_string();
         }
-    }
     panic!(
         "Cannot extract type name from {:?}",
         quote!(#ty).to_string()
@@ -270,11 +268,10 @@ fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> proc_macro2::Toke
 
 /// Check if a type is the unit type `()`
 fn is_unit_type(kind: &TypeKind) -> bool {
-    if let TypeKind::Leaf(ty) = kind {
-        if let Type::Tuple(tuple) = ty {
+    if let TypeKind::Leaf(ty) = kind
+        && let Type::Tuple(tuple) = ty {
             return tuple.elems.is_empty();
         }
-    }
     false
 }
 
@@ -317,7 +314,7 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         ty: Type,
     }
 
-    let original_item = emit_original_item(&input);
+    let original_item = emit_original_item(input);
     let is_root = is_root_attr(attr_args);
     let no_verify = is_no_verify_attr(attr_args);
     let name = &input.ident;
@@ -621,15 +618,14 @@ fn parse_tag_from_attr(attr_args: &str) -> Option<String> {
     // Parse: tag = "value"
     let meta: syn::Meta = syn::parse_str(&format!("tpd({attr_args})")).expect("Could not parse attr meta");
     if let syn::Meta::List(list) = meta {
-        let nested: syn::MetaNameValue = syn::parse2(list.tokens).expect(&format!("Failed to parse '{attr_args}'"));
-        if nested.path.is_ident("tag") {
-            if let syn::Expr::Lit(syn::ExprLit {
+        let nested: syn::MetaNameValue = syn::parse2(list.tokens).unwrap_or_else(|_| panic!("Failed to parse '{attr_args}'"));
+        if nested.path.is_ident("tag")
+            && let syn::Expr::Lit(syn::ExprLit {
                 lit: Lit::Str(s), ..
             }) = &nested.value
             {
                 return Some(s.value());
             }
-        }
     }
     None
 }
@@ -669,10 +665,10 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
 fn derive_enum(input: &DeriveInput, attr_args: &str) -> TokenStream {
     let tag = parse_tag_from_attr(attr_args);
 
-    if tag.is_some() {
-        derive_tagged_enum(&input, &tag.expect("Failed to parse tag #[tdp(tag=\"name\")] from {attr_args}"))
+    if let Some(tag) = tag {
+        derive_tagged_enum(input, &tag)
     } else {
-        derive_simple_enum(&input)
+        derive_simple_enum(input)
     }
 }
 
@@ -681,7 +677,7 @@ fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
         ident: syn::Ident,
         attrs: VariantAttrs,
     }
-    let original_item = emit_original_item(&input);
+    let original_item = emit_original_item(input);
     let name = &input.ident;
 
     let variants = match &input.data {
@@ -780,7 +776,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str) -> TokenStream {
         ident: syn::Ident,
         inner_type: Type,
     }
-    let original_item = emit_original_item(&input);
+    let original_item = emit_original_item(input);
     let name = &input.ident;
     let partial_name = format_ident!("Partial{}", name);
     let vis = &input.vis;

@@ -6,8 +6,8 @@ use crate::{
 };
 
 #[macro_export]
-/// Cretae a visitor from your fill_from_toml implementation. The second argument is whether to
-/// also implement an empty VerifyIn, which is usually what we want for 'value types'
+/// Cretae a visitor from your `fill_from_toml` implementation. The second argument is whether to
+/// also implement an empty `VerifyIn`, which is usually what we want for 'value types'
 /// that can't fail.
 macro_rules! impl_visitor {
     ($ty:ty, |$helper:ident| $fill_from_toml:expr) => {
@@ -40,7 +40,9 @@ macro_rules! impl_visitor {
 
 macro_rules! impl_visitor_for_int {
     ($ty:ty) => {
-        impl_visitor!($ty, |helper| {
+        impl_visitor!($ty, |helper| 
+        #[allow(clippy::cast_lossless)]
+        {
             match helper.item.as_integer() {
                 Some(v) => match TryInto::<$ty>::try_into(v) {
                     Ok(v) => {
@@ -53,7 +55,7 @@ macro_rules! impl_visitor_for_int {
                             Some(format!(
                                 "Use a number between {} and {} inclusive.",
                                 <$ty>::MIN,
-                                (<$ty>::MAX as usize).min(i64::MAX as usize)
+                                (<$ty>::MAX as u128).min(i64::MAX as u128)
                             )),
                         );
                     }
@@ -87,14 +89,14 @@ impl_visitor_for_int!(usize);
 impl_visitor!(bool, |helper| {
     match helper.item.as_bool() {
         Some(v) => TomlValue::new_ok(v, helper.span()),
-        None => TomlValue::new_wrong_type(&helper.item, helper.span(), "boolean"),
+        None => TomlValue::new_wrong_type(helper.item, helper.span(), "boolean"),
     }
 });
 
 impl_visitor!(f64, |helper| {
     match helper.item.as_float() {
         Some(v) => TomlValue::new_ok(v, helper.span()),
-        None => TomlValue::new_wrong_type(&helper.item, helper.span(), "float"),
+        None => TomlValue::new_wrong_type(helper.item, helper.span(), "float"),
     }
 });
 
@@ -113,7 +115,7 @@ macro_rules! impl_visitor_for_from_str {
     };
 }
 
-/// implement a Visitor on a value that implements TryFrom<String>
+/// implement a Visitor on a value that implements `TryFrom`<String>
 #[macro_export]
 macro_rules! impl_visitor_for_try_from_str {
     ($ty:ty, $help:expr) => {
@@ -146,18 +148,15 @@ impl<T: Visitor> Visitor for Option<T> {
     }
 
     fn can_concrete(&self) -> bool {
-        self.as_ref().map_or(true, |v| v.can_concrete())
+        self.as_ref().is_none_or(super::helpers::Visitor::can_concrete)
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
-        match self {
-            Some(v) => v.v_register_errors(col),
-            None => {}
-        }
+        if let Some(v) = self { v.v_register_errors(col) }
     }
 
     fn into_concrete(self) -> Option<T::Concrete> {
-        self.map(|t| t.into_concrete())
+        self.map(super::helpers::Visitor::into_concrete)
     }
 }
 
@@ -183,7 +182,7 @@ impl<T: Visitor> Visitor for Box<T> {
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
-        self.as_ref().v_register_errors(col)
+        self.as_ref().v_register_errors(col);
     }
 
     fn into_concrete(self) -> Box<T::Concrete> {
@@ -251,16 +250,16 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
                     TomlValue::new_nested(Some(res))
                 }
             }
-            _ => TomlValue::new_wrong_type(&helper.item, helper.span(), "array"),
+            _ => TomlValue::new_wrong_type(helper.item, helper.span(), "array"),
         }
     }
 
     fn can_concrete(&self) -> bool {
-        self.iter().all(|item| item.is_ok())
+        self.iter().all(super::TomlValue::is_ok)
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
-        for v in self.iter() {
+        for v in self {
             v.register_error(col);
         }
     }
@@ -313,16 +312,16 @@ where
                     TomlValue::new_nested(Some(result))
                 }
             }
-            None => TomlValue::new_wrong_type(&helper.item, helper.span(), "table"),
+            None => TomlValue::new_wrong_type(helper.item, helper.span(), "table"),
         }
     }
 
     fn can_concrete(&self) -> bool {
-        self.values().all(|v| v.is_ok())
+        self.values().all(super::TomlValue::is_ok)
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
-        for (_key, value) in self.iter() {
+        for (_key, value) in self {
             value.register_error(col);
         }
     }

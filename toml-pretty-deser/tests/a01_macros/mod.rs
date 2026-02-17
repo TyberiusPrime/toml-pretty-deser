@@ -1,3 +1,9 @@
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+// this is explicitly what we want!
+#![allow(clippy::field_reassign_with_default)]
 use indexmap::IndexMap;
 use toml_pretty_deser::{
     DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyIn, VerifyVisitor,
@@ -171,7 +177,7 @@ impl Visitor for AnEnum {
                 Some(suggest_alternatives(str, &["TypeA", "TypeB", "Bbb"])),
             );
         }
-        return TomlValue::new_wrong_type(helper.item, helper.span(), "string");
+        TomlValue::new_wrong_type(helper.item, helper.span(), "string")
     }
 
     fn can_concrete(&self) -> bool {
@@ -1067,10 +1073,10 @@ impl Visitor for PartialTypesTest {
 
     fn into_concrete(self) -> Self::Concrete {
         TypesTest {
-            a_i8: self.a_i8.value.unwrap() as i8,
-            a_i16: self.a_i16.value.unwrap() as i16,
-            a_i32: self.a_i32.value.unwrap() as i32,
-            a_i64: self.a_i64.value.unwrap() as i64,
+            a_i8: self.a_i8.value.unwrap(),
+            a_i16: self.a_i16.value.unwrap(),
+            a_i32: self.a_i32.value.unwrap(),
+            a_i64: self.a_i64.value.unwrap(),
             a_isize: self.a_isize.value.unwrap(),
             a_u8: self.a_u8.value.unwrap(),
             a_u16: self.a_u16.value.unwrap(),

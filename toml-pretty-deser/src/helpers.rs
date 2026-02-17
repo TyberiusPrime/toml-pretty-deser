@@ -8,7 +8,7 @@ use crate::{
 };
 
 /// The main parent-independent visitor trait.
-/// See impl_visitor! for macro-derived implementations for simple types,
+/// See `impl_visitor`! for macro-derived implementations for simple types,
 /// or the toml-pretty-deser-macros crate for the #[tdp] tagged struct implementations.
 ///
 pub trait Visitor: Sized {
@@ -17,23 +17,24 @@ pub trait Visitor: Sized {
     /// Populate self from TOML, given the helper around `TomlItem`
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self>;
 
-    /// Macro-derived: recursively checks all TomlValue<_> fields are .is_ok()
+    /// Macro-derived: recursively checks all `TomlValue`<_> fields are .`is_ok()`
     fn can_concrete(&self) -> bool;
 
-    /// Macro-derived, recurisivly turn TomlValues into AnnotatedError
+    /// Macro-derived, recurisivly turn `TomlValues` into `AnnotatedError`
     fn v_register_errors(&self, col: &TomlCollector);
 
     /// Consume into the concrete `T`.
     ///
     ///
     /// # Panics
-    /// - if !can_concrete()
+    /// - if !`can_concrete()`
     fn into_concrete(self) -> Self::Concrete;
 }
 
 /// The parent-dependent visitor trait. Implementations are macro-derived.
 pub trait VerifyVisitor<Parent> {
     #[allow(unused_variables)]
+    #[must_use]
     fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &Parent) -> Self
     where
         Self: Sized + Visitor,
@@ -51,7 +52,7 @@ impl<T> TomlValue<T>
 where
     T: Visitor,
 {
-    /// called by the toml-pretty-deser-macros fill_from_toml implementation.
+    /// called by the toml-pretty-deser-macros `fill_from_toml` implementation.
     pub fn from_visitor(visitor: T, helper: &TomlHelper<'_>) -> Self {
         if helper.has_unknown() {
             TomlValue {
@@ -65,6 +66,10 @@ where
         }
     }
 
+    /// # Panics
+    ///
+    /// When ok -> value present invariant is violated
+    #[must_use]
     pub fn tpd_validate<R>(self, helper: &mut TomlHelper, parent: &R) -> TomlValue<T>
     where
         T: Visitor + VerifyVisitor<R> + VerifyIn<R>,
@@ -72,7 +77,10 @@ where
         match self.state {
             TomlValueState::Ok { .. } => {
                 let span = self.span();
-                let mut maybe_validated = self.value.unwrap().vv_validate(helper, parent);
+                let mut maybe_validated = self
+                    .value
+                    .expect("ok, but no value?")
+                    .vv_validate(helper, parent);
                 let v = maybe_validated.verify(helper, parent);
                 match (v, maybe_validated.can_concrete()) {
                     (Ok(()), true) => TomlValue::new_ok(maybe_validated, span),
@@ -167,7 +175,7 @@ where
             TomlValueState::UnknownKeys(unknown_keys) => {
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
-                };
+                }
                 unknown_keys
                     .iter()
                     .map(|uk| {
@@ -180,16 +188,16 @@ where
                     })
                     .collect()
             }
-            TomlValueState::Custom {
-                spans,
-                help,
-            } => {
+            TomlValueState::Custom { spans, help } => {
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
-                };
+                }
                 let mut err = AnnotatedError::placed(
-                    spans.iter().next().map(|x| &x.0).unwrap_or(&(0..0)).clone(),
-                    &spans.iter().next().map(|x| x.1.as_str()).unwrap_or_else(||"Missing message"),
+                    spans.iter().next().map_or(&(0..0), |x| &x.0).clone(),
+                    spans
+                        .iter()
+                        .next()
+                        .map_or_else(|| "Missing message", |x| x.1.as_str()),
                     help.as_ref().map_or("", std::string::String::as_str),
                 );
                 for (span, msg) in spans.iter().skip(1) {
@@ -199,7 +207,7 @@ where
             }
         };
 
-        for mut err in errs.into_iter() {
+        for mut err in errs {
             // Add context spans to the error
             for context in context_spans {
                 err.add_span(context.span.clone(), &context.msg);
@@ -209,6 +217,18 @@ where
     }
 }
 
+/// Helper to implement `T::tpd_from_toml` in toml-pretty-deser-macros
+///
+///
+/// # Errors
+///
+/// On parsing & desererialization errors, returns `DeserError::ParsingFailure`
+/// (with [`toml_edit::TomlErr`]) or
+/// `DeserError::DeserFailure` with the partially filled struct.
+///
+/// # Panics
+///
+/// When ok -> value present invariant is violated
 pub fn deserialize_toml<P>(
     toml_str: &str,
     field_match_mode: FieldMatchMode,
@@ -234,7 +254,7 @@ where
     let root = P::fill_from_toml(&mut helper);
     let mut root = root.tpd_validate(&mut helper, &Root);
     if helper.has_unknown() {
-        root.state = TomlValueState::UnknownKeys(helper.unknown_spans())
+        root.state = TomlValueState::UnknownKeys(helper.unknown_spans());
     }
 
     if root.is_ok() {
@@ -243,7 +263,7 @@ where
         root.register_error(&col);
         Err(DeserError::DeserFailure(
             helper.into_inner(&source),
-            root.value.unwrap_or_default(),
+            root.value.map(Box::new).unwrap_or_default(),
         ))
     }
 }

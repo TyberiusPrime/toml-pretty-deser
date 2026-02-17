@@ -40,6 +40,51 @@ fn normalize_to_no_case(s: &str) -> String {
         .collect()
 }
 
+///Nice 'Did you mean one of these: 'A','B' or 'C' suggestions.
+pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> String {
+    if current.is_empty() {
+        let mut sorted: Vec<&str> = available.iter().map(AsRef::as_ref).collect::<Vec<&str>>();
+        sorted.sort_unstable();
+        return format!("Available are: {}", format_quoted_list(&sorted));
+    }
+
+    let mut distances: Vec<(usize, &str)> = available
+        .iter()
+        .map(|item| {
+            let item_str = item.as_ref();
+            let dist = strsim::levenshtein(current, item_str);
+            (dist, item_str)
+        })
+        .collect();
+
+    distances.sort_by_key(|k| k.0);
+
+    let closest: Vec<&str> = distances.into_iter().take(3).map(|(_, s)| s).collect();
+
+    if closest.is_empty() {
+        "All known keys have been used.".to_string()
+    } else {
+        format!("Did you mean: {}?", format_quoted_list(&closest))
+    }
+}
+
+fn format_quoted_list(items: &[&str]) -> String {
+    match items {
+        [] => String::new(),
+        [single] => format!("'{single}'"),
+        [first, second] => format!("'{first}' or '{second}'"),
+        rest => {
+            let (last, init) = rest.split_last().expect("can't fail");
+            let start = init
+                .iter()
+                .map(|s| format!("'{s}'"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{start}, or '{last}'")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,50 +131,5 @@ mod tests {
         assert!(any_case.matches("something1.3", "Something1.3"));
         assert!(any_case.matches("illumina1.3", "Illumina1.3"));
         assert!(any_case.matches("i.l.l.u.m.i.n.a.1.3", "Illumina1.3"));
-    }
-}
-
-///Nice 'Did you mean one of these: 'A','B' or 'C' suggestions.
-pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> String {
-    if current.is_empty() {
-        let mut sorted: Vec<&str> = available.iter().map(AsRef::as_ref).collect::<Vec<&str>>();
-        sorted.sort_unstable();
-        return format!("Available are: {}", format_quoted_list(&sorted));
-    }
-
-    let mut distances: Vec<(usize, &str)> = available
-        .iter()
-        .map(|item| {
-            let item_str = item.as_ref();
-            let dist = strsim::levenshtein(current, item_str);
-            (dist, item_str)
-        })
-        .collect();
-
-    distances.sort_by_key(|k| k.0);
-
-    let closest: Vec<&str> = distances.into_iter().take(3).map(|(_, s)| s).collect();
-
-    if closest.is_empty() {
-        "All known keys have been used.".to_string()
-    } else {
-        format!("Did you mean: {}?", format_quoted_list(&closest))
-    }
-}
-
-fn format_quoted_list(items: &[&str]) -> String {
-    match items {
-        [] => String::new(),
-        [single] => format!("'{single}'"),
-        [first, second] => format!("'{first}' or '{second}'"),
-        rest => {
-            let (last, init) = rest.split_last().expect("can't fail");
-            let start = init
-                .iter()
-                .map(|s| format!("'{s}'"))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{start}, or '{last}'")
-        }
     }
 }
