@@ -594,6 +594,7 @@ impl<'a> TomlHelper<'a> {
         let mut result_map: IndexMap<K, TomlValue<T>> = IndexMap::new();
         // let mut all_ok = true;
         let mut first_span: Option<Range<usize>> = None;
+        let mut last_span: Option<Range<usize>> = None;
 
         for (key, item) in table.iter() {
             let key_str = key.to_string();
@@ -612,6 +613,7 @@ impl<'a> TomlHelper<'a> {
             if first_span.is_none() {
                 first_span = Some(item_span.clone());
             }
+            last_span = Some(item_span);
             // Deserialize the value
             let mut helper = TomlHelper::from_item(item, self.col.clone());
             let value_result = T::fill_from_toml(&mut helper);
@@ -622,7 +624,7 @@ impl<'a> TomlHelper<'a> {
             result_map.insert(K::from(key_str), value_result);
         }
 
-        let span = first_span.unwrap_or(0..0);
+        let span = (first_span.unwrap_or(0..0).start)..(last_span.unwrap_or(0..0).end);
 
         // if all_ok {
         //feels wrong, but we're calling can_concrete on it
@@ -693,7 +695,6 @@ impl<'a> TomlHelper<'a> {
                     alias_set.extend(norm_names);
                 }
             }
-
 
             let mut res = Vec::new();
             for key in keys {

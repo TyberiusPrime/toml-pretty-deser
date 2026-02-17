@@ -5,9 +5,14 @@ expression: "e.pretty(\"test.toml\")"
 Error 1/1
   ╭─test.toml
   ┆
-1 │
-  ┆ ┬
+2 │           cheesecake = 'yes'
+  ┆                        ▲
+  ┆ ╭──────────────────────╯
+3 │ │         brownies = 'no'
   ┆ │
-  ┆ ╰─ There must be an even number of fields
+4 │ │         cookies = 'very much'
+  ┆ │                             ▲
+  ┆ │                             │
+  ┆ ╰─────────────────────────────┴─ There must be an even number of fields
 ──╯
 Hint: There were 3 fields
