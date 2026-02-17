@@ -3,12 +3,6 @@
 version = 4
 
 [[package]]
-name = "autocfg"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
-
-[[package]]
 name = "bitflags"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -153,15 +147,6 @@ name = "mutants"
 version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "add0ac067452ff1aca8c5002111bd6b1c895baee6e45fcbc44e0193aea17be56"
-
-[[package]]
-name = "num-traits"
-version = "0.2.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
-dependencies = [
- "autocfg",
-]
 
 [[package]]
 name = "once_cell"
@@ -331,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "toml-pretty-deser"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "bstr",
  "codesnake",
@@ -339,7 +324,6 @@ dependencies = [
  "insta",
  "memchr",
  "mutants",
- "num-traits",
  "strsim",
  "toml-pretty-deser-macros",
  "toml_edit",
@@ -348,7 +332,7 @@ dependencies = [
 
 [[package]]
 name = "toml-pretty-deser-macros"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "proc-macro2",
  "quote",

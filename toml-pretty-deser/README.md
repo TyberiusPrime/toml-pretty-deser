@@ -2,7 +2,7 @@
 
 Deserialize [TOML 1.1.0](https://toml.io/en/v1.1.0) with pretty error messages.
 
-//! [![docs.rs](https://img.shields.io/docsrs/toml-pretty-deser?version=0.1.0)](https://docs.rs/toml-pretty-deser)
+[![docs.rs](https://img.shields.io/docsrs/toml-pretty-deser?version=0.3.0)](https://docs.rs/toml-pretty-deser)
 
 ### Usage:
 
