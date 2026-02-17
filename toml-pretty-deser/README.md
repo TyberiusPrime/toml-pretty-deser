@@ -170,6 +170,19 @@ This offers:
 
 Use `#[tpd(no_verify)]` on your struct, and skip writing a [`VerifyIn`] implementation.
 
+#### skipping fields
+
+At times, you want fields that are not present in your TOML
+on your structs. For example, file handles derived from the filenames supplied
+by your user.
+
+You can do this by setting the field to `#[tdp(skip)]`.
+
+These fields get placed as Option<F> instead of TomlValue<F>
+inside the partial. You can set them in your VerifyIn implementation
+if required. The get turned into concrete values by .unwrap_or_default()
+on the Option.
+
 
 #### Nested structs
 
@@ -217,6 +230,9 @@ enum EitherOne {
 
 You can supply alias names on any field using `#[tpd(alias="another-name")]`.
 This can be repeated.
+
+To allow aliases on a tagged enum's tag field, 
+use `#[tdp(tag="kind", alias="type", alias="tag")]`
 
 Note the section below on casing for the common case of case- or code-case-insensitivity
 
