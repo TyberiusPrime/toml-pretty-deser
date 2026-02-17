@@ -273,6 +273,7 @@ fn test_basic_alias_anycase() {
         panic!("expected parsing to fail due to vec mode, but it succeeded");
     }
 }
+
 #[test]
 fn test_tagged_enum_alias() {
     let toml = "

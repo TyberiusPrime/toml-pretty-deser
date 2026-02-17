@@ -609,25 +609,42 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
 // Enum derivation
 // ============================================================================
 
-/// Parse tag = "key" from attribute args string like `tag = "kind"`
-fn parse_tag_from_attr(attr_args: &str) -> Option<String> {
+/// Parse `tag = "key"` and optional `alias = "..."` from attribute args like
+/// `tag = "kind", alias = "type", alias = "tag"`
+fn parse_tag_from_attr(attr_args: &str) -> Option<(String, Vec<String>)> {
     let attr_args = attr_args.trim();
     if attr_args.is_empty() {
         return None;
     }
-    // Parse: tag = "value"
-    let meta: syn::Meta = syn::parse_str(&format!("tpd({attr_args})")).expect("Could not parse attr meta");
+    let mut tag = None;
+    let mut aliases = Vec::new();
+    let meta: syn::Meta =
+        syn::parse_str(&format!("tpd({attr_args})")).expect("Could not parse attr meta");
     if let syn::Meta::List(list) = meta {
-        let nested: syn::MetaNameValue = syn::parse2(list.tokens).unwrap_or_else(|_| panic!("Failed to parse '{attr_args}'"));
-        if nested.path.is_ident("tag")
-            && let syn::Expr::Lit(syn::ExprLit {
-                lit: Lit::Str(s), ..
-            }) = &nested.value
-            {
-                return Some(s.value());
+        let punctuated = list
+            .parse_args_with(
+                syn::punctuated::Punctuated::<syn::MetaNameValue, syn::Token![,]>::parse_terminated,
+            )
+            .unwrap_or_else(|_| panic!("Failed to parse '{attr_args}'"));
+        for nv in punctuated {
+            if nv.path.is_ident("tag") {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: Lit::Str(s), ..
+                }) = &nv.value
+                {
+                    tag = Some(s.value());
+                }
+            } else if nv.path.is_ident("alias") {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: Lit::Str(s), ..
+                }) = &nv.value
+                {
+                    aliases.push(s.value());
+                }
             }
+        }
     }
-    None
+    tag.map(|t| (t, aliases))
 }
 
 struct VariantAttrs {
@@ -665,8 +682,8 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
 fn derive_enum(input: &DeriveInput, attr_args: &str) -> TokenStream {
     let tag = parse_tag_from_attr(attr_args);
 
-    if let Some(tag) = tag {
-        derive_tagged_enum(input, &tag)
+    if let Some((tag, aliases)) = tag {
+        derive_tagged_enum(input, &tag, &aliases)
     } else {
         derive_simple_enum(input)
     }
@@ -771,7 +788,7 @@ fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
 }
 
 #[allow(clippy::too_many_lines)]
-fn derive_tagged_enum(input: &DeriveInput, tag_key: &str) -> TokenStream {
+fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]) -> TokenStream {
     struct TaggedVariantInfo {
         ident: syn::Ident,
         inner_type: Type,
@@ -923,7 +940,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str) -> TokenStream {
                 if !helper.is_table() {
                     return toml_pretty_deser::TomlValue::new_wrong_type(helper.item, helper.span(), "table or inline table");
                 }
-                let tag_value: toml_pretty_deser::TomlValue<String> = helper.get_with_aliases(#tag_key, &[]);
+                let tag_value: toml_pretty_deser::TomlValue<String> = helper.get_with_aliases(#tag_key, &[#(#tag_aliases),*]);
                 if !tag_value.is_ok() {
                     return toml_pretty_deser::TomlValue {
                         value: None,

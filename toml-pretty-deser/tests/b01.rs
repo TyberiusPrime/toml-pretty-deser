@@ -1,4 +1,3 @@
-
 #![allow(clippy::float_cmp)]
 #![allow(clippy::map_unwrap_or)]
 #![allow(clippy::match_wildcard_for_single_variants)]
@@ -94,7 +93,7 @@ pub enum AnEnum {
     TypeB,
 }
 
-#[tpd(tag = "kind")]
+#[tpd(tag = "kind", alias="tag", alias="type")]
 #[derive(Debug, Eq, PartialEq)]
 pub enum TaggedEnum {
     KindA(InnerA),
@@ -275,6 +274,41 @@ fn test_basic_alias_anycase() {
         insta::assert_snapshot!(e.pretty("test.toml"));
     } else {
         panic!("expected parsing to fail due to vec mode, but it succeeded");
+    }
+}
+
+#[test]
+fn test_tagged_enum_alias() {
+    let toml = "
+        u8 = 1
+        opt_u8 =2
+        vec_u8 = [3]
+        simple_enum = 'TypeB'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            TaG = 'KindB'
+            b = 200
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::AnyCase,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.a_u8, 1);
+        assert_eq!(inner.opt_u8, Some(2));
+        assert_eq!(inner.vec_u8, vec![3]);
+        assert_eq!(inner.simple_enum, AnEnum::TypeB);
+        assert_eq!(inner.map_u8.get("a").unwrap(), &4);
+        assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
+        assert_eq!(inner.nested_struct.double.double_u8, 6);
     }
 }
 
@@ -527,7 +561,7 @@ fn test_error_in_opt() {
 }
 
 #[test]
-    #[allow(clippy::match_wildcard_for_single_variants)]
+#[allow(clippy::match_wildcard_for_single_variants)]
 fn test_tagged_enum_kind_a() {
     let toml = "
         a_u8 = 1
@@ -1508,7 +1542,7 @@ impl VerifyIn<Root> for PartialUnitField {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
-        if ! len.is_multiple_of(2) {
+        if !len.is_multiple_of(2) {
             // this is barely useful since we could just return the Err()
             // and end up with pretty much the same error message.
             // Maybe when you need to return multi span errors,
@@ -1594,7 +1628,7 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
-        if ! len.is_multiple_of(2) {
+        if !len.is_multiple_of(2) {
             return Err((
                 "there must be an even number of fields".to_string(),
                 Some(format!("There were {} fields", len)),
