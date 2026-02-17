@@ -67,9 +67,10 @@ pub struct NestedStruct {
 impl VerifyIn<PartialOuter> for PartialNestedStruct {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
+        helper: &mut TomlHelper<'_>,
         parent: &PartialOuter,
     ) -> Result<(), (String, Option<String>)> {
+
         if let Some(value) = self.other_u8.as_mut()
             && let Some(parent_value) = parent.a_u8.value
         {

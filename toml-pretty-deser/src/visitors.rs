@@ -102,6 +102,8 @@ impl_visitor!(f64, |helper| {
 
 impl_visitor!((), |helper|  TomlValue::new_ok((), helper.span()) );
 
+impl_visitor!(toml_edit::Item, |helper|  TomlValue::new_ok(helper.item.clone(), helper.span()) );
+
 /// implement a Visitor on a value that implements `From<String>`
 #[macro_export]
 macro_rules! impl_visitor_for_from_str {

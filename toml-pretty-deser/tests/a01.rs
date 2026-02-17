@@ -67,7 +67,7 @@ pub struct NestedStruct {
 impl VerifyIn<PartialOuter> for PartialNestedStruct {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
+        helper: &mut TomlHelper<'_>,
         parent: &PartialOuter,
     ) -> Result<(), (String, Option<String>)> {
         if let Some(value) = self.other_u8.as_mut()
@@ -1508,7 +1508,7 @@ impl VerifyIn<Root> for PartialUnitField {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
-        if ! len.is_multiple_of(2) {
+        if !len.is_multiple_of(2) {
             //this is barely useful since we could just return the Err()
             //and end up with pretty much the same error message.
             //Maybe when you need to return multi span errors?
@@ -1592,12 +1592,52 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
-        if ! len.is_multiple_of(2) {
+        if !len.is_multiple_of(2) {
             return Err((
                 "there must be an even number of fields".to_string(),
                 Some(format!("There were {} fields", len)),
             ));
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+//#[tpd(root)]
+pub struct AdaptInVerify {
+    //   #[tdp(adapt_in_verify)]
+    inner: usize,
+}
+
+impl VerifyIn<Root> for PartialAdaptInVerify {
+    fn verify(
+        &mut self,
+        helper: &mut TomlHelper<'_>,
+        _parent: &Root,
+    ) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        let tv: TomlValue<toml_edit::Item> = self.tpd_get_inner(helper);
+        let span = tv.span();
+        // self.inner = tv.try_map(|item| {
+        //     if let Some(s) = item.as_str() {
+        //         TomlValue::new_ok(s.len(), span)
+        //     } else {
+        //         TomlValue::new_wrong_type(&item, helper.span(), "string")
+        //     }
+        // });
+        Ok(())
+    }
+}
+
+#[test]
+fn test_adapt_inner() {
+    let result: Result<_, _> =
+        AdaptInVerify::tpd_from_toml("inner = 'hello'", FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.inner, 5);
     }
 }

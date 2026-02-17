@@ -13,9 +13,7 @@ use toml_pretty_deser::{
 };
 
 use crate::{
-    Absorb, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString,
-    MyTryFromString, NestedUnitField, OtherOuter, OuterWithBox, TypesTest, UnitField, WithDefaults,
-    WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case,
+    Absorb, AdaptInVerify, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString, MyTryFromString, NestedUnitField, OtherOuter, OuterWithBox, TypesTest, UnitField, WithDefaults, WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case
 };
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
@@ -142,7 +140,7 @@ impl<R> VerifyVisitor<R> for PartialOuter {
         self.vec_u8 = self.vec_u8.take().tpd_validate(helper, &self);
         self.map_u8 = self.map_u8.take().tpd_validate(helper, &self);
         self.nested_struct = self.nested_struct.take().tpd_validate(helper, &self);
-        //todoself.nested_tagged_enum = self.nested_tagged_enum.take().tpd_validate(helper, &self);
+        self.nested_tagged_enum = self.nested_tagged_enum.take().tpd_validate(helper, &self);
         self.simple_enum = self.simple_enum.take().tpd_validate(helper, &self);
         self
     }
@@ -354,7 +352,7 @@ impl Visitor for PartialTaggedEnum {
         if !helper.is_table() {
             return TomlValue::new_wrong_type(helper.item, helper.span(), "table or inline table");
         }
-        let tag_value: TomlValue<String> = helper.get_with_aliases("kind", &["tag","type"]);
+        let tag_value: TomlValue<String> = helper.get_with_aliases("kind", &["tag", "type"]);
         if !tag_value.is_ok() {
             return TomlValue {
                 value: None,
@@ -1409,6 +1407,67 @@ impl Visitor for PartialNestedUnitField {
 }
 
 impl VerifyVisitor<Root> for PartialNestedUnitField {
+    fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.inner = self.inner.take().tpd_validate(helper, &self);
+        self
+    }
+}
+
+// adapt in verify
+//
+impl AdaptInVerify {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<AdaptInVerify, DeserError<PartialAdaptInVerify>> {
+        deserialize_toml::<PartialAdaptInVerify>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PartialAdaptInVerify {
+    pub inner: TomlValue<usize>,
+}
+
+impl PartialAdaptInVerify {
+    pub fn tpd_get_inner(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<toml_edit::Item> {
+        helper.get_with_aliases("inner", &[])
+    }
+}
+
+impl Visitor for PartialAdaptInVerify {
+    type Concrete = AdaptInVerify;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let p = PartialAdaptInVerify::default();
+        //not setting inner
+
+        TomlValue::from_visitor(p, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.inner.is_ok()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        AdaptInVerify {
+            inner: self.inner.value.unwrap(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.inner.register_error(col);
+    }
+}
+
+impl VerifyVisitor<Root> for PartialAdaptInVerify {
     fn vv_validate(mut self, helper: &mut TomlHelper<'_>, _parent: &Root) -> Self
     where
         Self: Sized + Visitor,
