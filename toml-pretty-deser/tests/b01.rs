@@ -1763,3 +1763,69 @@ fn test_boxed_tagged_enum() {
         }
     );
 }
+
+
+#[derive(Debug)]
+#[tpd(root)]
+pub struct AdaptInVerify {
+    #[tdp(adapt_in_verify)] //default to toml_edit::Item if not set.
+    inner: usize,
+    #[tdp(adapt_in_verify(String))]
+    other: usize,
+}
+
+impl VerifyIn<Root> for PartialAdaptInVerify {
+    fn verify(&mut self, _parent: &Root) -> Result<(), (String, Option<String>)>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        self.other = self
+            .other
+            .adapt(|value, span| TomlValue::new_ok(value.len(), span));
+
+        self.inner = self.inner.adapt(|value, span| match value.as_str() {
+            Some(v) => TomlValue::new_ok(v.len(), span),
+            None => TomlValue::new_wrong_type(&value, span, "string-to-convert"),
+        });
+
+        Ok(())
+    }
+}
+
+#[test]
+fn test_adapt_inner() {
+    let result: Result<_, _> = AdaptInVerify::tpd_from_toml(
+        "
+inner = 'hello'
+other = 'Europe'
+
+",
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    if let Ok(output) = result {
+        assert_eq!(output.inner, 5);
+        assert_eq!(output.other, 6);
+    }
+}
+
+#[test]
+fn test_adapt_inner_wrong_types() {
+    let result: Result<_, _> = AdaptInVerify::tpd_from_toml(
+        "
+inner = 4
+other = 123
+
+",
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(!result.is_ok());
+
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
