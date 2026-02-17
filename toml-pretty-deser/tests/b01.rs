@@ -1637,3 +1637,134 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
         Ok(())
     }
 }
+
+// ===== Module-qualified tagged enum test =====
+mod inner_types {
+    use toml_pretty_deser_macros::tpd;
+
+    #[tpd(no_verify)]
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct ModInnerA {
+        pub x: i32,
+    }
+
+    #[tpd(no_verify)]
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct ModInnerB {
+        pub y: String,
+    }
+}
+
+#[tpd(tag = "variant")]
+#[derive(Debug, PartialEq, Eq)]
+enum ModQualifiedTaggedEnum {
+    TypeA(inner_types::ModInnerA),
+    TypeB(inner_types::ModInnerB),
+}
+
+#[tpd(tag = "variant")]
+#[derive(Debug, PartialEq, Eq)]
+enum BoxedTaggedEnum {
+    TypeA(Box<InnerA>),
+    TypeB(Box<inner_types::ModInnerB>),
+}
+
+#[tpd(root, no_verify)]
+#[derive(Debug, PartialEq, Eq)]
+struct OuterModQualified {
+    #[tpd(nested)]
+    item: ModQualifiedTaggedEnum,
+}
+
+#[test]
+fn test_module_qualified_tagged_enum() {
+    let toml = "
+        [item]
+            variant = 'TypeA'
+            x = 42
+    ";
+    let result = OuterModQualified::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    assert_eq!(
+        result.unwrap(),
+        OuterModQualified {
+            item: ModQualifiedTaggedEnum::TypeA(inner_types::ModInnerA { x: 42 })
+        }
+    );
+
+    let toml = "
+        [item]
+            variant = 'TypeB'
+            y = 'hello'
+    ";
+    let result = OuterModQualified::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    assert_eq!(
+        result.unwrap(),
+        OuterModQualified {
+            item: ModQualifiedTaggedEnum::TypeB(inner_types::ModInnerB {
+                y: "hello".to_string()
+            })
+        }
+    );
+}
+
+#[tpd(root, no_verify)]
+#[derive(Debug, PartialEq, Eq)]
+struct OuterBoxedTagged {
+    #[tpd(nested)]
+    item: BoxedTaggedEnum,
+}
+
+#[test]
+fn test_boxed_tagged_enum() {
+    let toml = "
+        [item]
+            variant = 'TypeA'
+            a = 10
+    ";
+    let result = OuterBoxedTagged::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    assert_eq!(
+        result.unwrap(),
+        OuterBoxedTagged {
+            item: BoxedTaggedEnum::TypeA(Box::new(InnerA { a: 10 }))
+        }
+    );
+
+    let toml = "
+        [item]
+            variant = 'TypeB'
+            y = 'world'
+    ";
+    let result = OuterBoxedTagged::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&result);
+    assert!(result.is_ok());
+    assert_eq!(
+        result.unwrap(),
+        OuterBoxedTagged {
+            item: BoxedTaggedEnum::TypeB(Box::new(inner_types::ModInnerB {
+                y: "world".to_string()
+            }))
+        }
+    );
+}

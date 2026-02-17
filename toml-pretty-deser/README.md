@@ -170,7 +170,7 @@ This offers:
 
 Use `#[tpd(no_verify)]` on your struct, and skip writing a [`VerifyIn`] implementation.
 
-#### skipping fields
+#### Skipping fields
 
 At times, you want fields that are not present in your TOML
 on your structs. For example, file handles derived from the filenames supplied
@@ -182,6 +182,27 @@ These fields get placed as Option<F> instead of TomlValue<F>
 inside the partial. You can set them in your VerifyIn implementation
 if required. The get turned into concrete values by .unwrap_or_default()
 on the Option.
+
+
+#### Defaulting fields
+
+Fields tagged with `#[tpd(default)]` get set to their default::Default() value
+if they are missing (not if they fail otherwise!).
+
+Alternatively, you can always apply defaults in your `VerifyIn` implementation
+```rust, ignore
+impl VerifyIn<Root> for PartialWithDefaults {
+    fn verify(
+        &mut self,
+        _helper: &mut TomlHelper<'_>,
+        _parent: &Root,
+    ) -> Result<(), (String, Option<String>)>
+    self.field = self.field.take().or_default() // equivalent to #[tpd(default)]
+    self.field = self.field.take().or(435) // const value
+    self.field = self.field.take().or_with(|| 435) // closure evaluated
+```
+
+
 
 
 #### Nested structs
@@ -221,7 +242,7 @@ struct InnerB {
 #[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
-    KindB(InnerB),
+    KindB(Box<InnerB>), // using a Box is supported.
 }
 ```
 

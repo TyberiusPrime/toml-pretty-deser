@@ -230,6 +230,37 @@ fn leaf_type_name(ty: &Type) -> String {
     );
 }
 
+/// Given a type like `foo::bar::MyStruct`, return a token stream for `foo::bar::PartialMyStruct`.
+/// For a simple `MyStruct`, returns `PartialMyStruct`.
+/// For wrapper types like `Box<Inner>`, returns `Box<PartialInner>`.
+fn partial_type_path(ty: &Type) -> proc_macro2::TokenStream {
+    if let Type::Path(TypePath { qself: None, path }) = ty {
+        let mut segments = path.segments.clone();
+        if let Some(last) = segments.last_mut() {
+            // Check if this is a wrapper type (Box, etc.) with a single generic argument
+            if last.ident == "Box" {
+                if let syn::PathArguments::AngleBracketed(args) = &last.arguments {
+                    if args.args.len() == 1 {
+                        if let syn::GenericArgument::Type(inner_ty) = &args.args[0] {
+                            let partial_inner = partial_type_path(inner_ty);
+                            let leading_colon = &path.leading_colon;
+                            let prefix_segments = segments.iter().take(segments.len() - 1);
+                            return quote! { #leading_colon #(#prefix_segments ::)* Box<#partial_inner> };
+                        }
+                    }
+                }
+            }
+            last.ident = format_ident!("Partial{}", last.ident);
+        }
+        let leading_colon = &path.leading_colon;
+        return quote! { #leading_colon #segments };
+    }
+    panic!(
+        "Cannot build partial type path from {:?}",
+        quote!(#ty).to_string()
+    );
+}
+
 /// Generate the partial type for a field's inner type (inside the outer `TomlValue` wrapper)
 fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> proc_macro2::TokenStream {
     match kind {
@@ -823,8 +854,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         .iter()
         .map(|v| {
             let ident = &v.ident;
-            let inner_name = leaf_type_name(&v.inner_type);
-            let partial_inner = format_ident!("Partial{}", inner_name);
+            let partial_inner = partial_type_path(&v.inner_type);
             quote! { #ident(toml_pretty_deser::TomlValue<#partial_inner>) }
         })
         .collect();
@@ -838,8 +868,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         .map(|v| {
             let ident = &v.ident;
             let ident_str = ident.to_string();
-            let inner_name = leaf_type_name(&v.inner_type);
-            let partial_inner = format_ident!("Partial{}", inner_name);
+            let partial_inner = partial_type_path(&v.inner_type);
 
             quote! {
                 #ident_str => {
