@@ -9,7 +9,7 @@ use crate::{
 
 /// The main parent-independent visitor trait.
 /// See `impl_visitor`! for macro-derived implementations for simple types,
-/// or the toml-pretty-deser-macros crate for the #[tdp] tagged struct implementations.
+/// or the toml-pretty-deser-macros crate for the `#[tpd]` tagged struct implementations.
 ///
 pub trait Visitor: Sized {
     type Concrete;
@@ -47,7 +47,7 @@ pub trait VerifyVisitor<Parent> {
 #[derive(Default)]
 pub struct Root;
 
-/// methods powering the `toml-pretty-deser-macros` crate's `#[tdp]` struct implementations.
+/// methods powering the `toml-pretty-deser-macros` crate's `#[tpd]` struct implementations.
 impl<T> TomlValue<T>
 where
     T: Visitor,
@@ -223,7 +223,7 @@ where
 /// # Errors
 ///
 /// On parsing & desererialization errors, returns `DeserError::ParsingFailure`
-/// (with [`toml_edit::TomlErr`]) or
+/// (with [`toml_edit::TomlError`]) or
 /// `DeserError::DeserFailure` with the partially filled struct.
 ///
 /// # Panics

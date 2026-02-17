@@ -239,19 +239,19 @@ one-element vectors instead.
 ### Adapter functions
 
 
-Use an attribute #[`tpd(with="function_name)"`] on the field:
+Use an attribute `#[tpd(with="function_name)"]` on the field:
 
 Example:
 
-#[tpd(root)]
-struct `ExampleAdapt` {
-    #[`tpd(with="adapt_to_upper_case`")]
-    name: String,
-}
-    
-
 ```rust
 use toml_pretty_deser::prelude::*;
+
+#[tpd(root)]
+struct ExampleAdapt {
+    #[tpd(with="adapt_to_upper_case")]
+    name: String,
+
+}
 
 pub fn adapt_to_upper_case(input: TomlValue<String>) -> TomlValue<String> {
     input.map(|s| s.to_uppercase())
