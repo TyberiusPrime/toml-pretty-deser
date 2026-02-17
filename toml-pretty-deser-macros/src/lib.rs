@@ -17,14 +17,14 @@ use syn::{
 ///
 /// # Field-level attributes
 /// - `#[tpd(nested)]` - Type has a Partial variant (nested struct or tagged enum)
-/// - `#[tpd(alias("name1", "name2"))]` - Field aliases
+/// - `#[tpd(alias = "name1", alias = "name2")]` - Field aliases
 /// - `#[tpd(skip)]` - Skip field, use `Default::default()` in `into_concrete`
 /// - `#[tpd(default)]` - Use `Default::default()` if field is missing from TOML
 /// - `#[tpd(with = "func")]` - Adapter function
 /// - `#[tpd(absorb_remaining)]` - Absorb all remaining unmatched fields
 ///
 /// # Variant-level attributes (simple enum)
-/// - `#[tpd(alias("name1", "name2"))]` - Variant aliases
+/// - `#[tpd(alias = "name1", alias = "name2")]` - Variant aliases
 ///
 ///
 /// # Panics
@@ -137,15 +137,10 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
                     attrs.with_fn = Some(s.value());
                 }
             } else if meta.path.is_ident("alias") {
-                let content;
-                syn::parenthesized!(content in meta.input);
-                let lits =
-                    syn::punctuated::Punctuated::<Lit, syn::Token![,]>::parse_terminated(&content)
-                        .expect("failed to parse alias");
-                for lit in lits {
-                    if let Lit::Str(s) = lit {
-                        attrs.aliases.push(s.value());
-                    }
+                let value = meta.value().expect("No value on alias");
+                let lit: Lit = value.parse().expect("unparsable value on alias");
+                if let Lit::Str(s) = lit {
+                    attrs.aliases.push(s.value());
                 }
             }
             Ok(())
@@ -661,15 +656,10 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
         }
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("alias") {
-                let content;
-                syn::parenthesized!(content in meta.input);
-                let lits =
-                    syn::punctuated::Punctuated::<Lit, syn::Token![,]>::parse_terminated(&content)
-                        .expect("failed to parse alias");
-                for lit in lits {
-                    if let Lit::Str(s) = lit {
-                        attrs.aliases.push(s.value());
-                    }
+                let value = meta.value().expect("No value on alias");
+                let lit: Lit = value.parse().expect("unparsable value on alias");
+                if let Lit::Str(s) = lit {
+                    attrs.aliases.push(s.value());
                 }
             }
             Ok(())

@@ -228,7 +228,7 @@ enum EitherOne {
 
 ### Aliases
 
-You can supply alias names on any field using `#[tpd(alias="another-name")]`.
+You can supply alias names on any field using `#[tpd(alias="another-name", alias="yet-another-name")]`.
 This can be repeated.
 
 To allow aliases on a tagged enum's tag field, 

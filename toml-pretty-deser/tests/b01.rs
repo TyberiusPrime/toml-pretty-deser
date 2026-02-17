@@ -44,7 +44,7 @@ use toml_pretty_deser_macros::tpd;
 #[tpd(root, no_verify)]
 #[derive(Debug)]
 pub struct Outer {
-    #[tpd(alias("u8"))]
+    #[tpd(alias="a8", alias = "u8")]
     a_u8: u8,
     opt_u8: Option<u8>,
     vec_u8: Vec<u8>,
@@ -89,7 +89,7 @@ pub struct DoubleNestedStruct {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AnEnum {
     TypeA,
-    #[tpd(alias("Bbb"))]
+    #[tpd(alias = "Bbb", alias="ccc")]
     TypeB,
 }
 
@@ -202,7 +202,7 @@ fn test_basic_alias() {
         u8 = 1
         opt_u8 =2
         vec_u8 = [3]
-        simple_enum = 'TypeB'
+        simple_enum = 'Bbb'
         [map_u8]
             a = 4
         [nested_struct]
