@@ -105,6 +105,8 @@ struct FieldAttrs {
     default: bool,
     with_fn: Option<String>,
     absorb_remaining: bool,
+    /// Intermediate type for adapt_in_verify. None = not set. Some(tokens) = intermediate type.
+    adapt_in_verify: Option<proc_macro2::TokenStream>,
 }
 
 impl FieldAttrs {
@@ -142,15 +144,33 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
                 if let Lit::Str(s) = lit {
                     attrs.aliases.push(s.value());
                 }
+            } else if meta.path.is_ident("adapt_in_verify") {
+                if meta.input.peek(syn::token::Paren) {
+                    let content;
+                    syn::parenthesized!(content in meta.input);
+                    let ty: syn::Type = content.parse().expect("Expected type in adapt_in_verify(...)");
+                    attrs.adapt_in_verify = Some(quote! { #ty });
+                } else {
+                    attrs.adapt_in_verify = Some(quote! { toml_edit::Item });
+                }
             }
             Ok(())
         })
         .expect("failed to parse nested meta");
     }
 
-      
     assert!(!(attrs.has_partial() && attrs.with_fn.is_some()),
         "Field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]");
+
+    assert!(
+        !(attrs.adapt_in_verify.is_some()
+            && (attrs.has_partial()
+                || attrs.with_fn.is_some()
+                || attrs.skip
+                || attrs.absorb_remaining
+                || attrs.default)),
+        "adapt_in_verify cannot be combined with nested/tagged/with/skip/absorb_remaining/default"
+    );
 
     attrs
 }
@@ -399,10 +419,12 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
             let ftype = &f.ty;
             if f.attrs.skip {
                 quote! { #fvis #ident: Option<#ftype> }
+            } else if let Some(ref intermediate_ty) = f.attrs.adapt_in_verify {
+                quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #ftype>> }
             } else {
                 let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
                 quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> }
-            } 
+            }
         })
         .collect();
 
@@ -433,6 +455,15 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
             };
 
             let is_option = matches!(&f.kind, TypeKind::Optional(_));
+
+            if let Some(ref intermediate_ty) = f.attrs.adapt_in_verify {
+                let concrete_ty = &f.ty;
+                return quote! {
+                    fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #concrete_ty>> {
+                        helper.get_with_aliases(#field_name_str, #aliases_expr)
+                    }
+                };
+            }
 
             if let Some(ref with_fn) = f.attrs.with_fn {
                 let with_fn_ident: syn::Path = syn::parse_str(with_fn).expect("with fn_indent parse_str failed");
@@ -520,6 +551,8 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
                 quote! { #ident: self.#ident.unwrap_or_default() }
             } else if is_unit_type(&f.kind) {
                 quote! { #ident: () }
+            } else if f.attrs.adapt_in_verify.is_some() {
+                quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false").into_concrete() }
             } else if needs_into_concrete(&f.kind, f.attrs.has_partial()) {
                 quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false").into_concrete() }
             } else {

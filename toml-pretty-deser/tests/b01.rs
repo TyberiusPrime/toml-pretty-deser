@@ -10,6 +10,7 @@ use indexmap::IndexMap;
 use toml_pretty_deser::{
     DeserError, FieldMatchMode, TomlValue, VecMode, VerifyIn,
     impl_visitor_for_from_str, impl_visitor_for_try_from_str,
+    helpers::MustAdaptHelper,
 };
 //library code
 //
@@ -1768,9 +1769,9 @@ fn test_boxed_tagged_enum() {
 #[derive(Debug)]
 #[tpd(root)]
 pub struct AdaptInVerify {
-    #[tdp(adapt_in_verify)] //default to toml_edit::Item if not set.
+    #[tpd(adapt_in_verify)] //default to toml_edit::Item if not set.
     inner: usize,
-    #[tdp(adapt_in_verify(String))]
+    #[tpd(adapt_in_verify(String))]
     other: usize,
 }
 

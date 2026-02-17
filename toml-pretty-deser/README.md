@@ -332,7 +332,7 @@ impl_visitor!(DNA, |helper| {
 On occasion, you need the parent to really to perform final validation
 , for example if you wanted to store a lookup into a vec on the parent.
 
-For this, you may tag fields with `#[tdp(adapt_in_verify(type)]`.
+For this, you may tag fields with `#[tpd(adapt_in_verify(type))]`.
 These field get first deserialized into a `MustAdapt::PreVerify(type)`,
 and you must turn them into `MustAdapt::PostVerify(field_type)` in your VerifyIn
 implementation, or you will receive a `DeserError` 
@@ -345,9 +345,9 @@ use toml_pretty_deser::prelude::*;
 #[derive(Debug)]
 #[tpd(root)]
 pub struct AdaptInVerify {
-    #[tdp(adapt_in_verify)] //default to toml_edit::Item if not type passed.
+    #[tpd(adapt_in_verify)] //default to toml_edit::Item if not type passed.
     inner: usize,
-    #[tdp(adapt_in_verify(String))]
+    #[tpd(adapt_in_verify(String))]
     other: usize,
 }
 
