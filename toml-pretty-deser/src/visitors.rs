@@ -6,7 +6,7 @@ use crate::{
 };
 
 #[macro_export]
-/// Cretae a visitor from your `fill_from_toml` implementation. The second argument is whether to
+/// Create a visitor from your `fill_from_toml` implementation. The second argument is whether to
 /// also implement an empty `VerifyIn`, which is usually what we want for 'value types'
 /// that can't fail.
 macro_rules! impl_visitor {

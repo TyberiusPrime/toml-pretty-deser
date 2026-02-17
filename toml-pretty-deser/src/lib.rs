@@ -23,7 +23,7 @@ pub enum DeserError<P> {
     /// TOML parsing failed. No `PartialT` available.
     /// A wrapper around [`toml_edit::TomlError`]
     ParsingFailure(TomlError, String),
-    /// Parsing suceeded, but deserialization failed. `PartialT` available with whatever could be
+    /// Parsing succeeded, but deserialization failed. `PartialT` available with whatever could be
     /// understood.
     DeserFailure(Vec<HydratedAnnotatedError>, Box<P>),
 }
@@ -104,7 +104,7 @@ pub trait VerifyIn<Parent> {
 pub struct AnnotatedError {
     // spans on the TOML source and the messages we should display for them.
     pub spans: Vec<SpannedMessage>,
-    /// A helpful hint that's not show inline with the code
+    /// A helpful hint that's shown after the TOML-snippet
     pub help: Option<String>,
 }
 
@@ -300,7 +300,7 @@ impl HydratedAnnotatedError {
 }
 
 /// Stores information about expected fields and their aliases
-/// For deny_uknown.
+/// For TomlHelper to allow checking for unknown fields.
 #[doc(hidden)]
 #[derive(Debug, Clone)]
 struct FieldInfo {
@@ -848,7 +848,7 @@ impl<T> TomlValue<T> {
     }
 
     /// Change the inner value if state is `TomlValueState::Ok`,
-    /// otherwise adapt the error type but loose the value.
+    /// otherwise adapt the error type but lose the value.
     /// # Panics
     /// When the ok -> value present invariant is violated
     pub fn map<R, F>(self, map_function: F) -> TomlValue<R>

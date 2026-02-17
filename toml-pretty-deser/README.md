@@ -25,7 +25,7 @@ Error 1/2
 2 │         a = 5
   ┆             ┬
   ┆             │
-  ┆             ╰─ a+b+c must add up to 100. Sum was 18.
+  ┆             ╰─ a+b+c must add up to 99. Sum was 18.
 3 │         b = 10
   ┆             ─┬
   ┆              │
@@ -83,7 +83,7 @@ impl VerifyIn<Root> for PartialShowOffTwoValueErrors {
                 let spans = vec![
                     (
                         self.a.span(),
-                        format!("a+b+c must add up to 100. Sum was {sum}."),
+                        format!("a+b+c must add up to 99. Sum was {sum}."),
                     ),
                     (self.b.span(), "See a".to_string()),
                     (self.c.span(), "See a".to_string()),
@@ -125,9 +125,9 @@ let toml = "
 ### Supported types
 
 - 'simple' types: integers, strings, booleans, `std::path::PathBufs`
-- Nested structs (tag struct definition with `#[tpd]` and use with `#[tpd(nested)`
+- Nested structs (tag struct definition with `#[tpd]` and use with `#[tpd(nested)]`
 - String->simple Enums  (tag enum definition with `#[tpd]`
-- Table->tagged enums with one struct each (`#[tpd(tag='toml-key')]` on enum, `#[tpd]` on inner structs, `#[tpd(nested)]` on fields
+- Table->tagged enums with one struct each (`#[tpd(tag="toml-key")]` on enum, `#[tpd]` on inner structs, `#[tpd(nested)]` on fields
 - Vectors of the above
 - `IndexMaps<FromString, One-of-the-above>`
 
@@ -215,7 +215,7 @@ enum EitherOne {
 
 ### Aliases
 
-You can supply alias names on any field using `[#tpd(alias="another-name"]`.
+You can supply alias names on any field using `#[tpd(alias="another-name")]`.
 This can be repeated.
 
 Note the section below on casing for the common case of case- or code-case-insensitivity
@@ -334,7 +334,7 @@ options.decompress = true
 ### "the trait bound `InnerStruct:Visitor` is not satisfied"
 
 You're missing the `#[tpd(nested)]` on your field definition,
-the Visitor trait is implemented by `#[tdp]` for the `PartialT` 
+the Visitor trait is implemented by `#[tpd]` for the `PartialT` 
 not the `T`
 
 

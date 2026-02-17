@@ -20,7 +20,7 @@ pub trait Visitor: Sized {
     /// Macro-derived: recursively checks all `TomlValue`<_> fields are .`is_ok()`
     fn can_concrete(&self) -> bool;
 
-    /// Macro-derived, recurisivly turn `TomlValues` into `AnnotatedError`
+    /// Macro-derived, recursively turn `TomlValues` into `AnnotatedError`
     fn v_register_errors(&self, col: &TomlCollector);
 
     /// Consume into the concrete `T`.
@@ -222,7 +222,7 @@ where
 ///
 /// # Errors
 ///
-/// On parsing & desererialization errors, returns `DeserError::ParsingFailure`
+/// On parsing & deserialization errors, returns `DeserError::ParsingFailure`
 /// (with [`toml_edit::TomlError`]) or
 /// `DeserError::DeserFailure` with the partially filled struct.
 ///
