@@ -8,7 +8,7 @@
 
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    DeserError, FieldMatchMode, TomlHelper, TomlValue, VecMode, VerifyIn,
+    DeserError, FieldMatchMode, TomlValue, VecMode, VerifyIn,
     impl_visitor_for_from_str, impl_visitor_for_try_from_str,
 };
 //library code
@@ -67,7 +67,6 @@ pub struct NestedStruct {
 impl VerifyIn<PartialOuter> for PartialNestedStruct {
     fn verify(
         &mut self,
-        helper: &mut TomlHelper<'_>,
         parent: &PartialOuter,
     ) -> Result<(), (String, Option<String>)> {
 
@@ -164,7 +163,6 @@ pub struct OtherOuter {
 impl VerifyIn<PartialOtherOuter> for PartialNestedStruct {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &PartialOtherOuter,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -1084,7 +1082,6 @@ pub struct WithDefaults {
 impl VerifyIn<Root> for PartialWithDefaults {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &Root,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -1483,7 +1480,6 @@ toml_pretty_deser::impl_visitor!(FailString, false, |helper| {
 impl VerifyIn<PartialMapTestValidationFailure> for FailString {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &PartialMapTestValidationFailure,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -1536,7 +1532,6 @@ pub struct UnitField {
 impl VerifyIn<Root> for PartialUnitField {
     fn verify(
         &mut self,
-        helper: &mut TomlHelper<'_>,
         _parent: &Root,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -1549,7 +1544,7 @@ impl VerifyIn<Root> for PartialUnitField {
             // Maybe when you need to return multi span errors,
             // and using TomlValue::new_custom?
             self.add_error = TomlValue::new_validation_failed(
-                helper.span(),
+                self.remainder.span(),
                 "There must be an even number of fields".to_string(),
                 Some(format!("There were {} fields", len)),
             );
@@ -1622,7 +1617,6 @@ fn test_nested_unit_field() {
 impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &PartialNestedUnitField,
     ) -> Result<(), (String, Option<String>)>
     where

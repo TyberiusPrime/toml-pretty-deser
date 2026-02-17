@@ -35,7 +35,7 @@ pub trait Visitor: Sized {
 pub trait VerifyVisitor<Parent> {
     #[allow(unused_variables)]
     #[must_use]
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &Parent) -> Self
+    fn vv_validate(self, parent: &Parent) -> Self
     where
         Self: Sized + Visitor,
     {
@@ -70,7 +70,7 @@ where
     ///
     /// When ok -> value present invariant is violated
     #[must_use]
-    pub fn tpd_validate<R>(self, helper: &mut TomlHelper, parent: &R) -> TomlValue<T>
+    pub fn tpd_validate<R>(self, parent: &R) -> TomlValue<T>
     where
         T: Visitor + VerifyVisitor<R> + VerifyIn<R>,
     {
@@ -80,8 +80,8 @@ where
                 let mut maybe_validated = self
                     .value
                     .expect("ok, but no value?")
-                    .vv_validate(helper, parent);
-                let v = maybe_validated.verify(helper, parent);
+                    .vv_validate(parent);
+                let v = maybe_validated.verify(parent);
                 match (v, maybe_validated.can_concrete()) {
                     (Ok(()), true) => TomlValue::new_ok(maybe_validated, span),
                     (Ok(()), false) => TomlValue::new_nested(Some(maybe_validated)),
@@ -97,18 +97,13 @@ where
             }
             TomlValueState::Nested => {
                 if let Some(value) = self.value {
-                    let mut maybe_validated = value.vv_validate(helper, parent);
-                    maybe_validated.verify(helper, parent).ok();
+                    let mut maybe_validated = value.vv_validate(parent);
+                    maybe_validated.verify(parent).ok();
                     if maybe_validated.can_concrete() {
-                        TomlValue::new_ok(maybe_validated, helper.span())
+                        TomlValue::new_ok(maybe_validated, 0..0)
                     } else {
                         TomlValue::new_nested(Some(maybe_validated))
                     }
-                    // {
-                    //     Ok(()) => TomlValue::new_nested(Some(maybe_validated)),
-                    //
-                    //     Err((msg, hint)) => TomlValue::new_validation_failed(helper.span(), msg, hint),
-                    // }
                 } else {
                     self
                 }
@@ -252,7 +247,7 @@ where
     let mut helper = TomlHelper::from_item(&top_level, col.clone());
 
     let root = P::fill_from_toml(&mut helper);
-    let mut root = root.tpd_validate(&mut helper, &Root);
+    let mut root = root.tpd_validate(&Root);
     if helper.has_unknown() {
         root.state = TomlValueState::UnknownKeys(helper.unknown_spans());
     }

@@ -534,7 +534,7 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         .filter(|f| !f.attrs.skip && !is_unit_type(&f.kind))
         .map(|f| {
             let ident = &f.ident;
-            quote! { self.#ident = self.#ident.take().tpd_validate(helper, &self); }
+            quote! { self.#ident = self.#ident.take().tpd_validate(&self); }
         })
         .collect();
 
@@ -614,7 +614,7 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         }
 
         impl<__TpdR> toml_pretty_deser::VerifyVisitor<__TpdR> for #partial_name {
-            fn vv_validate(mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>, _parent: &__TpdR) -> Self
+            fn vv_validate(mut self, _parent: &__TpdR) -> Self
             where
                 Self: Sized + toml_pretty_deser::Visitor,
             {
@@ -938,7 +938,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
             let ident = &v.ident;
             quote! {
                 #partial_name::#ident(toml_value) => {
-                    *toml_value = toml_value.take().tpd_validate(helper, parent);
+                    *toml_value = toml_value.take().tpd_validate(parent);
                 }
             }
         })
@@ -999,7 +999,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         }
 
         impl<__TpdR> toml_pretty_deser::VerifyVisitor<__TpdR> for #partial_name {
-            fn vv_validate(mut self, helper: &mut toml_pretty_deser::TomlHelper<'_>, parent: &__TpdR) -> Self
+            fn vv_validate(mut self, parent: &__TpdR) -> Self
             where
                 Self: Sized + toml_pretty_deser::Visitor,
             {

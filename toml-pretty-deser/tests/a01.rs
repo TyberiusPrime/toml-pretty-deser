@@ -8,7 +8,7 @@
 #![allow(clippy::uninlined_format_args)]
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    DeserError, FieldMatchMode, TomlHelper, TomlValue, VecMode, VerifyIn,
+    DeserError, FieldMatchMode, TomlValue, VecMode, VerifyIn,
     impl_visitor_for_from_str, impl_visitor_for_try_from_str,
 };
 //library code
@@ -67,7 +67,6 @@ pub struct NestedStruct {
 impl VerifyIn<PartialOuter> for PartialNestedStruct {
     fn verify(
         &mut self,
-        helper: &mut TomlHelper<'_>,
         parent: &PartialOuter,
     ) -> Result<(), (String, Option<String>)> {
         if let Some(value) = self.other_u8.as_mut()
@@ -160,7 +159,6 @@ pub struct OtherOuter {
 impl VerifyIn<PartialOtherOuter> for PartialNestedStruct {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &PartialOtherOuter,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -335,6 +333,7 @@ fn test_basic_missing() {
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
         assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
+        assert_ne!(inner.nested_struct.span(),  0..0);
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
     }
 }
@@ -1056,7 +1055,6 @@ pub struct WithDefaults {
 impl VerifyIn<Root> for PartialWithDefaults {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &Root,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -1451,7 +1449,6 @@ toml_pretty_deser::impl_visitor!(FailString, false, |helper| {
 impl VerifyIn<PartialMapTestValidationFailure> for FailString {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &PartialMapTestValidationFailure,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -1501,7 +1498,6 @@ pub struct UnitField {
 impl VerifyIn<Root> for PartialUnitField {
     fn verify(
         &mut self,
-        helper: &mut TomlHelper<'_>,
         _parent: &Root,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -1513,7 +1509,7 @@ impl VerifyIn<Root> for PartialUnitField {
             //and end up with pretty much the same error message.
             //Maybe when you need to return multi span errors?
             self.add_error = TomlValue::new_validation_failed(
-                helper.span(),
+                self.remainder.span(),
                 "There must be an even number of fields".to_string(),
                 Some(format!("There were {} fields", len)),
             );
@@ -1585,7 +1581,6 @@ impl VerifyIn<Root> for PartialNestedUnitField {}
 impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
     fn verify(
         &mut self,
-        _helper: &mut TomlHelper<'_>,
         _parent: &PartialNestedUnitField,
     ) -> Result<(), (String, Option<String>)>
     where
@@ -1612,21 +1607,12 @@ pub struct AdaptInVerify {
 impl VerifyIn<Root> for PartialAdaptInVerify {
     fn verify(
         &mut self,
-        helper: &mut TomlHelper<'_>,
         _parent: &Root,
     ) -> Result<(), (String, Option<String>)>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        let tv: TomlValue<toml_edit::Item> = self.tpd_get_inner(helper);
-        let span = tv.span();
-        // self.inner = tv.try_map(|item| {
-        //     if let Some(s) = item.as_str() {
-        //         TomlValue::new_ok(s.len(), span)
-        //     } else {
-        //         TomlValue::new_wrong_type(&item, helper.span(), "string")
-        //     }
-        // });
+        // TODO: adapt_in_verify feature needs redesign without helper
         Ok(())
     }
 }

@@ -87,11 +87,7 @@ pub trait VerifyIn<Parent> {
     /// # Errors
     /// When the developer wants to replace this value with
     /// a `TomlValue` in failed verification state.
-    fn verify(
-        &mut self,
-        helper: &mut TomlHelper<'_>,
-        parent: &Parent,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, parent: &Parent) -> Result<(), (String, Option<String>)>
     where
         Self: Sized + Visitor,
     {
@@ -247,10 +243,7 @@ fn pretty_error_message(
                                 }
                             })
                             .map(|(line_no, line)| {
-                                format!(
-                                    "{:>digits_needed$} │ {line}",
-                                    line_no + 1,
-                                )
+                                format!("{:>digits_needed$} │ {line}", line_no + 1,)
                             })
                             .collect()
                     }

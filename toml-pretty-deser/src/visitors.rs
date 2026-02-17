@@ -163,9 +163,9 @@ impl<T: Visitor> Visitor for Option<T> {
 }
 
 impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Option<T> {
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self {
+    fn vv_validate(self, parent: &R) -> Self {
         match self {
-            Some(v) => Some(v.vv_validate(helper, parent)),
+            Some(v) => Some(v.vv_validate(parent)),
             None => None,
         }
     }
@@ -192,8 +192,8 @@ impl<T: Visitor> Visitor for Box<T> {
     }
 }
 impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Box<T> {
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self {
-        Box::new((*self).vv_validate(helper, parent))
+    fn vv_validate(self, parent: &R) -> Self {
+        Box::new((*self).vv_validate(parent))
     }
 }
 impl<R, T: Visitor + VerifyVisitor<R>> VerifyIn<R> for Box<T> {}
@@ -274,13 +274,13 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
 }
 
 impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R> for Vec<TomlValue<T>> {
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self
+    fn vv_validate(self, parent: &R) -> Self
     where
         Self: Sized + Visitor,
     {
         let v: Vec<TomlValue<T>> = self
             .into_iter()
-            .map(|entry| entry.tpd_validate(helper, parent))
+            .map(|entry| entry.tpd_validate(parent))
             .collect();
         v
     }
@@ -338,13 +338,13 @@ where
 impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R>
     for IndexMap<K, TomlValue<T>>
 {
-    fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &R) -> Self
+    fn vv_validate(self, parent: &R) -> Self
     where
         Self: Sized + Visitor,
     {
         let out: IndexMap<K, TomlValue<T>> = self
             .into_iter()
-            .map(|(k, v)| (k, v.tpd_validate(helper, parent)))
+            .map(|(k, v)| (k, v.tpd_validate(parent)))
             .collect();
         out
     }
