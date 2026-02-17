@@ -9,9 +9,9 @@ use syn::{
 ///
 /// # Usage
 /// - `#[tpd(root)]` on struct - Top-level deserialization target
-/// - `#[tpd(root, no_verify)]` on struct - Root with blanket VerifyIn
-/// - `#[tpd]` on struct - Nested struct (user must provide VerifyIn impls)
-/// - `#[tpd(no_verify)]` on struct - Nested struct with blanket VerifyIn
+/// - `#[tpd(root, no_verify)]` on struct - Root with blanket `VerifyIn`
+/// - `#[tpd]` on struct - Nested struct (user must provide `VerifyIn` impls)
+/// - `#[tpd(no_verify)]` on struct - Nested struct with blanket `VerifyIn`
 /// - `#[tpd(tag = "key")]` on enum - Tagged enum
 /// - `#[tpd]` on enum - Simple string enum
 ///
@@ -25,13 +25,19 @@ use syn::{
 ///
 /// # Variant-level attributes (simple enum)
 /// - `#[tpd(alias("name1", "name2"))]` - Variant aliases
+///
+///
+/// # Panics
+///
+/// - When used on an incompatible enum
+/// - When nested structs are not tagged #[tpd(nested)]
 #[proc_macro_attribute]
 pub fn tpd(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     let attr_args = attr.to_string();
     match &input.data {
-        Data::Struct(_) => derive_struct(input, &attr_args),
-        Data::Enum(_) => derive_enum(input, &attr_args),
+        Data::Struct(_) => derive_struct(&input, &attr_args),
+        Data::Enum(_) => derive_enum(&input, &attr_args),
         Data::Union(_) => panic!("tpd cannot be applied to unions"),
     }
 }
@@ -48,7 +54,7 @@ fn is_no_verify_attr(attr_args: &str) -> bool {
     attr_args.contains("no_verify")
 }
 
-/// Strip #[tpd(...)] attributes from a DeriveInput and return the cleaned item as tokens
+/// Strip #[tpd(...)] attributes from a `DeriveInput` and return the cleaned item as tokens
 fn emit_original_item(input: &DeriveInput) -> proc_macro2::TokenStream {
     let mut cleaned = input.clone();
     cleaned.attrs.retain(|a| !a.path().is_ident("tpd"));
@@ -148,9 +154,8 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
     }
 
       
-    if attrs.has_partial() && attrs.with_fn.is_some() {
-        panic!("Field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]");
-    }
+    assert!(!(attrs.has_partial() && attrs.with_fn.is_some()),
+        "Field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]");
 
     attrs
 }
@@ -232,7 +237,7 @@ fn leaf_type_name(ty: &Type) -> String {
     );
 }
 
-/// Generate the partial type for a field's inner type (inside the outer TomlValue wrapper)
+/// Generate the partial type for a field's inner type (inside the outer `TomlValue` wrapper)
 fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> proc_macro2::TokenStream {
     match kind {
         TypeKind::Leaf(ty) => {
@@ -273,7 +278,7 @@ fn is_unit_type(kind: &TypeKind) -> bool {
     false
 }
 
-/// Check if into_concrete() needs to be called on the unwrapped value
+/// Check if `into_concrete()` needs to be called on the unwrapped value
 fn needs_into_concrete(kind: &TypeKind, has_partial: bool) -> bool {
     match kind {
         TypeKind::Leaf(_) => has_partial,
@@ -302,7 +307,16 @@ fn is_indexmap_type(ty: &Type) -> bool {
 // Struct derivation
 // ============================================================================
 
-fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
+#[allow(clippy::too_many_lines)]
+fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
+    struct FieldInfo {
+        ident: syn::Ident,
+        attrs: FieldAttrs,
+        kind: TypeKind,
+        vis: syn::Visibility,
+        ty: Type,
+    }
+
     let original_item = emit_original_item(&input);
     let is_root = is_root_attr(attr_args);
     let no_verify = is_no_verify_attr(attr_args);
@@ -318,13 +332,6 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         _ => unreachable!(),
     };
 
-    struct FieldInfo {
-        ident: syn::Ident,
-        attrs: FieldAttrs,
-        kind: TypeKind,
-        vis: syn::Visibility,
-        ty: Type,
-    }
 
     let field_infos: Vec<FieldInfo> = fields
         .iter()
@@ -355,11 +362,9 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         .collect();
 
     let absorb_count = field_infos.iter().filter(|f| f.attrs.absorb_remaining).count();
-    if absorb_count > 1 {
-            panic!(
+    assert!(absorb_count <= 1, 
                 "Only one field can have #[tpd_absorb_remaining]. Found {absorb_count} fields with this attribute.",
             );
-        }
 
     // --- Partial struct fields (skip #[tpd(skip)] fields) ---
     let partial_fields: Vec<proc_macro2::TokenStream> = field_infos
@@ -369,12 +374,12 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
             let ident = &f.ident;
             let fvis = &f.vis;
             let ftype = &f.ty;
-            if !f.attrs.skip {
+            if f.attrs.skip {
+                quote! { #fvis #ident: Option<#ftype> }
+            } else {
                 let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
                 quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> }
-            } else {
-                quote! { #fvis #ident: Option<#ftype>}
-            }
+            } 
         })
         .collect();
 
@@ -511,15 +516,15 @@ fn derive_struct(input: DeriveInput, attr_args: &str) -> TokenStream {
         .collect();
 
     // --- is_table check for non-root ---
-    let is_table_check = if !is_root {
+    let is_table_check = if is_root {
+        quote! {}
+    } else {
         quote! {
             if !helper.is_table() {
                 return toml_pretty_deser::TomlValue::new_wrong_type(helper.item, helper.span(), "table or inline table");
             }
         }
-    } else {
-        quote! {}
-    };
+    }; 
 
     // --- no_verify impl ---
     let no_verify_impl = if no_verify {
@@ -614,7 +619,7 @@ fn parse_tag_from_attr(attr_args: &str) -> Option<String> {
         return None;
     }
     // Parse: tag = "value"
-    let meta: syn::Meta = syn::parse_str(&format!("tpd({})", attr_args)).expect("Could not parse attr meta");
+    let meta: syn::Meta = syn::parse_str(&format!("tpd({attr_args})")).expect("Could not parse attr meta");
     if let syn::Meta::List(list) = meta {
         let nested: syn::MetaNameValue = syn::parse2(list.tokens).expect(&format!("Failed to parse '{attr_args}'"));
         if nested.path.is_ident("tag") {
@@ -661,17 +666,21 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
     attrs
 }
 
-fn derive_enum(input: DeriveInput, attr_args: &str) -> TokenStream {
+fn derive_enum(input: &DeriveInput, attr_args: &str) -> TokenStream {
     let tag = parse_tag_from_attr(attr_args);
 
     if tag.is_some() {
-        derive_tagged_enum(input, tag.expect("Failed to parse tag #[tdp(tag=\"name\")] from {attr_args}"))
+        derive_tagged_enum(&input, &tag.expect("Failed to parse tag #[tdp(tag=\"name\")] from {attr_args}"))
     } else {
-        derive_simple_enum(input)
+        derive_simple_enum(&input)
     }
 }
 
-fn derive_simple_enum(input: DeriveInput) -> TokenStream {
+fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
+    struct VariantInfo {
+        ident: syn::Ident,
+        attrs: VariantAttrs,
+    }
     let original_item = emit_original_item(&input);
     let name = &input.ident;
 
@@ -680,10 +689,6 @@ fn derive_simple_enum(input: DeriveInput) -> TokenStream {
         _ => unreachable!(),
     };
 
-    struct VariantInfo {
-        ident: syn::Ident,
-        attrs: VariantAttrs,
-    }
 
     let variant_infos: Vec<VariantInfo> = variants
         .iter()
@@ -769,7 +774,12 @@ fn derive_simple_enum(input: DeriveInput) -> TokenStream {
     output.into()
 }
 
-fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
+#[allow(clippy::too_many_lines)]
+fn derive_tagged_enum(input: &DeriveInput, tag_key: &str) -> TokenStream {
+    struct TaggedVariantInfo {
+        ident: syn::Ident,
+        inner_type: Type,
+    }
     let original_item = emit_original_item(&input);
     let name = &input.ident;
     let partial_name = format_ident!("Partial{}", name);
@@ -780,10 +790,6 @@ fn derive_tagged_enum(input: DeriveInput, tag_key: String) -> TokenStream {
         _ => unreachable!(),
     };
 
-    struct TaggedVariantInfo {
-        ident: syn::Ident,
-        inner_type: Type,
-    }
 
     let variant_infos: Vec<TaggedVariantInfo> = variants
         .iter()

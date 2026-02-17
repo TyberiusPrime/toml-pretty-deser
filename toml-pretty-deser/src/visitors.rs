@@ -100,6 +100,7 @@ impl_visitor!(f64, |helper| {
 
 impl_visitor!((), |helper|  TomlValue::new_ok((), helper.span()) );
 
+/// implement a Visitor on a value that implements From<String>
 #[macro_export]
 macro_rules! impl_visitor_for_from_str {
     ($ty:ty) => {
@@ -112,6 +113,7 @@ macro_rules! impl_visitor_for_from_str {
     };
 }
 
+/// implement a Visitor on a value that implements TryFrom<String>
 #[macro_export]
 macro_rules! impl_visitor_for_try_from_str {
     ($ty:ty, $help:expr) => {

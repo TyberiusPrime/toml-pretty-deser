@@ -7,24 +7,31 @@ use crate::{
     TomlHelper, TomlValue, TomlValueState, VecMode, VerifyIn,
 };
 
-//use crate::visitors::*;
-
-pub trait Visitor: Sized + std::fmt::Debug {
+/// The main parent-independent visitor trait.
+/// See impl_visitor! for macro-derived implementations for simple types,
+/// or the toml-pretty-deser-macros crate for the #[tdp] tagged struct implementations.
+///
+pub trait Visitor: Sized {
     type Concrete;
 
-    /// Populate self from TOML. Called by TomlValue<Self>::fill_from_toml,
-    /// which handles the Missing/TypeError envelope before delegating here.
+    /// Populate self from TOML, given the helper around `TomlItem`
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self>;
 
     /// Macro-derived: recursively checks all TomlValue<_> fields are .is_ok()
     fn can_concrete(&self) -> bool;
 
+    /// Macro-derived, recurisivly turn TomlValues into AnnotatedError
     fn v_register_errors(&self, col: &TomlCollector);
 
-    /// Consume into concrete. Allowed to panic if !can_concrete().
+    /// Consume into the concrete `T`.
+    ///
+    ///
+    /// # Panics
+    /// - if !can_concrete()
     fn into_concrete(self) -> Self::Concrete;
 }
 
+/// The parent-dependent visitor trait. Implementations are macro-derived.
 pub trait VerifyVisitor<Parent> {
     #[allow(unused_variables)]
     fn vv_validate(self, helper: &mut TomlHelper<'_>, parent: &Parent) -> Self
@@ -35,13 +42,16 @@ pub trait VerifyVisitor<Parent> {
     }
 }
 
+/// The empty struct passed to top level [`VerifyIn`] calls.
 #[derive(Default)]
 pub struct Root;
 
+/// methods powering the `toml-pretty-deser-macros` crate's `#[tdp]` struct implementations.
 impl<T> TomlValue<T>
 where
     T: Visitor,
 {
+    /// called by the toml-pretty-deser-macros fill_from_toml implementation.
     pub fn from_visitor(visitor: T, helper: &TomlHelper<'_>) -> Self {
         if helper.has_unknown() {
             TomlValue {
@@ -169,6 +179,23 @@ where
                         err
                     })
                     .collect()
+            }
+            TomlValueState::Custom {
+                spans,
+                help,
+            } => {
+                if let Some(value) = self.value.as_ref() {
+                    value.v_register_errors(col);
+                };
+                let mut err = AnnotatedError::placed(
+                    spans.iter().next().map(|x| &x.0).unwrap_or(&(0..0)).clone(),
+                    &spans.iter().next().map(|x| x.1.as_str()).unwrap_or_else(||"Missing message"),
+                    help.as_ref().map_or("", std::string::String::as_str),
+                );
+                for (span, msg) in spans.iter().skip(1) {
+                    err.add_span(span.clone(), msg);
+                }
+                vec![err]
             }
         };
 

@@ -13,15 +13,15 @@ and keeping whatever could be understood around in case of errors:
         a = 5
         b = 10
         c = 3
+        d = 100
 ```
 
 becomes
 
-```
+```text
 Error 1/2
   ╭─example.toml
   ┆
-
 2 │         a = 5
   ┆             ┬
   ┆             │
@@ -49,13 +49,15 @@ Error 2/2
   ┆              │
   ┆              ╰── Must be below 50
 ──╯
-Hint: For demonstration purposes only`
+Hint: For demonstration purposes only
+```
 
 Using this client Rust code:
 
 ```rust
 use toml_pretty_deser::prelude::*;
-#[tpd_make_partial(false)]
+
+#[tpd(root)]
 struct ShowOffTwoValueErrors {
     a: i64,
     b: i64,
@@ -63,8 +65,12 @@ struct ShowOffTwoValueErrors {
     d: i64,
 }
 
-impl VerifyFromToml for PartialShowOffTwoValueErrors {
-    fn verify(mut self, helper: &mut TomlHelper<'_>) -> Self
+impl VerifyIn<Root> for PartialShowOffTwoValueErrors {
+    fn verify(
+        &mut self,
+        helper: &mut TomlHelper<'_>,
+        parent: &Root,
+    ) -> Result<(), (String, Option<String>)>
     where
         Self: Sized,
     {
@@ -82,11 +88,13 @@ impl VerifyFromToml for PartialShowOffTwoValueErrors {
                     (self.b.span(), "See a".to_string()),
                     (self.c.span(), "See a".to_string()),
                 ];
-                helper.add_err_by_spans(spans, "For example, set a = 33, b=66, c=0")
+                self.a = TomlValue::new_custom(
+                    self.a.value,
+                    spans, Some("For example, set a = 33, b=66, c=0"));
             }
         }
 
-        self.d = self.d.verify(helper, |value| {
+        self.d = self.d.take().verify(|value| { //the take is necessary
             if *value < 50 {
                 Ok(())
             } else {
@@ -97,7 +105,8 @@ impl VerifyFromToml for PartialShowOffTwoValueErrors {
             }
         });
 
-        self
+        Ok(())
+
     }
 }
 let toml = "
@@ -107,81 +116,96 @@ let toml = "
         d = 100
         ";
 
-    let result = deserialize::<PartialShowOffTwoValueErrors, ShowOffTwoValueErrors>(toml);
+    let result = ShowOffTwoValueErrors::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
     if let Err(err) = result {
         println!("{}", err.pretty("example.toml"));
     }
 ```
 
+### Supported types
+
+- 'simple' types: integers, strings, booleans, `std::path::PathBufs`
+- Nested structs (tag struct definition with `#[tpd]` and use with `#[tpd(nested)`
+- String->simple Enums  (tag enum definition with `#[tpd]`
+- Table->tagged enums with one struct each (`#[tpd(tag='toml-key')]` on enum, 
+    `#[tpd]` on inner structs, `#[tpd(nested)]` on fields
+- Vectors of the above
+- `IndexMaps<FromString, One-of-the-above>`
+
+
+
+
 ### How this works:
 
-`#[tpd_make_partial]` writes a `PartialT` for every struct T you apply it on,
+`#[tpd]` writes a `PartialT` for every struct T you apply it on,
 and implementations to go from `toml_edit` types to your `PartialT`, as well
-as a conversion to turn complete `PartialT` back into T.
+as a conversion to turn complete `PartialT` back into T, all using the visitor pattern.
 
-The `PartialT` consists of all the same fields, wrapped in `TomlValue` - which records the
+The `PartialT` consists of all the same fields as your `T`, wrapped in `TomlValue` - which records the
 deserialization state and where in the TOML document it was.
 
-`deserialize` will then give you an Ok(T) or an Err with a list of errors and the partial
-state (If parsing succeeded. Otherwise you get just a parse error). See [`DeserError`]
+`T::tpd_from_toml` will then give you an Ok(T) or an Err with a list of errors and the partial
+state (If parsing succeeded. Otherwise you get just a `DeserError::ParsingFailuree. See [`DeserError`].
 
 
-The hydrated errors contain information about what went wrong, and can turn themselves into pretty error messages
+The errors contain information about what went wrong, and can turn themselves into pretty error messages
 as in the example above.
 
 ### Why not just serde
 
 Serde is great. If it works for you, good, use it!.
+It's got way more battle hardening than this.
 
-But I want pretty error messages, more than one error reported at once,
-pin-point accuracy in the errors and the ability to continue on with incomplete
-configurations. Oh, and optional case and snake-case insensitivity.
+This offers:
+- partial deserialization
+- pretty, highly targeted error messages
+- multiple errors at once
+- the ability to access the partial parent during verification.
+- optionally snake-case (anyCase, actually) and upper/lower case insensitivity.
+
 
 
 ### Usage Variations
 
 #### No custom validation
 
-Use `tpd_make_partial(true)` or plain `tpd_make_partial`.
+Use `#[tpd(no_verify)]` on your struct, and skip writing a [`VerifyIn`] implementation.
 
-`VerifyFromToml for PartialT` will be produced by the macro.
 
 #### Nested structs
 
 When you want to represent `NestedT` as `PartialNestedT` inside your struct T,
-tag them with `#[tpd_nested]`
+tag them with `#[tpd(nested)]`
 
-Complete error checking is provided either way.
 
 #### Enums
 
-
 For simple string-typed Enums without an inner payload, tag the enum declaration with
-[`toml_pretty_deser_macros::tpd_make_enum`].
+`#[tpd]`.
 
 For deserializing tagged Enums with a struct payload,
-use [`toml_pretty_deser_macros::tpd_make_tagged_enum`] on the enum declaration,
+use `#[tpd(tag="toml_key")]` on the enum declaration,
 and pass in the tag key name (and it's aliases).
 
 Example:
 
 ```rust
 use toml_pretty_deser::prelude::*;
-#[tpd_make_partial]
+#[tpd(no_verify)]
 #[derive(Debug)]
 struct InnerA {
     n: i32,
     o: u32,
 }
 
-#[tpd_make_partial]
+#[tpd(no_verify)]
 #[derive(Debug)]
 struct InnerB {
     s: u32,
     t: u32,
 }
 
-#[tpd_make_tagged_enum("kind", aliases = ["type"])]
+#[tpd(tag="kind")]
 #[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
@@ -192,54 +216,130 @@ enum EitherOne {
 
 ### Aliases
 
-You can supply alias names on any field using `[#tpd_alias(name1, name2]`.
+You can supply alias names on any field using `[#tpd(alias="another-name"]`.
+This can be repeated.
+
 Note the section below on casing for the common case of case- or code-case-insensitivity
 
 
 ### Casing
 
-By default, field names and enum variants are matched strictl.
+By default, field names and enum variants are matched strictly.
 
-[`deserialize_with_mode`] allows you to change this to case-insensitive (upper/lower only) or
-code-case-insensitive (allowing `snake_case`, camelCase, kebab-case, etc. to match each other).
+`tpd_from_toml`'s `FieldMatchMode` argument allows you to change this to case-insensitive (upper/lower only) or
+code-case-insensitive (allowing 'snake_case', 'camelCase', 'kebab-case', etc. to match each other).
 
 
 ### Single elements to Vecs
 
 By default, when a field is `Vec<T>`, a TOML list must be provided.
-[`deserialize_with_mode`] allows you to change this to allow single elements to be treated as
-one-element Vecs instead.
+`tpd_from_toml` `VecMode` argument allows you to change this to allow single elements to be treated as
+one-element vectors instead.
 
+
+### Adapter functions
+
+
+Use an attribute #[tpd(with="function_name"] on the field:
+
+Example:
+
+#[tpd(root)]
+struct ExampleAdapt {
+    #[tpd(with="adapt_to_upper_case")]
+    name: String,
+}
+    
+
+```rust
+use toml_pretty_deser::prelude::*;
+
+pub fn adapt_to_upper_case(input: TomlValue<String>) -> TomlValue<String> {
+    input.map(|s| s.to_uppercase())
+}
+```
 
 ### Custom types
 
-To enable the deserialization of custom types, implement [`FromTomlItem`] for them.
+To enable the deserialization of custom types, implement [`Visitor`] for them.
+
+If they have no inner fields to descend into, 
+you can use the [`impl_visitor`] macro:
+
+
 ```rust
 use toml_pretty_deser::prelude::*;
 struct DNA(String);
-impl FromTomlItem for DNA {
-    fn from_toml_item(
-        item: &toml_edit::Item,
-        parent_span: std::ops::Range<usize>,
-        _col: &TomlCollector,
-    ) -> TomlValue<DNA> {
-        match item.as_str() {
-            Some(s) => {
+
+impl_visitor!(DNA, |helper| {
+    match helper.item.as_str() {
+        Some(s) => {
                 if s.chars()
                     .all(|c| matches!(c, 'a' | 'c' | 'g' | 't' | 'A' | 'C' | 'G' | 'T'))
                 {
-                    TomlValue::new_ok(DNA(s.to_string()), parent_span)
+                    TomlValue::new_ok(DNA(s.to_string()), helper.span())
                 } else {
                     TomlValue::new_validation_failed(
-                        item.span().unwrap_or(parent_span),
+                        helper.span(),
                         "Invalid base".to_string(),
                         Some("Use only AGTC".to_string()),
                     )
                 }
             }
-            None => TomlValue::new_wrong_type(item, parent_span, "String(DNA)"),
-        }
+        None => TomlValue::new_wrong_type(&helper.item, helper.span(), "String"),
     }
-}
+});
+
 ```
+
+
+
+### Absorb remaining
+
+By default, non-matching keys are errors.
+
+You can absorb all non-matching keys into a field using 
+`#[tpd(absorb_remaining)]`
+
+Example:
+
+
+```rust
+
+use toml_pretty_deser::prelude::*;
+use indexmap::IndexMap;
+
+#[tpd(root, no_verify)]
+struct ExampleAbsorb {
+    #[tpd(nested)]
+    options: Options,
+    #[tpd(absorb_remaining)]
+    input_files: IndexMap<String, String>,
+}
+
+#[derive(Debug)]
+#[tpd(no_verify)]
+struct Options {
+    decompress: bool
+}
+
+```
+will read TOMLs like
+```TOML
+fileA = 'hello.txt'
+fileB = 'world.txt'
+options.decompress = true
+```
+
+
+### "the trait bound `InnerStruct:Visitor` is not satisfied"
+
+You're missing the `#[tpd(nested)]` on your field definition,
+the Visitor trait is implemented by `#[tdp]` for the `PartialT` 
+not the `T`
+
+
+
+
+
 

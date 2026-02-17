@@ -1,12 +1,10 @@
-pub use crate::{DeserError, FieldMatchMode, VecMode, VerifyIn, helpers::Root};
 /// Import `toml_pretty_deser::prelude::`* to make use of it's traits
 ///
-/// Rexports everything the deserialization needs
-// pub use crate::{
-//     AnnotatedError, AsTableLikePlus, DeserError, FieldMatchMode,  TomlCollector,
-//     TomlHelper, TomlValue, TomlValueState, VecMode, suggest_alternatives,
-// };
-// pub use std::cell::RefCell;
-// pub use std::rc::Rc;
-//
+/// Rexports everything the deserialization user might need
+///
 pub use toml_pretty_deser_macros::tpd;
+
+pub use crate::{
+    DeserError, FieldMatchMode, Root, TomlHelper, TomlValue, VecMode, VerifyIn, impl_visitor,
+    impl_visitor_for_from_str, impl_visitor_for_try_from_str,
+};

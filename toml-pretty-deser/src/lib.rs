@@ -1,3 +1,4 @@
+#![doc=include_str!("../README.md")]
 use indexmap::{IndexMap, IndexSet};
 use std::fmt::Write;
 use std::{cell::RefCell, ops::Range, rc::Rc};
@@ -12,7 +13,7 @@ pub mod helpers;
 mod visitors;
 
 pub use case::{FieldMatchMode, suggest_alternatives};
-pub use helpers::{VerifyVisitor, Visitor};
+pub use helpers::{Root, VerifyVisitor, Visitor};
 
 /// The failure states of deserialization
 ///
@@ -57,6 +58,29 @@ impl<P> DeserError<P> {
     }
 }
 
+/// The main user facing verification trait.
+///
+/// Implement this on your `PartialT` for the parent type
+/// that it's going to see from your nested structure.
+///
+/// If this is a top level `Partial`, use [`Root`]
+///
+/// If you don't need the parent object for verification use
+/// ```rust, ignore
+/// use toml_pretty_deser::prelude::*;
+///
+/// impl <R> VerifyIn<R> for PartialT {
+///
+///    fn verify(&mut self,
+///     helper: &mut TomlHelper<'_>,
+///     parent: &R)
+///     -> Result<(), (String, Option<String>)> {
+///       // ...
+///    }
+/// }
+///    ```
+///
+///
 pub trait VerifyIn<Parent> {
     #[allow(unused_variables)]
     fn verify(
@@ -80,6 +104,7 @@ pub struct AnnotatedError {
     pub help: Option<String>,
 }
 
+/// Wrap a span and an error message together.
 #[derive(Debug, Clone)]
 pub struct SpannedMessage {
     pub span: Range<usize>,
@@ -310,7 +335,8 @@ impl FieldInfo {
     }
 }
 
-/// Parameter to [`deserialize_with_mode`]
+/// Parameter to `tpd_from_toml` that controls whether
+/// single values in lieu of an array are ok.
 #[derive(Clone, Debug)]
 pub enum VecMode {
     /// Accept single values in lieu of ```[value]```
@@ -327,6 +353,7 @@ impl VecMode {
 
 /// Grab bag that collects the errors and provides parameterisation to
 /// the deser functions
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct TomlCollector {
     pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
@@ -742,7 +769,7 @@ impl<'a> TomlHelper<'a> {
                         .and_then(toml_edit::Key::span)
                         .unwrap_or(0..0);
                     res.push(UnknownKey {
-                        // key: key.to_string(),
+                        key: key.to_string(),
                         span,
                         help: suggest_alternatives(&normalized_key, &still_available),
                         additional_spans: vec![],
@@ -756,14 +783,23 @@ impl<'a> TomlHelper<'a> {
     }
 }
 
-/// The internal representation of a value to-have-been-deserialized
+/// The Result+Option representation of a TOML value that we will have
+/// attempted to deserialize. Eventually.
+///
+/// The main component of `PartialT`
 #[derive(Debug)]
 pub struct TomlValue<T> {
+    /// Was this value deserialized successfully,
+    /// and if not, why not
     pub state: TomlValueState,
+    /// Value is independent of the state,
+    /// so that containers can pinpoint which of their values failed.
     pub value: Option<T>,
 }
 
 impl<T> TomlValue<T> {
+    /// Create a new TomlValue in the Ok state with the given value and span.
+    #[must_use]
     pub const fn new_ok(value: T, span: Range<usize>) -> Self {
         Self {
             value: Some(value),
@@ -771,6 +807,28 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Create a new custom TomlValue error with one or multiple spans
+    /// for errors that don't fit the framewrok
+    ///
+    #[must_use]
+    pub fn new_custom(
+        value: Option<T>,
+        spans: Vec<(Range<usize>, String)>,
+        help: Option<&str>,
+    ) -> Self {
+        if spans.is_empty() {
+            panic!("new_custom should have at least one span");
+        }
+        Self {
+            value: value,
+            state: TomlValueState::Custom {
+                help: help.map(ToString::to_string),
+                spans,
+            },
+        }
+    }
+
+    /// Create a new TomlValue in the Missing state with the given parent span.
     #[must_use]
     pub const fn new_empty_missing(parent_span: Range<usize>) -> Self {
         Self {
@@ -781,6 +839,7 @@ impl<T> TomlValue<T> {
             },
         }
     }
+    /// Create a new TomlValue with a ValidationFailed state.
     #[must_use]
     pub const fn new_validation_failed(
         span: Range<usize>,
@@ -797,6 +856,7 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Create a new `TomlValue` than reflects a wrong type being used in the TOML
     #[must_use]
     pub fn new_wrong_type(
         item: &toml_edit::Item,
@@ -813,6 +873,7 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Create a new `TomlValue` in nested error state.
     #[must_use]
     pub fn new_nested(value: Option<T>) -> Self {
         Self {
@@ -821,6 +882,8 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Convert a `TomlValue<T>` into a `TomlValue<Option<T>`,
+    /// and promote Missing from an error state into `Ok`
     pub fn into_optional(self) -> TomlValue<Option<T>> {
         match self.state {
             TomlValueState::Ok { span } => TomlValue {
@@ -846,7 +909,7 @@ impl<T> TomlValue<T> {
     }
 
     /// Change the inner value if state is TomlValueState::Ok,
-    /// otherwise adapt the error type but loose the value
+    /// otherwise adapt the error type but loose the value.
     pub fn map<R, F>(self, map_function: F) -> TomlValue<R>
     where
         F: FnOnce(T) -> R,
@@ -859,7 +922,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// change the inner value no matter if we're ok or not.
+    /// Change the inner value no matter if we're ok or not.
     pub fn map_any<R, F>(self, map_function: F) -> TomlValue<R>
     where
         F: FnOnce(T) -> R,
@@ -870,7 +933,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Adapt failed types, eating the none
+    /// Adapt failed types, eating the value
     pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
         match &self.state {
             TomlValueState::Ok { span } => {
@@ -883,6 +946,7 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// take the value out of the TomlValue, leaving a `TomlValueState::NotSet` and None in place.
     pub fn take(&mut self) -> Self {
         std::mem::replace(
             self,
@@ -893,10 +957,12 @@ impl<T> TomlValue<T> {
         )
     }
 
+    /// Is this TomlValue in the Ok state?
     pub fn is_ok(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
     }
 
+    /// Get a reference to the inner value iff this TomlValue is in the Ok state, otherwise None.
     pub fn as_ref(&self) -> Option<&T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value.as_ref(),
@@ -904,6 +970,7 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Get a mutable reference to the inner value iff this TomlValue is in the Ok state, otherwise None.
     pub fn as_mut(&mut self) -> Option<&mut T> {
         match self.state {
             TomlValueState::Ok { .. } => self.value.as_mut(),
@@ -911,6 +978,14 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Retrieve the primary span in the input TOML source.
+    /// If no such span is available, return the 0..0 span.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// When called on UnknownKeys
+    /// When called on a Custom without spans
     pub fn span(&self) -> Range<usize> {
         match &self.state {
             TomlValueState::Ok { span }
@@ -921,10 +996,17 @@ impl<T> TomlValue<T> {
             | TomlValueState::ValidationFailed { span, .. } => span.clone(),
             TomlValueState::NotSet | TomlValueState::Nested => 0..0,
             TomlValueState::MultiDefined { spans, .. } => spans[0].clone(), //just return the first one
-            TomlValueState::UnknownKeys { .. } => panic!("don't call span on UnknownKeys?"),
-            //one
+            TomlValueState::UnknownKeys(_) => panic!("don't call span on UnknownKeys?"),
+            TomlValueState::Custom { spans, .. } => spans[0].0.clone(),
         }
     }
+
+    /// Verify this TOML value
+    ///
+    /// Calls verification_func with a reference to the inner value
+    /// if this TomlValue is in the Ok state,
+    ///     and returns a new TomlValue that reflects the result of the verification:
+    /// otherwise, it remains in a previous error state.
 
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
@@ -954,6 +1036,7 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Replace the value with `default`if it was `Missing`
     #[must_use]
     pub fn or(self, default: T) -> Self {
         match &self.state {
@@ -964,6 +1047,8 @@ impl<T> TomlValue<T> {
             _ => self,
         }
     }
+
+    /// Replace the value with the result of `default_func` if it was `Missing`
     #[must_use]
     pub fn or_with<F>(self, default_func: F) -> Self
     where
@@ -978,6 +1063,7 @@ impl<T> TomlValue<T> {
         }
     }
 
+    /// Replace the value with `T::default()` if it was `Missing`
     #[must_use]
     pub fn or_default(self) -> Self
     where
@@ -987,6 +1073,7 @@ impl<T> TomlValue<T> {
     }
 }
 
+/// TomlValues default to `NotSet`
 impl<T> Default for TomlValue<T> {
     fn default() -> Self {
         TomlValue {
@@ -996,39 +1083,53 @@ impl<T> Default for TomlValue<T> {
     }
 }
 
+/// Inner struct for `TomlValue::UnknownKeys`
 #[derive(Debug, Clone)]
 pub struct UnknownKey {
-    // key: String,
-    span: Range<usize>,
-    help: String,
+    pub key: String, // captured for user code
+    pub span: Range<usize>,
+    pub help: String,
     pub additional_spans: Vec<(Range<usize>, String)>,
 }
 
 /// Captures precisely what went wrong
 #[derive(Debug, Clone)]
 pub enum TomlValueState {
+    /// This value has not been set yet
     NotSet,
+    /// This value was missing - and that's a problem
     Missing {
         key: String,
         parent_span: Range<usize>,
     },
+    /// This value was defined more than once
+    /// possibly using aliases.
+    /// Spans point to all definitions.
     MultiDefined {
         key: String,
         spans: Vec<Range<usize>>,
     },
+    /// This value had the wrong type
     WrongType {
         span: Range<usize>,
         expected: &'static str,
         found: &'static str,
     },
+    /// This value had the right type, but failed validation
     ValidationFailed {
         span: Range<usize>,
         message: String,
         help: Option<String>,
     },
+    /// There were one-or-more unknown keys within this table.
     UnknownKeys(Vec<UnknownKey>),
+    /// This is a container, and one of it's children is in an error state
     Nested,
-    Ok {
-        span: Range<usize>,
+    /// A user defined error with multiple spans
+    Custom {
+        help: Option<String>,
+        spans: Vec<(Range<usize>, String)>,
     },
+    /// This value was deserialized correctly.
+    Ok { span: Range<usize> },
 }
