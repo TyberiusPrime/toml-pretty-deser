@@ -9,4 +9,4 @@ expression: "errors[0].pretty(\"test.toml\")"
   ┆          │
   ┆          ╰─────── Unknown key.
 ──╯
-Hint: Did you mean: 'u8'?
+Hint: All known keys have been used.

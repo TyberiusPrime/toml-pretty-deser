@@ -1,5 +1,5 @@
 ---
-source: toml-pretty-deser/tests/a01.rs
+source: toml-pretty-deser/tests/b01.rs
 expression: "errors[0].pretty(\"test.toml\")"
 ---
   ╭─test.toml
@@ -9,4 +9,4 @@ expression: "errors[0].pretty(\"test.toml\")"
   ┆          │
   ┆          ╰─────── Unknown key.
 ──╯
-Hint: Did you mean: 'u8'?
+Hint: All known keys have been used.

@@ -54,7 +54,6 @@ pub struct Outer {
     //#tpd[nested] // we might need to tag these structs
     nested_struct: NestedStruct,
     simple_enum: AnEnum,
-    // #[tpd_tag("kind")]
     nested_tagged_enum: TaggedEnum,
 }
 
@@ -93,7 +92,7 @@ pub enum AnEnum {
     TypeB,
 }
 
-// #[tpd]
+// #[tpd(tag="kind", alias="tag", alias="type")]
 #[derive(Debug, Eq, PartialEq)]
 pub enum TaggedEnum {
     KindA(InnerA),
@@ -272,6 +271,40 @@ fn test_basic_alias_anycase() {
         insta::assert_snapshot!(e.pretty("test.toml"));
     } else {
         panic!("expected parsing to fail due to vec mode, but it succeeded");
+    }
+}
+#[test]
+fn test_tagged_enum_alias() {
+    let toml = "
+        u8 = 1
+        opt_u8 =2
+        vec_u8 = [3]
+        simple_enum = 'TypeB'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            TaG = 'KindB'
+            b = 200
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::AnyCase,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(inner) = parsed {
+        assert_eq!(inner.a_u8, 1);
+        assert_eq!(inner.opt_u8, Some(2));
+        assert_eq!(inner.vec_u8, vec![3]);
+        assert_eq!(inner.simple_enum, AnEnum::TypeB);
+        assert_eq!(inner.map_u8.get("a").unwrap(), &4);
+        assert_eq!(inner.nested_struct.other_u8, 6); //1 added in verify
+        assert_eq!(inner.nested_struct.double.double_u8, 6);
     }
 }
 

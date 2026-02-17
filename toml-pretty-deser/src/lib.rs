@@ -685,6 +685,15 @@ impl<'a> TomlHelper<'a> {
 
             // Build set of observed normalized names
             let observed_set: IndexSet<String> = self.observed.iter().cloned().collect();
+            let mut alias_set: IndexSet<String> = IndexSet::new();
+
+            for field_info in &self.expected {
+                let norm_names = field_info.all_normalized_names(self.col.match_mode);
+                if norm_names.iter().any(|n| observed_set.contains(n)) {
+                    alias_set.extend(norm_names);
+                }
+            }
+
 
             let mut res = Vec::new();
             for key in keys {
@@ -695,7 +704,8 @@ impl<'a> TomlHelper<'a> {
                     // This is an unknown key - find available (expected but not yet observed) fields
                     let still_available: Vec<_> = expected_normalized
                         .iter()
-                        .filter(|expected| !observed_set.contains(*expected))
+                        //.filter(|expected| !observed_set.contains(*expected))
+                        .filter(|expected| !alias_set.contains(*expected))
                         .map(std::string::String::as_str)
                         .collect();
 

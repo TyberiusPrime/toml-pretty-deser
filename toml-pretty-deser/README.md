@@ -246,7 +246,7 @@ Example:
 ```rust
 use toml_pretty_deser::prelude::*;
 
-#[tpd(root)]
+#[tpd(root, no_verify)]
 struct ExampleAdapt {
     #[tpd(with="adapt_to_upper_case")]
     name: String,

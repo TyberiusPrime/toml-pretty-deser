@@ -39,7 +39,6 @@ pub struct PartialOuter {
     pub map_u8: TomlValue<IndexMap<String, TomlValue<u8>>>,
     pub nested_struct: TomlValue<PartialNestedStruct>,
     pub simple_enum: TomlValue<AnEnum>,
-    // #[tpd_tag("kind")]
     pub nested_tagged_enum: TomlValue<PartialTaggedEnum>,
 }
 
@@ -355,7 +354,7 @@ impl Visitor for PartialTaggedEnum {
         if !helper.is_table() {
             return TomlValue::new_wrong_type(helper.item, helper.span(), "table or inline table");
         }
-        let tag_value: TomlValue<String> = helper.get_with_aliases("kind", &[]);
+        let tag_value: TomlValue<String> = helper.get_with_aliases("kind", &["tag","type"]);
         if !tag_value.is_ok() {
             return TomlValue {
                 value: None,
