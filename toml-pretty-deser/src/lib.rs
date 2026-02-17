@@ -189,11 +189,10 @@ fn pretty_error_message(
         let mut spans = spans.to_vec();
         spans.sort_by_key(|span| span.span.start);
 
-        let previous_newline =
-            memchr::memmem::rfind(&source.as_bytes()[..spans[0].span.start], b"\n");
-        let this_line_is_block_start = source.as_bytes()[previous_newline.unwrap_or(0)..]
+        let previous_newline = source[..spans[0].span.start].rfind('\n');
+        let this_line_is_block_start = source[previous_newline.unwrap_or(0)..]
             .trim_ascii_start()
-            .starts_with(b"[");
+            .starts_with('[');
 
         let mut labels = Vec::new();
 

@@ -304,7 +304,6 @@ dependencies = [
  "codesnake",
  "indexmap",
  "insta",
- "memchr",
  "mutants",
  "strsim",
  "toml-pretty-deser-macros",

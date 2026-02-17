@@ -14,7 +14,6 @@
 
 [dependencies]
 codesnake = "0.2.1"
-memchr = "2.7.6"
 toml_edit = "0.24.0"
 toml-pretty-deser-macros = { path = "../toml-pretty-deser-macros", version="0.3.0" }
 mutants = "0.0.4"
