@@ -252,6 +252,7 @@ enum TypeKind {
     Optional(Box<TypeKind>),
     Vector(Box<TypeKind>),
     Map(Type, Box<TypeKind>),
+    /// `Box<T>`: auto-detected; generates `Box<PartialT>` in partial (Box impl Visitor).
     Boxed(Box<TypeKind>),
 }
 
@@ -320,18 +321,6 @@ fn extract_two_generics(args: &PathArguments, context_ty: &Type) -> syn::Result<
     ))
 }
 
-fn leaf_type_name(ty: &Type) -> syn::Result<String> {
-    if let Type::Path(TypePath { path, .. }) = ty
-        && let Some(last) = path.segments.last()
-    {
-        return Ok(last.ident.to_string());
-    }
-    Err(syn::Error::new_spanned(
-        ty,
-        "cannot extract type name: expected a simple type path",
-    ))
-}
-
 /// Given a type like `foo::bar::MyStruct`, return a token stream for `foo::bar::PartialMyStruct`.
 /// For a simple `MyStruct`, returns `PartialMyStruct`.
 /// For wrapper types like `Box<Inner>`, returns `Box<PartialInner>`.
@@ -368,9 +357,9 @@ fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> syn::Result<Token
     match kind {
         TypeKind::Leaf(ty) => {
             if is_nested {
-                let name = leaf_type_name(ty)?;
-                let partial_name = format_ident!("Partial{}", name);
-                Ok(quote! { #partial_name })
+                // Use partial_type_path to correctly handle module-qualified types
+                // e.g. `mod::Inner` → `mod::PartialInner`
+                partial_type_path(ty)
             } else {
                 Ok(quote! { #ty })
             }
@@ -478,6 +467,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                     "#[tpd(absorb_remaining)] requires the field type to be `IndexMap<K, V>`",
                 ));
             }
+
 
             Ok(FieldInfo {
                 ident,
