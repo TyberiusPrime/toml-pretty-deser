@@ -1,7 +1,5 @@
-error: custom attribute panicked
- --> compilation_failure_tests/absorb_remaining_wrong_type_vec.rs:4:1
+error: #[tpd(absorb_remaining)] requires the field type to be `IndexMap<K, V>`
+ --> compilation_failure_tests/absorb_remaining_wrong_type_vec.rs:9:12
   |
-4 | #[tpd]
-  | ^^^^^^
-  |
-  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<FromString<_>, Visitor<>_> , T>>, found: #[tpd(absorb_remaining)] extra : Vec < String > .ty
+9 |     extra: Vec<String>,
+  |            ^^^^^^^^^^^

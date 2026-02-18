@@ -1,7 +1,5 @@
-error: custom attribute panicked
- --> compilation_failure_tests/tagged_enum_root.rs:8:1
+error: unknown tpd enum attribute `root`
+ --> compilation_failure_tests/tagged_enum_root.rs:8:7
   |
 8 | #[tpd(root, tag="kind")]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = help: message: Failed to parse 'root, tag="kind"'
+  |       ^^^^

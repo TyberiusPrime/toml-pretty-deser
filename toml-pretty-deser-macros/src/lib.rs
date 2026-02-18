@@ -1,9 +1,11 @@
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{
     Data, DeriveInput, Fields, GenericArgument, Lit, PathArguments, Type, TypePath,
     parse_macro_input,
 };
+use syn::parse::Parser as _;
 
 /// Attribute macro for generating TOML deserialization code.
 ///
@@ -26,36 +28,88 @@ use syn::{
 /// # Variant-level attributes (simple enum)
 /// - `#[tpd(alias = "name1", alias = "name2")]` - Variant aliases
 ///
-///
-/// # Panics
-///
-/// - When used on an incompatible enum
-/// - When nested structs are not tagged #[tpd(nested)]
+/// # Compile-time errors
+/// Unknown or incompatible attributes are reported as compiler errors pointing at the
+/// offending token, not as unhelpful panics during macro expansion.
 #[proc_macro_attribute]
 pub fn tpd(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    let attr_args = attr.to_string();
-    match &input.data {
-        Data::Struct(_) => derive_struct(&input, &attr_args),
-        Data::Enum(_) => derive_enum(&input, &attr_args),
-        Data::Union(_) => panic!("tpd cannot be applied to unions"),
-    }
+    let attr_ts: TokenStream2 = attr.into();
+    let result = match &input.data {
+        Data::Struct(_) => derive_struct(&input, attr_ts),
+        Data::Enum(_) => derive_enum(&input, attr_ts),
+        Data::Union(_) => Err(syn::Error::new_spanned(
+            &input.ident,
+            "tpd cannot be applied to unions",
+        )),
+    };
+    result.unwrap_or_else(|e| e.to_compile_error()).into()
 }
 
 // ============================================================================
 // Attribute parsing
 // ============================================================================
 
-fn is_root_attr(attr_args: &str) -> bool {
-    attr_args.contains("root")
+struct MacroAttrs {
+    root: bool,
+    no_verify: bool,
 }
 
-fn is_no_verify_attr(attr_args: &str) -> bool {
-    attr_args.contains("no_verify")
+fn parse_macro_attrs(attr_ts: TokenStream2) -> syn::Result<MacroAttrs> {
+    let mut attrs = MacroAttrs { root: false, no_verify: false };
+    syn::meta::parser(|meta| {
+        if meta.path.is_ident("root") {
+            attrs.root = true;
+            Ok(())
+        } else if meta.path.is_ident("no_verify") {
+            attrs.no_verify = true;
+            Ok(())
+        } else {
+            Err(meta.error(format!(
+                "unknown tpd struct attribute `{}`",
+                meta.path
+                    .get_ident()
+                    .map_or_else(|| "?".to_string(), ToString::to_string),
+            )))
+        }
+    })
+    .parse2(attr_ts)?;
+    Ok(attrs)
+}
+
+fn parse_enum_attrs(attr_ts: TokenStream2) -> syn::Result<Option<(String, Vec<String>)>> {
+    let mut tag: Option<String> = None;
+    let mut aliases: Vec<String> = Vec::new();
+    syn::meta::parser(|meta| {
+        if meta.path.is_ident("tag") {
+            let value = meta.value()?;
+            let lit: Lit = value.parse()?;
+            if let Lit::Str(s) = lit {
+                tag = Some(s.value());
+            }
+            Ok(())
+        } else if meta.path.is_ident("alias") {
+            let value = meta.value()?;
+            let lit: Lit = value.parse()?;
+            if let Lit::Str(s) = lit {
+                aliases.push(s.value());
+            }
+            Ok(())
+        } else {
+            Err(meta.error(format!(
+                "unknown tpd enum attribute `{}`",
+                meta.path
+                    .get_ident()
+                    .map_or_else(|| "?".to_string(), ToString::to_string),
+            )))
+        }
+    })
+    .parse2(attr_ts)?;
+    Ok(tag.map(|t| (t, aliases)))
 }
 
 /// Strip #[tpd(...)] attributes from a `DeriveInput` and return the cleaned item as tokens
-fn emit_original_item(input: &DeriveInput) -> proc_macro2::TokenStream {
+fn emit_original_item(input: &DeriveInput) -> TokenStream2 {
     let mut cleaned = input.clone();
     cleaned.attrs.retain(|a| !a.path().is_ident("tpd"));
     match &mut cleaned.data {
@@ -106,7 +160,7 @@ struct FieldAttrs {
     with_fn: Option<String>,
     absorb_remaining: bool,
     /// Intermediate type for adapt_in_verify. None = not set. Some(tokens) = intermediate type.
-    adapt_in_verify: Option<proc_macro2::TokenStream>,
+    adapt_in_verify: Option<TokenStream2>,
 }
 
 impl FieldAttrs {
@@ -115,7 +169,7 @@ impl FieldAttrs {
     }
 }
 
-fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
+fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
     let mut attrs = FieldAttrs::default();
     for attr in &field.attrs {
         if !attr.path().is_ident("tpd") {
@@ -133,14 +187,14 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
             } else if meta.path.is_ident("absorb_remaining") {
                 attrs.absorb_remaining = true;
             } else if meta.path.is_ident("with") {
-                let value = meta.value().expect("No value on with");
-                let lit: Lit = value.parse().expect("unparsable value on with");
+                let value = meta.value()?;
+                let lit: Lit = value.parse()?;
                 if let Lit::Str(s) = lit {
                     attrs.with_fn = Some(s.value());
                 }
             } else if meta.path.is_ident("alias") {
-                let value = meta.value().expect("No value on alias");
-                let lit: Lit = value.parse().expect("unparsable value on alias");
+                let value = meta.value()?;
+                let lit: Lit = value.parse()?;
                 if let Lit::Str(s) = lit {
                     attrs.aliases.push(s.value());
                 }
@@ -148,31 +202,44 @@ fn parse_field_attrs(field: &syn::Field) -> FieldAttrs {
                 if meta.input.peek(syn::token::Paren) {
                     let content;
                     syn::parenthesized!(content in meta.input);
-                    let ty: syn::Type = content.parse().expect("Expected type in adapt_in_verify(...)");
+                    let ty: syn::Type = content.parse()?;
                     attrs.adapt_in_verify = Some(quote! { #ty });
                 } else {
                     attrs.adapt_in_verify = Some(quote! { toml_edit::Item });
                 }
+            } else {
+                return Err(meta.error(format!(
+                    "unknown tpd field attribute `{}`",
+                    meta.path
+                        .get_ident()
+                        .map_or_else(|| "?".to_string(), ToString::to_string),
+                )));
             }
             Ok(())
-        })
-        .expect("failed to parse nested meta");
+        })?;
     }
 
-    assert!(!(attrs.has_partial() && attrs.with_fn.is_some()),
-        "Field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]");
+    if attrs.has_partial() && attrs.with_fn.is_some() {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]",
+        ));
+    }
 
-    assert!(
-        !(attrs.adapt_in_verify.is_some()
-            && (attrs.has_partial()
-                || attrs.with_fn.is_some()
-                || attrs.skip
-                || attrs.absorb_remaining
-                || attrs.default)),
-        "adapt_in_verify cannot be combined with nested/tagged/with/skip/absorb_remaining/default"
-    );
+    if attrs.adapt_in_verify.is_some()
+        && (attrs.has_partial()
+            || attrs.with_fn.is_some()
+            || attrs.skip
+            || attrs.absorb_remaining
+            || attrs.default)
+    {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "adapt_in_verify cannot be combined with nested/tagged/with/skip/absorb_remaining/default",
+        ));
+    }
 
-    attrs
+    Ok(attrs)
 }
 
 // ============================================================================
@@ -188,72 +255,87 @@ enum TypeKind {
     Boxed(Box<TypeKind>),
 }
 
-fn analyze_type(ty: &Type) -> TypeKind {
+fn analyze_type(ty: &Type) -> syn::Result<TypeKind> {
     if let Type::Path(TypePath { path, .. }) = ty {
         if let Some(last) = path.segments.last() {
             let name = last.ident.to_string();
             match name.as_str() {
                 "Option" => {
-                    let inner = extract_single_generic(&last.arguments);
-                    TypeKind::Optional(Box::new(analyze_type(&inner)))
+                    let inner = extract_single_generic(&last.arguments, ty)?;
+                    Ok(TypeKind::Optional(Box::new(analyze_type(&inner)?)))
                 }
                 "Vec" => {
-                    let inner = extract_single_generic(&last.arguments);
-                    TypeKind::Vector(Box::new(analyze_type(&inner)))
+                    let inner = extract_single_generic(&last.arguments, ty)?;
+                    Ok(TypeKind::Vector(Box::new(analyze_type(&inner)?)))
                 }
                 "IndexMap" => {
-                    let (key, value) = extract_two_generics(&last.arguments);
-                    TypeKind::Map(key, Box::new(analyze_type(&value)))
+                    let (key, value) = extract_two_generics(&last.arguments, ty)?;
+                    Ok(TypeKind::Map(key, Box::new(analyze_type(&value)?)))
                 }
                 "Box" => {
-                    let inner = extract_single_generic(&last.arguments);
-                    TypeKind::Boxed(Box::new(analyze_type(&inner)))
+                    let inner = extract_single_generic(&last.arguments, ty)?;
+                    Ok(TypeKind::Boxed(Box::new(analyze_type(&inner)?)))
                 }
-                _ => TypeKind::Leaf(ty.clone()),
+                "HashMap" | "BTreeMap" => Err(syn::Error::new_spanned(
+                    ty,
+                    format!(
+                        "`{name}` is not supported as a tpd map field type; \
+                         use `IndexMap<K, V>` from the `indexmap` crate instead"
+                    ),
+                )),
+                _ => Ok(TypeKind::Leaf(ty.clone())),
             }
         } else {
-            TypeKind::Leaf(ty.clone())
+            Ok(TypeKind::Leaf(ty.clone()))
         }
     } else {
-        TypeKind::Leaf(ty.clone())
+        Ok(TypeKind::Leaf(ty.clone()))
     }
 }
 
-fn extract_single_generic(args: &PathArguments) -> Type {
+fn extract_single_generic(args: &PathArguments, context_ty: &Type) -> syn::Result<Type> {
     if let PathArguments::AngleBracketed(ab) = args
-        && let Some(GenericArgument::Type(ty)) = ab.args.first() {
-            return ty.clone();
-        }
-    panic!("Expected single generic argument");
+        && let Some(GenericArgument::Type(ty)) = ab.args.first()
+    {
+        return Ok(ty.clone());
+    }
+    Err(syn::Error::new_spanned(
+        context_ty,
+        "expected a single generic type argument here",
+    ))
 }
 
-fn extract_two_generics(args: &PathArguments) -> (Type, Type) {
+fn extract_two_generics(args: &PathArguments, context_ty: &Type) -> syn::Result<(Type, Type)> {
     if let PathArguments::AngleBracketed(ab) = args {
         let mut iter = ab.args.iter();
         if let (Some(GenericArgument::Type(k)), Some(GenericArgument::Type(v))) =
             (iter.next(), iter.next())
         {
-            return (k.clone(), v.clone());
+            return Ok((k.clone(), v.clone()));
         }
     }
-    panic!("Expected two generic arguments");
+    Err(syn::Error::new_spanned(
+        context_ty,
+        "expected two generic type arguments here",
+    ))
 }
 
-fn leaf_type_name(ty: &Type) -> String {
+fn leaf_type_name(ty: &Type) -> syn::Result<String> {
     if let Type::Path(TypePath { path, .. }) = ty
-        && let Some(last) = path.segments.last() {
-            return last.ident.to_string();
-        }
-    panic!(
-        "Cannot extract type name from {:?}",
-        quote!(#ty).to_string()
-    );
+        && let Some(last) = path.segments.last()
+    {
+        return Ok(last.ident.to_string());
+    }
+    Err(syn::Error::new_spanned(
+        ty,
+        "cannot extract type name: expected a simple type path",
+    ))
 }
 
 /// Given a type like `foo::bar::MyStruct`, return a token stream for `foo::bar::PartialMyStruct`.
 /// For a simple `MyStruct`, returns `PartialMyStruct`.
 /// For wrapper types like `Box<Inner>`, returns `Box<PartialInner>`.
-fn partial_type_path(ty: &Type) -> proc_macro2::TokenStream {
+fn partial_type_path(ty: &Type) -> syn::Result<TokenStream2> {
     if let Type::Path(TypePath { qself: None, path }) = ty {
         let mut segments = path.segments.clone();
         if let Some(last) = segments.last_mut() {
@@ -262,10 +344,10 @@ fn partial_type_path(ty: &Type) -> proc_macro2::TokenStream {
                 if let syn::PathArguments::AngleBracketed(args) = &last.arguments {
                     if args.args.len() == 1 {
                         if let syn::GenericArgument::Type(inner_ty) = &args.args[0] {
-                            let partial_inner = partial_type_path(inner_ty);
+                            let partial_inner = partial_type_path(inner_ty)?;
                             let leading_colon = &path.leading_colon;
                             let prefix_segments = segments.iter().take(segments.len() - 1);
-                            return quote! { #leading_colon #(#prefix_segments ::)* Box<#partial_inner> };
+                            return Ok(quote! { #leading_colon #(#prefix_segments ::)* Box<#partial_inner> });
                         }
                     }
                 }
@@ -273,41 +355,41 @@ fn partial_type_path(ty: &Type) -> proc_macro2::TokenStream {
             last.ident = format_ident!("Partial{}", last.ident);
         }
         let leading_colon = &path.leading_colon;
-        return quote! { #leading_colon #segments };
+        return Ok(quote! { #leading_colon #segments });
     }
-    panic!(
-        "Cannot build partial type path from {:?}",
-        quote!(#ty).to_string()
-    );
+    Err(syn::Error::new_spanned(
+        ty,
+        "cannot generate a Partial type for this type; tpd nested types must be simple type paths",
+    ))
 }
 
 /// Generate the partial type for a field's inner type (inside the outer `TomlValue` wrapper)
-fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> proc_macro2::TokenStream {
+fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> syn::Result<TokenStream2> {
     match kind {
         TypeKind::Leaf(ty) => {
             if is_nested {
-                let name = leaf_type_name(ty);
+                let name = leaf_type_name(ty)?;
                 let partial_name = format_ident!("Partial{}", name);
-                quote! { #partial_name }
+                Ok(quote! { #partial_name })
             } else {
-                quote! { #ty }
+                Ok(quote! { #ty })
             }
         }
         TypeKind::Optional(inner) => {
-            let inner_ty = gen_partial_inner_type(inner, is_nested);
-            quote! { Option<#inner_ty> }
+            let inner_ty = gen_partial_inner_type(inner, is_nested)?;
+            Ok(quote! { Option<#inner_ty> })
         }
         TypeKind::Vector(inner) => {
-            let inner_ty = gen_partial_inner_type(inner, is_nested);
-            quote! { Vec<toml_pretty_deser::TomlValue<#inner_ty>> }
+            let inner_ty = gen_partial_inner_type(inner, is_nested)?;
+            Ok(quote! { Vec<toml_pretty_deser::TomlValue<#inner_ty>> })
         }
         TypeKind::Map(key, inner) => {
-            let inner_ty = gen_partial_inner_type(inner, is_nested);
-            quote! { indexmap::IndexMap<#key, toml_pretty_deser::TomlValue<#inner_ty>> }
+            let inner_ty = gen_partial_inner_type(inner, is_nested)?;
+            Ok(quote! { indexmap::IndexMap<#key, toml_pretty_deser::TomlValue<#inner_ty>> })
         }
         TypeKind::Boxed(inner) => {
-            let inner_ty = gen_partial_inner_type(inner, is_nested);
-            quote! { Box<#inner_ty> }
+            let inner_ty = gen_partial_inner_type(inner, is_nested)?;
+            Ok(quote! { Box<#inner_ty> })
         }
     }
 }
@@ -315,9 +397,10 @@ fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> proc_macro2::Toke
 /// Check if a type is the unit type `()`
 fn is_unit_type(kind: &TypeKind) -> bool {
     if let TypeKind::Leaf(ty) = kind
-        && let Type::Tuple(tuple) = ty {
-            return tuple.elems.is_empty();
-        }
+        && let Type::Tuple(tuple) = ty
+    {
+        return tuple.elems.is_empty();
+    }
     false
 }
 
@@ -331,7 +414,6 @@ fn needs_into_concrete(kind: &TypeKind, has_partial: bool) -> bool {
         }
     }
 }
-
 
 fn is_indexmap_type(ty: &Type) -> bool {
     match ty {
@@ -351,7 +433,7 @@ fn is_indexmap_type(ty: &Type) -> bool {
 // ============================================================================
 
 #[allow(clippy::too_many_lines)]
-fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
+fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<TokenStream2> {
     struct FieldInfo {
         ident: syn::Ident,
         attrs: FieldAttrs,
@@ -361,8 +443,9 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
     }
 
     let original_item = emit_original_item(input);
-    let is_root = is_root_attr(attr_args);
-    let no_verify = is_no_verify_attr(attr_args);
+    let macro_attrs = parse_macro_attrs(attr_ts)?;
+    let is_root = macro_attrs.root;
+    let no_verify = macro_attrs.no_verify;
     let name = &input.ident;
     let partial_name = format_ident!("Partial{}", name);
     let vis = &input.vis;
@@ -370,81 +453,86 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
     let fields = match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(named) => &named.named,
-            _ => panic!("Tpd only supports named fields"),
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    input.ident.clone(),
+                    "tpd only supports named struct fields",
+                ))
+            }
         },
         _ => unreachable!(),
     };
 
-
     let field_infos: Vec<FieldInfo> = fields
         .iter()
-        .map(|f| {
-            let ident = f.ident.clone().expect("ident clone failed");
-            let attrs = parse_field_attrs(f);
-            let kind = analyze_type(&f.ty);
+        .map(|f| -> syn::Result<FieldInfo> {
+            let ident = f.ident.clone().ok_or_else(|| {
+                syn::Error::new_spanned(&f.ty, "tpd only supports named struct fields")
+            })?;
+            let attrs = parse_field_attrs(f)?;
+            let kind = analyze_type(&f.ty)?;
 
-            if attrs.absorb_remaining &&
-                !is_indexmap_type(&f.ty) 
-            {
-                // Wrong type entirely
-                panic!(
-                    "#[tpd_absorb_remaining] on field '{}' requires type IndexMap<FromString<_>, Visitor<>_> , T>>, found: {}",
-                    ident,
-                    quote!(#f.ty)
-                );
+            if attrs.absorb_remaining && !is_indexmap_type(&f.ty) {
+                return Err(syn::Error::new_spanned(
+                    &f.ty,
+                    "#[tpd(absorb_remaining)] requires the field type to be `IndexMap<K, V>`",
+                ));
             }
 
-            FieldInfo {
+            Ok(FieldInfo {
                 ident,
                 attrs,
                 kind,
                 vis: f.vis.clone(),
                 ty: f.ty.clone(),
-            }
+            })
         })
-        .collect();
+        .collect::<syn::Result<Vec<_>>>()?;
 
-    let absorb_count = field_infos.iter().filter(|f| f.attrs.absorb_remaining).count();
-    assert!(absorb_count <= 1, 
-                "Only one field can have #[tpd_absorb_remaining]. Found {absorb_count} fields with this attribute.",
-            );
+    let absorb_fields: Vec<&FieldInfo> =
+        field_infos.iter().filter(|f| f.attrs.absorb_remaining).collect();
+    if absorb_fields.len() > 1 {
+        return Err(syn::Error::new(
+            absorb_fields[1].ident.span(),
+            "only one field can have #[tpd(absorb_remaining)]",
+        ));
+    }
 
-    // --- Partial struct fields (skip #[tpd(skip)] fields) ---
-    let partial_fields: Vec<proc_macro2::TokenStream> = field_infos
+    // --- Partial struct fields ---
+    let partial_fields: Vec<TokenStream2> = field_infos
         .iter()
-        //.filter(|f| !f.attrs.skip)
-        .map(|f| {
+        .map(|f| -> syn::Result<TokenStream2> {
             let ident = &f.ident;
             let fvis = &f.vis;
             let ftype = &f.ty;
             if f.attrs.skip {
-                quote! { #fvis #ident: Option<#ftype> }
+                Ok(quote! { #fvis #ident: Option<#ftype> })
             } else if let Some(ref intermediate_ty) = f.attrs.adapt_in_verify {
-                quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #ftype>> }
+                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #ftype>> })
             } else {
-                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
-                quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> }
+                let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial())?;
+                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> })
             }
         })
-        .collect();
+        .collect::<syn::Result<Vec<_>>>()?;
 
     // --- Getter methods ---
-    let getter_methods: Vec<proc_macro2::TokenStream> = field_infos
+    let getter_methods: Vec<TokenStream2> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip && !f.attrs.absorb_remaining)
-        .map(|f| {
+        .map(|f| -> syn::Result<TokenStream2> {
             let ident = &f.ident;
             let getter_name = format_ident!("tpd_get_{}", ident);
             let field_name_str = ident.to_string();
-            let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial());
+            let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial())?;
 
             // Unit type () fields: no TOML lookup
             if is_unit_type(&f.kind) {
-                return quote! {
+                return Ok(quote! {
                     fn #getter_name(&self, _helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<()> {
                         toml_pretty_deser::TomlValue::new_ok((), 0..0)
                     }
-                };
+                });
             }
 
             let aliases_expr = if f.attrs.aliases.is_empty() {
@@ -458,44 +546,49 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
 
             if let Some(ref intermediate_ty) = f.attrs.adapt_in_verify {
                 let concrete_ty = &f.ty;
-                return quote! {
+                return Ok(quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #concrete_ty>> {
                         helper.get_with_aliases(#field_name_str, #aliases_expr)
                     }
-                };
+                });
             }
 
             if let Some(ref with_fn) = f.attrs.with_fn {
-                let with_fn_ident: syn::Path = syn::parse_str(with_fn).expect("with fn_indent parse_str failed");
-                quote! {
+                let with_fn_ident: syn::Path = syn::parse_str(with_fn).map_err(|_| {
+                    syn::Error::new(
+                        ident.span(),
+                        format!("#[tpd(with)] value `{with_fn}` is not a valid Rust path"),
+                    )
+                })?;
+                Ok(quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
                         #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr))
                     }
-                }
+                })
             } else if f.attrs.default {
-                quote! {
+                Ok(quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
                         helper.get_with_aliases(#field_name_str, #aliases_expr).or_default()
                     }
-                }
+                })
             } else if is_option {
-                quote! {
+                Ok(quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
                         helper.get_with_aliases(#field_name_str, #aliases_expr).into_optional()
                     }
-                }
+                })
             } else {
-                quote! {
+                Ok(quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
                         helper.get_with_aliases(#field_name_str, #aliases_expr)
                     }
-                }
+                })
             }
         })
-        .collect();
+        .collect::<syn::Result<Vec<_>>>()?;
 
     // --- fill_from_toml statements ---
-    let fill_stmts: Vec<(proc_macro2::TokenStream, bool)> = field_infos
+    let fill_stmts: Vec<(TokenStream2, bool)> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip)
         .map(|f| {
@@ -511,19 +604,19 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         })
         .collect();
 
-    let regular_fill_stmts: Vec<&proc_macro2::TokenStream> = fill_stmts
+    let regular_fill_stmts: Vec<&TokenStream2> = fill_stmts
         .iter()
         .filter(|(_, is_absorb)| !is_absorb)
         .map(|(s, _)| s)
         .collect();
-    let absorb_fill_stmts: Vec<&proc_macro2::TokenStream> = fill_stmts
+    let absorb_fill_stmts: Vec<&TokenStream2> = fill_stmts
         .iter()
         .filter(|(_, is_absorb)| *is_absorb)
         .map(|(s, _)| s)
         .collect();
 
     // --- can_concrete checks ---
-    let can_concrete_checks: Vec<proc_macro2::TokenStream> = field_infos
+    let can_concrete_checks: Vec<TokenStream2> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip)
         .map(|f| {
@@ -533,7 +626,7 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         .collect();
 
     // --- v_register_errors ---
-    let register_errors_calls: Vec<proc_macro2::TokenStream> = field_infos
+    let register_errors_calls: Vec<TokenStream2> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip)
         .map(|f| {
@@ -543,7 +636,7 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         .collect();
 
     // --- into_concrete fields ---
-    let into_concrete_fields: Vec<proc_macro2::TokenStream> = field_infos
+    let into_concrete_fields: Vec<TokenStream2> = field_infos
         .iter()
         .map(|f| {
             let ident = &f.ident;
@@ -562,7 +655,7 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         .collect();
 
     // --- vv_validate statements ---
-    let vv_validate_stmts: Vec<proc_macro2::TokenStream> = field_infos
+    let vv_validate_stmts: Vec<TokenStream2> = field_infos
         .iter()
         .filter(|f| !f.attrs.skip && !is_unit_type(&f.kind))
         .map(|f| {
@@ -580,7 +673,7 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
                 return toml_pretty_deser::TomlValue::new_wrong_type(helper.item, helper.span(), "table or inline table");
             }
         }
-    }; 
+    };
 
     // --- no_verify impl ---
     let no_verify_impl = if no_verify {
@@ -608,7 +701,7 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         quote! {}
     };
 
-    let output = quote! {
+    Ok(quote! {
         #original_item
 
         #[derive(Default, Debug)]
@@ -659,59 +752,19 @@ fn derive_struct(input: &DeriveInput, attr_args: &str) -> TokenStream {
         #no_verify_impl
 
         #root_impl
-    };
-
-    output.into()
+    })
 }
 
 // ============================================================================
 // Enum derivation
 // ============================================================================
 
-/// Parse `tag = "key"` and optional `alias = "..."` from attribute args like
-/// `tag = "kind", alias = "type", alias = "tag"`
-fn parse_tag_from_attr(attr_args: &str) -> Option<(String, Vec<String>)> {
-    let attr_args = attr_args.trim();
-    if attr_args.is_empty() {
-        return None;
-    }
-    let mut tag = None;
-    let mut aliases = Vec::new();
-    let meta: syn::Meta =
-        syn::parse_str(&format!("tpd({attr_args})")).expect("Could not parse attr meta");
-    if let syn::Meta::List(list) = meta {
-        let punctuated = list
-            .parse_args_with(
-                syn::punctuated::Punctuated::<syn::MetaNameValue, syn::Token![,]>::parse_terminated,
-            )
-            .unwrap_or_else(|_| panic!("Failed to parse '{attr_args}'"));
-        for nv in punctuated {
-            if nv.path.is_ident("tag") {
-                if let syn::Expr::Lit(syn::ExprLit {
-                    lit: Lit::Str(s), ..
-                }) = &nv.value
-                {
-                    tag = Some(s.value());
-                }
-            } else if nv.path.is_ident("alias") {
-                if let syn::Expr::Lit(syn::ExprLit {
-                    lit: Lit::Str(s), ..
-                }) = &nv.value
-                {
-                    aliases.push(s.value());
-                }
-            }
-        }
-    }
-    tag.map(|t| (t, aliases))
-}
-
 struct VariantAttrs {
     aliases: Vec<String>,
     skip: bool,
 }
 
-fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
+fn parse_variant_attrs(variant: &syn::Variant) -> syn::Result<VariantAttrs> {
     let mut attrs = VariantAttrs {
         aliases: Vec::new(),
         skip: false,
@@ -722,23 +775,29 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
         }
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("alias") {
-                let value = meta.value().expect("No value on alias");
-                let lit: Lit = value.parse().expect("unparsable value on alias");
+                let value = meta.value()?;
+                let lit: Lit = value.parse()?;
                 if let Lit::Str(s) = lit {
                     attrs.aliases.push(s.value());
                 }
             } else if meta.path.is_ident("skip") {
                 attrs.skip = true;
+            } else {
+                return Err(meta.error(format!(
+                    "unknown tpd variant attribute `{}`",
+                    meta.path
+                        .get_ident()
+                        .map_or_else(|| "?".to_string(), ToString::to_string),
+                )));
             }
             Ok(())
-        })
-        .expect("failed to parse nested meta - case 2");
+        })?;
     }
-    attrs
+    Ok(attrs)
 }
 
-fn derive_enum(input: &DeriveInput, attr_args: &str) -> TokenStream {
-    let tag = parse_tag_from_attr(attr_args);
+fn derive_enum(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<TokenStream2> {
+    let tag = parse_enum_attrs(attr_ts)?;
 
     if let Some((tag, aliases)) = tag {
         derive_tagged_enum(input, &tag, &aliases)
@@ -747,7 +806,7 @@ fn derive_enum(input: &DeriveInput, attr_args: &str) -> TokenStream {
     }
 }
 
-fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
+fn derive_simple_enum(input: &DeriveInput) -> syn::Result<TokenStream2> {
     struct VariantInfo {
         ident: syn::Ident,
         attrs: VariantAttrs,
@@ -760,23 +819,25 @@ fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
         _ => unreachable!(),
     };
 
-
     let variant_infos: Vec<VariantInfo> = variants
         .iter()
-        .map(|v| {
-            assert!(
-                v.fields.is_empty(),
-                "Simple enums must have unit variants. Use #[tpd(tag = \"key\")] for tagged enums."
-            );
-            VariantInfo {
-                ident: v.ident.clone(),
-                attrs: parse_variant_attrs(v),
+        .map(|v| -> syn::Result<VariantInfo> {
+            if !v.fields.is_empty() {
+                return Err(syn::Error::new_spanned(
+                    v,
+                    "simple enums must have unit variants; \
+                     use #[tpd(tag = \"key\")] for tagged enums",
+                ));
             }
+            Ok(VariantInfo {
+                ident: v.ident.clone(),
+                attrs: parse_variant_attrs(v)?,
+            })
         })
-        .collect();
+        .collect::<syn::Result<Vec<_>>>()?;
 
     // Generate match arms for string matching
-    let match_arms: Vec<proc_macro2::TokenStream> = variant_infos
+    let match_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
         .map(|v| {
@@ -813,7 +874,7 @@ fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
         })
         .collect();
 
-    let output = quote! {
+    Ok(quote! {
         #original_item
 
         impl toml_pretty_deser::Visitor for #name {
@@ -844,13 +905,15 @@ fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
 
         impl<__TpdR> toml_pretty_deser::VerifyVisitor<__TpdR> for #name {}
         impl<__TpdR> toml_pretty_deser::VerifyIn<__TpdR> for #name {}
-    };
-
-    output.into()
+    })
 }
 
 #[allow(clippy::too_many_lines)]
-fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]) -> TokenStream {
+fn derive_tagged_enum(
+    input: &DeriveInput,
+    tag_key: &str,
+    tag_aliases: &[String],
+) -> syn::Result<TokenStream2> {
     struct TaggedVariantInfo {
         ident: syn::Ident,
         inner_type: Type,
@@ -866,42 +929,48 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         _ => unreachable!(),
     };
 
-
     let variant_infos: Vec<TaggedVariantInfo> = variants
         .iter()
-        .map(|v| {
+        .map(|v| -> syn::Result<TaggedVariantInfo> {
             let inner_type = match &v.fields {
                 Fields::Unnamed(fields) => {
-                    assert_eq!(
-                        fields.unnamed.len(),
-                        1,
-                        "Tagged enum variants must have exactly one unnamed field"
-                    );
-                    fields.unnamed.first().expect("tagged enum variant has no fields").ty.clone()
+                    if fields.unnamed.len() != 1 {
+                        return Err(syn::Error::new_spanned(
+                            v,
+                            "tagged enum variants must have exactly one unnamed field",
+                        ));
+                    }
+                    fields.unnamed.first().expect("checked above").ty.clone()
                 }
-                _ => panic!(
-                    "Tagged enum variants must have exactly one unnamed field: {}(InnerType)",
-                    v.ident
-                ),
+                _ => {
+                    return Err(syn::Error::new_spanned(
+                        v,
+                        format!(
+                            "tagged enum variant `{}` must have exactly one unnamed field: \
+                             {}(InnerType)",
+                            v.ident, v.ident
+                        ),
+                    ))
+                }
             };
-            TaggedVariantInfo {
+            Ok(TaggedVariantInfo {
                 ident: v.ident.clone(),
                 inner_type,
-                attrs: parse_variant_attrs(v),
-            }
+                attrs: parse_variant_attrs(v)?,
+            })
         })
-        .collect();
+        .collect::<syn::Result<Vec<_>>>()?;
 
     // Generate PartialTaggedEnum variants: Variant(TomlValue<PartialInner>)
-    let partial_variants: Vec<proc_macro2::TokenStream> = variant_infos
+    let partial_variants: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
-        .map(|v| {
+        .map(|v| -> syn::Result<TokenStream2> {
             let ident = &v.ident;
-            let partial_inner = partial_type_path(&v.inner_type);
-            quote! { #ident(toml_pretty_deser::TomlValue<#partial_inner>) }
+            let partial_inner = partial_type_path(&v.inner_type)?;
+            Ok(quote! { #ident(toml_pretty_deser::TomlValue<#partial_inner>) })
         })
-        .collect();
+        .collect::<syn::Result<Vec<_>>>()?;
 
     // Variant names + aliases for suggest_alternatives (skipped variants excluded)
     let variant_names: Vec<String> = variant_infos
@@ -917,16 +986,16 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         .collect();
 
     // fill_from_toml tag dispatch match arms
-    let tag_match_arms: Vec<proc_macro2::TokenStream> = variant_infos
+    let tag_match_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
-        .map(|v| {
+        .map(|v| -> syn::Result<TokenStream2> {
             let ident = &v.ident;
             let ident_str = ident.to_string();
-            let partial_inner = partial_type_path(&v.inner_type);
+            let partial_inner = partial_type_path(&v.inner_type)?;
             let aliases = &v.attrs.aliases;
 
-            quote! {
+            Ok(quote! {
                 #ident_str #(| #aliases)* => {
                     let mut partial_inner = <#partial_inner as toml_pretty_deser::Visitor>::fill_from_toml(helper);
                     match &mut partial_inner.state {
@@ -950,12 +1019,12 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
                         }
                     }
                 }
-            }
+            })
         })
-        .collect();
+        .collect::<syn::Result<Vec<_>>>()?;
 
     // can_concrete match arms
-    let can_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
+    let can_concrete_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
         .map(|v| {
@@ -967,7 +1036,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         .collect();
 
     // v_register_errors match arms
-    let register_errors_arms: Vec<proc_macro2::TokenStream> = variant_infos
+    let register_errors_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
         .map(|v| {
@@ -979,7 +1048,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         .collect();
 
     // into_concrete match arms
-    let into_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
+    let into_concrete_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
         .map(|v| {
@@ -991,7 +1060,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         .collect();
 
     // vv_validate match arms
-    let vv_validate_arms: Vec<proc_macro2::TokenStream> = variant_infos
+    let vv_validate_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
         .map(|v| {
@@ -1004,7 +1073,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         })
         .collect();
 
-    let output = quote! {
+    Ok(quote! {
         #original_item
 
         #[derive(Debug)]
@@ -1071,7 +1140,5 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         }
 
         impl<__TpdR> toml_pretty_deser::VerifyIn<__TpdR> for #partial_name {}
-    };
-
-    output.into()
+    })
 }

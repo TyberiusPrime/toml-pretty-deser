@@ -1,7 +1,5 @@
-error: custom attribute panicked
- --> compilation_failure_tests/tagged_enum_named.rs:3:1
+error: tagged enum variant `TagA` must have exactly one unnamed field: TagA(InnerType)
+ --> compilation_failure_tests/tagged_enum_named.rs:6:5
   |
-3 | #[tpd(tag="kind")]
-  | ^^^^^^^^^^^^^^^^^^
-  |
-  = help: message: Tagged enum variants must have exactly one unnamed field: TagA(InnerType)
+6 |     TagA { field: u8},
+  |     ^^^^^^^^^^^^^^^^^

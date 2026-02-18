@@ -1,9 +1,5 @@
-error: custom attribute panicked
- --> compilation_failure_tests/tagged_enum_multi_fields.rs:7:1
-  |
-7 | #[tpd(tag="kind")]
-  | ^^^^^^^^^^^^^^^^^^
-  |
-  = help: message: assertion `left == right` failed: Tagged enum variants must have exactly one unnamed field
-            left: 2
-           right: 1
+error: tagged enum variants must have exactly one unnamed field
+  --> compilation_failure_tests/tagged_enum_multi_fields.rs:10:5
+   |
+10 |     TagA (MyStruct,MyStruct),
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^

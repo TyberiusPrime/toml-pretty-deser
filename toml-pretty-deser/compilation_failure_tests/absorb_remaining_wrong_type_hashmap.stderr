@@ -1,10 +1,8 @@
-error: custom attribute panicked
- --> compilation_failure_tests/absorb_remaining_wrong_type_hashmap.rs:5:1
-  |
-5 | #[tpd(root)]
-  | ^^^^^^^^^^^^
-  |
-  = help: message: #[tpd_absorb_remaining] on field 'extra' requires type IndexMap<FromString<_>, Visitor<>_> , T>>, found: #[tpd(absorb_remaining)] extra : HashMap < String, String > .ty
+error: `HashMap` is not supported as a tpd map field type; use `IndexMap<K, V>` from the `indexmap` crate instead
+  --> compilation_failure_tests/absorb_remaining_wrong_type_hashmap.rs:10:12
+   |
+10 |     extra: HashMap<String, String>,
+   |            ^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: unused import: `std::collections::HashMap`
  --> compilation_failure_tests/absorb_remaining_wrong_type_hashmap.rs:2:5

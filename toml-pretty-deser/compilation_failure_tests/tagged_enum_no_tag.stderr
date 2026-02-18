@@ -1,7 +1,5 @@
-error: custom attribute panicked
- --> compilation_failure_tests/tagged_enum_no_tag.rs:7:1
-  |
-7 | #[tpd]
-  | ^^^^^^
-  |
-  = help: message: Simple enums must have unit variants. Use #[tpd(tag = "key")] for tagged enums.
+error: simple enums must have unit variants; use #[tpd(tag = "key")] for tagged enums
+  --> compilation_failure_tests/tagged_enum_no_tag.rs:10:5
+   |
+10 |     TagA (MyStruct),
+   |     ^^^^^^^^^^^^^^^

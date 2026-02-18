@@ -1,10 +1,8 @@
-error: custom attribute panicked
- --> compilation_failure_tests/absorb_remaining_multiple.rs:5:1
-  |
-5 | #[tpd]
-  | ^^^^^^
-  |
-  = help: message: Only one field can have #[tpd_absorb_remaining]. Found 2 fields with this attribute.
+error: only one field can have #[tpd(absorb_remaining)]
+  --> compilation_failure_tests/absorb_remaining_multiple.rs:12:5
+   |
+12 |     extra2: IndexMap<String, String>,
+   |     ^^^^^^
 
 warning: unused import: `indexmap::IndexMap`
  --> compilation_failure_tests/absorb_remaining_multiple.rs:2:5
