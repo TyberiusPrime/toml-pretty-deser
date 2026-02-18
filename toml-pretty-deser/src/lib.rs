@@ -59,6 +59,31 @@ impl<P> DeserError<P> {
     }
 }
 
+impl<P: std::fmt::Debug> std::fmt::Display for DeserError<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ParsingFailure(e, _) => write!(f, "TOML parse error: {e}"),
+            Self::DeserFailure(errors, _) => {
+                write!(
+                    f,
+                    "TOML deserialization failed with {} error(s) \
+                     (call `.pretty(filename)` for a detailed report)",
+                    errors.len()
+                )
+            }
+        }
+    }
+}
+
+impl<P: std::fmt::Debug> std::error::Error for DeserError<P> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ParsingFailure(e, _) => Some(e),
+            Self::DeserFailure(_, _) => None,
+        }
+    }
+}
+
 /// The main user facing verification trait.
 ///
 /// Implement this on your `PartialT` for the parent type
