@@ -8,4 +8,5 @@ pub use crate::{
     DeserError, FieldMatchMode, Root, TomlHelper, TomlValue, TomlValueState, VecMode, VerifyIn,
     helpers::{MustAdapt, MustAdaptHelper},
     impl_visitor, impl_visitor_for_from_str, impl_visitor_for_try_from_str,
+    ValidationFailure
 };

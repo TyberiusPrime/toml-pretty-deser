@@ -69,7 +69,7 @@ impl VerifyIn<Root> for PartialShowOffTwoValueErrors {
     fn verify(
         &mut self,
         parent: &Root,
-    ) -> Result<(), (String, Option<String>)>
+    ) -> Result<(), ValidationFailure>
     where
         Self: Sized,
     {
@@ -104,6 +104,7 @@ impl VerifyIn<Root> for PartialShowOffTwoValueErrors {
             }
         });
 
+        //returning err here adds another top level error here
         Ok(())
 
     }
@@ -352,7 +353,7 @@ pub struct AdaptInVerify {
 }
 
 impl VerifyIn<Root> for PartialAdaptInVerify {
-    fn verify(&mut self, _parent: &Root) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -423,3 +424,7 @@ not the `T`
 
 
 
+
+## Changelog
+
+See [CHANGELOG.md]

@@ -2,8 +2,7 @@
 use indexmap::IndexMap;
 
 use crate::{
-    AsTableLikePlus, TomlCollector, TomlHelper, TomlValue, VerifyIn, VerifyVisitor,
-    helpers::Visitor, prelude::MustAdapt,
+    AsTableLikePlus, TomlCollector, TomlHelper, TomlValue, ValidationFailure, VerifyIn, VerifyVisitor, helpers::Visitor, prelude::MustAdapt
 };
 
 #[macro_export]
@@ -409,7 +408,7 @@ impl<R, A: Visitor + std::fmt::Debug + VerifyVisitor<R>, B: std::fmt::Debug> Ver
 impl<R, A: Visitor + std::fmt::Debug + VerifyIn<R>, B: std::fmt::Debug> VerifyIn<R> for
     MustAdapt<A, B>
 {
-    fn verify(&mut self, parent: &R) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, parent: &R) -> Result<(), ValidationFailure>
     where
         Self: Sized + Visitor,
     {

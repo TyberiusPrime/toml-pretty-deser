@@ -82,12 +82,27 @@ impl<P> DeserError<P> {
 ///    ```
 ///
 ///
+
+/// The error type for `VerifyIn.verify()`
+pub struct ValidationFailure {
+    message: String,
+    help: Option<String>,
+}
+
+impl ValidationFailure {
+    pub fn new(message: impl AsRef<str>, help: Option<impl AsRef<str>>) -> Self {
+        Self {
+            message: message.as_ref().to_string(),
+            help: help.map(|h| h.as_ref().to_string()),
+        }
+    }
+}
 pub trait VerifyIn<Parent> {
     #[allow(unused_variables)]
     /// # Errors
     /// When the developer wants to replace this value with
     /// a `TomlValue` in failed verification state.
-    fn verify(&mut self, parent: &Parent) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, parent: &Parent) -> Result<(), ValidationFailure>
     where
         Self: Sized + Visitor,
     {
@@ -116,8 +131,8 @@ pub struct SpannedMessage {
 /// Combines an [`AnnotatedError`] with the source TOML string to be able to produce pretty error
 /// messages with code snippets and hints.
 pub struct HydratedAnnotatedError {
-    pub source: Rc<RefCell<String>>,
-    pub inner: AnnotatedError,
+    source: String,
+    inner: AnnotatedError,
 }
 
 impl std::fmt::Debug for HydratedAnnotatedError {
@@ -149,14 +164,7 @@ impl AnnotatedError {
             help: Some(help.to_string()),
         }
     }
-}
 
-/// Convenience methods for building up `AnnotatedErrors`
-pub trait AnnotatedErrorExt {
-    fn add_span(&mut self, span: Range<usize>, msg: &str);
-}
-
-impl AnnotatedErrorExt for AnnotatedError {
     fn add_span(&mut self, span: Range<usize>, msg: &str) {
         self.spans.push(SpannedMessage {
             span,
@@ -285,7 +293,7 @@ impl HydratedAnnotatedError {
     pub fn pretty(&self, source_name: &str) -> String {
         pretty_error_message(
             source_name,
-            self.source.borrow().as_str(),
+            self.source.as_str(),
             &self.inner.spans,
             self.inner.help.as_ref(),
         )
@@ -428,7 +436,7 @@ impl<'a> TomlHelper<'a> {
             .borrow_mut()
             .drain(..)
             .map(|error| HydratedAnnotatedError {
-                source: source.clone(),
+                source: source.borrow().clone(),
                 inner: error,
             })
             .collect()
@@ -694,15 +702,15 @@ impl<'a> TomlHelper<'a> {
                         .expected
                         .iter()
                         .filter(|field_info| {
-                            let norm_names =
-                                field_info.all_normalized_names(self.col.match_mode);
+                            let norm_names = field_info.all_normalized_names(self.col.match_mode);
                             !norm_names.iter().any(|n| alias_set.contains(n))
                         })
                         .flat_map(|field_info| {
                             let canonical = format!("'{}'", field_info.name);
-                            let alias_entries = field_info.aliases.iter().map(|alias| {
-                                format!("'{alias}' (='{}')", field_info.name)
-                            });
+                            let alias_entries = field_info
+                                .aliases
+                                .iter()
+                                .map(|alias| format!("'{alias}' (='{}')", field_info.name));
                             std::iter::once(canonical).chain(alias_entries)
                         })
                         .collect();
@@ -751,7 +759,7 @@ impl<T> TomlValue<T> {
     }
 
     /// Create a new custom `TomlValue` error with one or multiple spans
-    /// for errors that don't fit the framewrok
+    /// for errors that don't fit the framework
     ///
     ///
     /// # Panics

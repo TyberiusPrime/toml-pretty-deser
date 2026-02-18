@@ -1,0 +1,12 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │
+  ┆ ┬
+  ┆ │
+  ┆ ╰─ Missing required key: 'boxed'.
+──╯

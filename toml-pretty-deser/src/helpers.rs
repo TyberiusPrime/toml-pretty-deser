@@ -3,8 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use toml_edit::Document;
 
 use crate::{
-    AnnotatedError, AnnotatedErrorExt, DeserError, FieldMatchMode, SpannedMessage, TomlCollector,
-    TomlHelper, TomlValue, TomlValueState, VecMode, VerifyIn,
+    AnnotatedError, DeserError, FieldMatchMode, SpannedMessage, TomlCollector, TomlHelper, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn
 };
 
 /// The main parent-independent visitor trait.
@@ -95,11 +94,11 @@ where
                         value: Some(maybe_validated),
                         state: TomlValueState::NeedsFurtherValidation { span },
                     },
-                    (Err((msg, hint)), _, _) => TomlValue {
+                    (Err(ValidationFailure { message, help}), _, _) => TomlValue {
                         state: TomlValueState::ValidationFailed {
                             span,
-                            message: msg,
-                            help: hint,
+                            message,
+                            help,
                         },
                         value: Some(maybe_validated),
                     },

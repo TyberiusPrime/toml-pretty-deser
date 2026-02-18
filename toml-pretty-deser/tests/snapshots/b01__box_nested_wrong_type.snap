@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/b01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+3 │         [boxed]
+4 │             name = 123
+  ┆                    ─┬─
+  ┆                     │
+  ┆                     ╰── Wrong type: expected string, found integer.
+──╯
+Hint: This value has the wrong type.

@@ -8,9 +8,8 @@
 
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    DeserError, FieldMatchMode, TomlValue, VecMode, VerifyIn,
-    impl_visitor_for_from_str, impl_visitor_for_try_from_str,
-    helpers::MustAdaptHelper,
+    DeserError, FieldMatchMode, TomlValue, ValidationFailure, VecMode, VerifyIn,
+    helpers::MustAdaptHelper, impl_visitor_for_from_str, impl_visitor_for_try_from_str,
 };
 //library code
 //
@@ -45,7 +44,7 @@ use toml_pretty_deser_macros::tpd;
 #[tpd(root, no_verify)]
 #[derive(Debug)]
 pub struct Outer {
-    #[tpd(alias="a8", alias = "u8")]
+    #[tpd(alias = "a8", alias = "u8")]
     a_u8: u8,
     opt_u8: Option<u8>,
     vec_u8: Vec<u8>,
@@ -66,11 +65,7 @@ pub struct NestedStruct {
 }
 
 impl VerifyIn<PartialOuter> for PartialNestedStruct {
-    fn verify(
-        &mut self,
-        parent: &PartialOuter,
-    ) -> Result<(), (String, Option<String>)> {
-
+    fn verify(&mut self, parent: &PartialOuter) -> Result<(), ValidationFailure> {
         if let Some(value) = self.other_u8.as_mut()
             && let Some(parent_value) = parent.a_u8.value
         {
@@ -90,18 +85,18 @@ pub struct DoubleNestedStruct {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AnEnum {
     TypeA,
-    #[tpd(alias = "Bbb", alias="ccc")]
+    #[tpd(alias = "Bbb", alias = "ccc")]
     TypeB,
     #[tpd(skip)]
     TypeD,
 }
 
-#[tpd(tag = "kind", alias="tag", alias="type")]
+#[tpd(tag = "kind", alias = "tag", alias = "type")]
 #[derive(Debug, Eq, PartialEq)]
 pub enum TaggedEnum {
     KindA(InnerA),
     #[allow(dead_code)]
-    #[tpd(alias="B", alias="D")]
+    #[tpd(alias = "B", alias = "D")]
     KindB(InnerB),
     #[tpd(skip)]
     KindD(InnerA),
@@ -167,10 +162,7 @@ pub struct OtherOuter {
     pub nested_struct: NestedStruct,
 }
 impl VerifyIn<PartialOtherOuter> for PartialNestedStruct {
-    fn verify(
-        &mut self,
-        _parent: &PartialOtherOuter,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &PartialOtherOuter) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1144,10 +1136,7 @@ pub struct WithDefaults {
 }
 
 impl VerifyIn<Root> for PartialWithDefaults {
-    fn verify(
-        &mut self,
-        _parent: &Root,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1473,12 +1462,8 @@ fn test_box_nested_missing() {
         OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_err());
-    if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(errors.iter().any(|e| {
-            e.inner.spans[0]
-                .msg
-                .contains("Missing required key: 'boxed'.")
-        }));
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
     }
 }
 
@@ -1495,17 +1480,16 @@ fn test_box_nested_inner_field_missing() {
         OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_err());
-    if let Err(DeserError::DeserFailure(errors, partial)) = result {
-        assert!(errors.iter().any(|e| {
-            e.inner.spans[0]
-                .msg
-                .contains("Missing required key: 'value'.")
-        }));
-        // Check that we can still access the partial's boxed inner name
-        assert_eq!(
-            partial.boxed.value.as_ref().unwrap().name.as_ref().unwrap(),
-            "only_name"
-        );
+
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+        if let DeserError::DeserFailure(_errors, partial) = e {
+            // Check that we can still access the partial's boxed inner name
+            assert_eq!(
+                partial.boxed.value.as_ref().unwrap().name.as_ref().unwrap(),
+                "only_name"
+            );
+        }
     }
 }
 
@@ -1522,12 +1506,9 @@ fn test_box_nested_wrong_type() {
         OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_err());
-    if let Err(DeserError::DeserFailure(errors, _)) = result {
-        assert!(
-            errors
-                .iter()
-                .any(|e| e.inner.spans[0].msg.contains("Wrong type"))
-        );
+
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
     }
 }
 
@@ -1542,17 +1523,14 @@ toml_pretty_deser::impl_visitor!(FailString, false, |helper| {
 });
 
 impl VerifyIn<PartialMapTestValidationFailure> for FailString {
-    fn verify(
-        &mut self,
-        _parent: &PartialMapTestValidationFailure,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &PartialMapTestValidationFailure) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
         if self.0.len() <= 5 {
-            Err((
-                "Too short!".to_string(),
-                Some("Longer than 5 letters please".to_string()),
+            Err(ValidationFailure::new(
+                "Too short!",
+                Some("Longer than 5 letters please"),
             ))
         } else {
             Ok(())
@@ -1594,10 +1572,7 @@ pub struct UnitField {
 }
 
 impl VerifyIn<Root> for PartialUnitField {
-    fn verify(
-        &mut self,
-        _parent: &Root,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1679,17 +1654,14 @@ fn test_nested_unit_field() {
 }
 
 impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
-    fn verify(
-        &mut self,
-        _parent: &PartialNestedUnitField,
-    ) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &PartialNestedUnitField) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
         let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
         if !len.is_multiple_of(2) {
-            return Err((
-                "there must be an even number of fields".to_string(),
+            return Err(ValidationFailure::new(
+                "there must be an even number of fields",
                 Some(format!("There were {} fields", len)),
             ));
         }
@@ -1828,7 +1800,6 @@ fn test_boxed_tagged_enum() {
     );
 }
 
-
 #[derive(Debug)]
 #[tpd(root)]
 pub struct AdaptInVerify {
@@ -1839,7 +1810,7 @@ pub struct AdaptInVerify {
 }
 
 impl VerifyIn<Root> for PartialAdaptInVerify {
-    fn verify(&mut self, _parent: &Root) -> Result<(), (String, Option<String>)>
+    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
