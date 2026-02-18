@@ -1,5 +1,5 @@
 ---
-source: toml-pretty-deser/tests/a01.rs
+source: toml-pretty-deser/tests/b01.rs
 expression: "e.pretty(\"test.toml\")"
 ---
 Error 1/3
@@ -21,9 +21,9 @@ Error 2/3
 19 │             kind = 'KindC' # invalid kind
    ┆                    ───┬───
    ┆                       │
-   ┆                       ╰─────────────────── Invalid tag value: KindC
+   ┆                       ╰─────────────────── Invalid tag value: 'KindC'
 ───╯
-Hint: Did you mean: 'KindA' or 'KindB'?
+Hint: Did you mean: KindA, KindB, or 'B' (='KindB')?
 
 Error 3/3
    ╭─test.toml

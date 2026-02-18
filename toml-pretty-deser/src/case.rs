@@ -51,9 +51,12 @@ pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> St
     let mut distances: Vec<(usize, &str)> = available
         .iter()
         .map(|item| {
-            let item_str = item.as_ref();
+            let item_str = item
+                .as_ref()
+                .split_once(' ')
+                .map_or_else(|| item.as_ref(), |(s, _)| s);
             let dist = strsim::levenshtein(current, item_str);
-            (dist, item_str)
+            (dist, item.as_ref())
         })
         .collect();
 
@@ -71,16 +74,16 @@ pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> St
 fn format_quoted_list(items: &[&str]) -> String {
     match items {
         [] => String::new(),
-        [single] => format!("'{single}'"),
-        [first, second] => format!("'{first}' or '{second}'"),
+        [single] => format!("{single}"),
+        [first, second] => format!("{first} or {second}"),
         rest => {
-            let (last, init) = rest.split_last().expect("can't fail");
+            let (last, init) = rest.split_last().expect("cant fail");
             let start = init
                 .iter()
-                .map(|s| format!("'{s}'"))
+                .map(|s| format!("{s}"))
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{start}, or '{last}'")
+            format!("{start}, or {last}")
         }
     }
 }

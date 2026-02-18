@@ -87,6 +87,8 @@ pub enum AnEnum {
     TypeA,
     // #[tpd_alias(Bbb)]
     TypeB,
+    //#[tpd(skip)] // can't be constructed from toml.
+    TypeC,
 }
 
 // #[tpd(tag="kind", alias="tag", alias="type")]
@@ -95,6 +97,9 @@ pub enum TaggedEnum {
     KindA(InnerA),
     #[allow(dead_code)]
     KindB(InnerB),
+
+    //#[tdp(skip)] - can't be constructed from toml
+    NotFromTomlKindC(InnerA),
 }
 // #[tpd]
 #[derive(Debug, Eq, PartialEq)]
@@ -715,6 +720,36 @@ fn test_vec_of_tagged_enums() {
 
 pub struct WithVecOfStructs {
     items: Vec<NestedStruct>,
+}
+
+
+#[test]
+fn test_skipped_enum_kinds() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 =2
+        vec_u8 = [3]
+        simple_enum = 'TypeC'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindC'
+            a = 10
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::AnyCase,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(!parsed.is_ok());
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
 }
 
 #[test]

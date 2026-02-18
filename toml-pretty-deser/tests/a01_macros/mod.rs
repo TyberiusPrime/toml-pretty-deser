@@ -173,8 +173,11 @@ impl Visitor for AnEnum {
             }
             return TomlValue::new_validation_failed(
                 helper.span(),
-                format!("Invalid enum variant: {}", str),
-                Some(suggest_alternatives(str, &["TypeA", "TypeB", "Bbb"])),
+                format!("Invalid enum variant: '{}'", str),
+                Some(suggest_alternatives(
+                    str,
+                    &["'TypeA'", "'TypeB'", "'Bbb' (='TypeB')"],
+                )),
             );
         }
         TomlValue::new_wrong_type(helper.item, helper.span(), "string")
@@ -391,17 +394,33 @@ impl Visitor for PartialTaggedEnum {
                 }
             }
             "KindB" => {
-                let partial_inner = PartialInnerB::fill_from_toml(helper);
-                if partial_inner.is_ok() {
-                    TomlValue::new_ok(PartialTaggedEnum::KindB(partial_inner), helper.span())
-                } else {
-                    TomlValue::new_nested(Some(PartialTaggedEnum::KindB(partial_inner)))
+                let mut partial_inner = PartialInnerB::fill_from_toml(helper);
+
+                match &mut partial_inner.state {
+                    TomlValueState::Ok { .. } => {
+                        let visitor = PartialTaggedEnum::KindB(partial_inner);
+                        TomlValue::new_ok(visitor, helper.span())
+                    }
+                    TomlValueState::UnknownKeys(unknown_keys) => {
+                        for k in unknown_keys.iter_mut() {
+                            k.additional_spans.push((
+                                tag_span.clone(),
+                                "Involving this enum variant.".to_string(),
+                            ));
+                        }
+                        let visitor = PartialTaggedEnum::KindB(partial_inner);
+                        TomlValue::new_nested(Some(visitor))
+                    }
+                    _ => {
+                        let visitor = PartialTaggedEnum::KindB(partial_inner);
+                        TomlValue::new_nested(Some(visitor))
+                    }
                 }
             }
             _ => TomlValue::new_validation_failed(
                 tag_span,
-                format!("Invalid tag value: {}", tag),
-                Some(suggest_alternatives(tag, &["KindA", "KindB"])),
+                format!("Invalid tag value: '{}'", tag),
+                Some(suggest_alternatives(tag, &["'KindA'", "'KindB'"])),
             ),
         }
     }
@@ -1448,7 +1467,6 @@ impl PartialAdaptInVerify {
         &self,
         helper: &mut TomlHelper<'_>,
     ) -> TomlValue<MustAdapt<String, usize>> {
-
         helper.get_with_aliases("other", &[])
     }
 }

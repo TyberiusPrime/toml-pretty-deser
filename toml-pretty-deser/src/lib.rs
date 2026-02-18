@@ -667,13 +667,6 @@ impl<'a> TomlHelper<'a> {
     /// # Panics
     /// when called on a non-table item
     pub fn unknown_spans(&self) -> Vec<UnknownKey> {
-        // Build set of normalized expected names (including aliases)
-        let mut expected_normalized: IndexSet<String> = IndexSet::new();
-        for field_info in &self.expected {
-            for normalized_name in field_info.all_normalized_names(self.col.match_mode) {
-                expected_normalized.insert(normalized_name);
-            }
-        }
         if let Some(table) = self.item.as_table_like_plus() {
             // Collect all keys from either table type
             let keys: Vec<String> = table.iter().map(|(k, _)| k.to_string()).collect();
@@ -695,12 +688,23 @@ impl<'a> TomlHelper<'a> {
 
                 // Check if this key was observed (i.e., it matched an expected field)
                 if !observed_set.contains(&normalized_key) {
-                    // This is an unknown key - find available (expected but not yet observed) fields
-                    let still_available: Vec<_> = expected_normalized
+                    // This is an unknown key - find available (expected but not yet observed) fields,
+                    // showing aliases as 'alias' (='canonical')
+                    let still_available: Vec<String> = self
+                        .expected
                         .iter()
-                        //.filter(|expected| !observed_set.contains(*expected))
-                        .filter(|expected| !alias_set.contains(*expected))
-                        .map(std::string::String::as_str)
+                        .filter(|field_info| {
+                            let norm_names =
+                                field_info.all_normalized_names(self.col.match_mode);
+                            !norm_names.iter().any(|n| alias_set.contains(n))
+                        })
+                        .flat_map(|field_info| {
+                            let canonical = format!("'{}'", field_info.name);
+                            let alias_entries = field_info.aliases.iter().map(|alias| {
+                                format!("'{alias}' (='{}')", field_info.name)
+                            });
+                            std::iter::once(canonical).chain(alias_entries)
+                        })
                         .collect();
 
                     let span = table

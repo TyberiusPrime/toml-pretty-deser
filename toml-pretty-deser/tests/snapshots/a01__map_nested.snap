@@ -21,7 +21,7 @@ Error 2/3
 19 │             kind = 'KindC' # invalid kind
    ┆                    ───┬───
    ┆                       │
-   ┆                       ╰─────────────────── Invalid tag value: KindC
+   ┆                       ╰─────────────────── Invalid tag value: 'KindC'
 ───╯
 Hint: Did you mean: 'KindA' or 'KindB'?
 

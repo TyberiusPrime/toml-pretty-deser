@@ -708,11 +708,13 @@ fn parse_tag_from_attr(attr_args: &str) -> Option<(String, Vec<String>)> {
 
 struct VariantAttrs {
     aliases: Vec<String>,
+    skip: bool,
 }
 
 fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
     let mut attrs = VariantAttrs {
         aliases: Vec::new(),
+        skip: false,
     };
     for attr in &variant.attrs {
         if !attr.path().is_ident("tpd") {
@@ -725,6 +727,8 @@ fn parse_variant_attrs(variant: &syn::Variant) -> VariantAttrs {
                 if let Lit::Str(s) = lit {
                     attrs.aliases.push(s.value());
                 }
+            } else if meta.path.is_ident("skip") {
+                attrs.skip = true;
             }
             Ok(())
         })
@@ -774,6 +778,7 @@ fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
     // Generate match arms for string matching
     let match_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
+        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             let name_str = ident.to_string();
@@ -798,9 +803,12 @@ fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
     // Collect all variant names + aliases for suggest_alternatives
     let all_names: Vec<String> = variant_infos
         .iter()
+        .filter(|v| !v.attrs.skip)
         .flat_map(|v| {
             let mut names = vec![v.ident.to_string()];
-            names.extend(v.attrs.aliases.iter().cloned());
+            names.extend(v.attrs.aliases.iter().map(
+                |alias| format!("'{alias}' (='{ident}')", ident=v.ident)
+            ));
             names
         })
         .collect();
@@ -816,7 +824,7 @@ fn derive_simple_enum(input: &DeriveInput) -> TokenStream {
                     #(#match_arms)*
                     return toml_pretty_deser::TomlValue::new_validation_failed(
                         helper.span(),
-                        format!("Invalid enum variant: {}", str_val),
+                        format!("Invalid enum variant: '{}'", str_val),
                         Some(toml_pretty_deser::suggest_alternatives(str_val, &[#(#all_names),*])),
                     );
                 }
@@ -846,6 +854,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
     struct TaggedVariantInfo {
         ident: syn::Ident,
         inner_type: Type,
+        attrs: VariantAttrs,
     }
     let original_item = emit_original_item(input);
     let name = &input.ident;
@@ -878,6 +887,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
             TaggedVariantInfo {
                 ident: v.ident.clone(),
                 inner_type,
+                attrs: parse_variant_attrs(v),
             }
         })
         .collect();
@@ -885,6 +895,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
     // Generate PartialTaggedEnum variants: Variant(TomlValue<PartialInner>)
     let partial_variants: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
+        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             let partial_inner = partial_type_path(&v.inner_type);
@@ -892,19 +903,31 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
         })
         .collect();
 
-    // Variant names for suggest_alternatives
-    let variant_names: Vec<String> = variant_infos.iter().map(|v| v.ident.to_string()).collect();
+    // Variant names + aliases for suggest_alternatives (skipped variants excluded)
+    let variant_names: Vec<String> = variant_infos
+        .iter()
+        .filter(|v| !v.attrs.skip)
+        .flat_map(|v| {
+            let mut names = vec![v.ident.to_string()];
+            names.extend(v.attrs.aliases.iter().map(
+                |alias| format!("'{alias}' (='{ident}')", ident = v.ident),
+            ));
+            names
+        })
+        .collect();
 
     // fill_from_toml tag dispatch match arms
     let tag_match_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
+        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             let ident_str = ident.to_string();
             let partial_inner = partial_type_path(&v.inner_type);
+            let aliases = &v.attrs.aliases;
 
             quote! {
-                #ident_str => {
+                #ident_str #(| #aliases)* => {
                     let mut partial_inner = <#partial_inner as toml_pretty_deser::Visitor>::fill_from_toml(helper);
                     match &mut partial_inner.state {
                         toml_pretty_deser::TomlValueState::Ok { .. } => {
@@ -934,6 +957,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
     // can_concrete match arms
     let can_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
+        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -945,6 +969,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
     // v_register_errors match arms
     let register_errors_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
+        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -956,6 +981,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
     // into_concrete match arms
     let into_concrete_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
+        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -967,6 +993,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
     // vv_validate match arms
     let vv_validate_arms: Vec<proc_macro2::TokenStream> = variant_infos
         .iter()
+        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -1006,7 +1033,7 @@ fn derive_tagged_enum(input: &DeriveInput, tag_key: &str, tag_aliases: &[String]
                     #(#tag_match_arms)*
                     _ => toml_pretty_deser::TomlValue::new_validation_failed(
                         tag_span,
-                        format!("Invalid tag value: {}", tag),
+                        format!("Invalid tag value: '{}'", tag),
                         Some(toml_pretty_deser::suggest_alternatives(tag, &[#(#variant_names),*])),
                     ),
                 }

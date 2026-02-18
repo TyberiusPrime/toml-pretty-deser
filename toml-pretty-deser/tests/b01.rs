@@ -92,6 +92,8 @@ pub enum AnEnum {
     TypeA,
     #[tpd(alias = "Bbb", alias="ccc")]
     TypeB,
+    #[tpd(skip)]
+    TypeD,
 }
 
 #[tpd(tag = "kind", alias="tag", alias="type")]
@@ -99,7 +101,10 @@ pub enum AnEnum {
 pub enum TaggedEnum {
     KindA(InnerA),
     #[allow(dead_code)]
+    #[tpd(alias="B", alias="D")]
     KindB(InnerB),
+    #[tpd(skip)]
+    KindD(InnerA),
 }
 
 #[tpd(no_verify)]
@@ -691,6 +696,64 @@ fn test_tagged_enum_struct_fail() {
     }
 }
 
+#[test]
+fn test_skipped_enum_kinds() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 =2
+        vec_u8 = [3]
+        simple_enum = 'TypeD'
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'KindD'
+            a = 10
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::AnyCase,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(!parsed.is_ok());
+    if let Err(e) = parsed {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+#[test]
+fn test_enum_aliases() {
+    let toml = "
+        a_u8 = 1
+        opt_u8 =2
+        vec_u8 = [3]
+        simple_enum = 'ccc' # which gives us a TypeC
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'D' # which gives us a KindB
+            b = 10
+    ";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::AnyCase,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    dbg!(&parsed);
+    assert!(parsed.is_ok());
+    if let Ok(res) = parsed {
+        assert_eq!(res.simple_enum, AnEnum::TypeB);
+        assert_eq!(res.nested_tagged_enum, TaggedEnum::KindB(InnerB { b: 10 }));
+    }
+}
 #[tpd(root, no_verify)]
 pub struct WithVecOfTaggedEnums {
     #[tpd(nested)]
