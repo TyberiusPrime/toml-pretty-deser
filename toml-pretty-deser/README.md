@@ -4,7 +4,7 @@ Deserialize [TOML 1.1.0](https://toml.io/en/v1.1.0) with pretty error messages.
 
 [![docs.rs](https://img.shields.io/docsrs/toml-pretty-deser?version=0.3.0)](https://docs.rs/toml-pretty-deser)
 
-### Usage:
+## Usage:
 
 Deserialize your configuration structs from TOML with beautiful error message,
 and keeping whatever could be understood around in case of errors:
@@ -122,7 +122,7 @@ let toml = "
     }
 ```
 
-### Supported types
+## Supported types
 
 - 'simple' types: integers, strings, booleans, `std::path::PathBufs`, toml_edit::Items
 - Nested structs (tag struct definition with `#[tpd]` and use with `#[tpd(nested)]`
@@ -131,10 +131,10 @@ let toml = "
 - Vectors of the above
 - `IndexMaps<FromString, One-of-the-above>`
 
+toml-pretty-deser explicitly does not support other map types (like `HashMap`).
+That is because we want to keep the configuration's order.
 
-
-
-### How this works:
+## How this works:
 
 `#[tpd]` writes a `PartialT` for every struct T you apply it on,
 and implementations to go from `toml_edit` types to your `PartialT`, as well
@@ -150,7 +150,7 @@ state (If parsing succeeded. Otherwise you get just a `DeserError::ParsingFailur
 The errors contain information about what went wrong, and can turn themselves into pretty error messages
 as in the example above.
 
-### Why not just serde
+## Why not just serde
 
 Serde is great. If it works for you, good, use it!.
 It's got way more battle hardening than this.
@@ -159,18 +159,20 @@ This offers:
 - partial deserialization
 - pretty, highly targeted error messages
 - multiple errors at once
-- the ability to access the partial parent during verification.
+- the ability to access the partial parent during verification
 - optionally snake-case (anyCase, actually) and upper/lower case insensitivity.
 
 
 
-### Usage Variations
+## Usage Variations
 
-#### No custom validation
+### 
+
+### No custom validation
 
 Use `#[tpd(no_verify)]` on your struct, and skip writing a [`VerifyIn`] implementation.
 
-#### Skipping fields
+### Skipping fields
 
 At times, you want fields that are not present in your TOML
 on your structs. For example, file handles derived from the filenames supplied
@@ -184,7 +186,7 @@ if required. The get turned into concrete values by .unwrap_or_default()
 on the Option.
 
 
-#### Defaulting fields
+### Defaulting fields
 
 Fields tagged with `#[tpd(default)]` get set to their default::Default() value
 if they are missing (not if they fail otherwise!).
@@ -204,13 +206,13 @@ impl VerifyIn<Root> for PartialWithDefaults {
 
 
 
-#### Nested structs
+### Nested structs
 
 When you want to represent `NestedT` as `PartialNestedT` inside your struct T,
 tag them with `#[tpd(nested)]`
 
 
-#### Enums
+### Enums
 
 For simple string-typed Enums without an inner payload, tag the enum declaration with
 `#[tpd]`.
@@ -413,15 +415,11 @@ options.decompress = true
 ```
 
 
-### "the trait bound `InnerStruct:Visitor` is not satisfied"
+### "the trait bound `InnerStruct:Visitor` is not satisfied on T"
 
-You're missing the `#[tpd(nested)]` on your field definition,
+You're likely missing the `#[tpd(nested)]` on your field definition,
 the Visitor trait is implemented by `#[tpd]` for the `PartialT` 
 not the `T`
-
-
-
-
 
 
 

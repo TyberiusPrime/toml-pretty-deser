@@ -211,7 +211,7 @@ where
             }
             TomlValueState::NeedsFurtherValidation { span } => vec![AnnotatedError::placed(
                 span.clone(),
-                "This value was expected to go further transformation in VerifyIn",
+                "This value was expected to receive further transformation in VerifyIn",
                 "This points to a bug in the deserilization code, please report it.",
             )],
         };
