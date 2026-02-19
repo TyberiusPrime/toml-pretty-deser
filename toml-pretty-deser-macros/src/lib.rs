@@ -1,11 +1,11 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+use syn::parse::Parser as _;
 use syn::{
     Data, DeriveInput, Fields, GenericArgument, Lit, PathArguments, Type, TypePath,
     parse_macro_input,
 };
-use syn::parse::Parser as _;
 
 /// Attribute macro for generating TOML deserialization code.
 ///
@@ -56,7 +56,10 @@ struct MacroAttrs {
 }
 
 fn parse_macro_attrs(attr_ts: TokenStream2) -> syn::Result<MacroAttrs> {
-    let mut attrs = MacroAttrs { root: false, no_verify: false };
+    let mut attrs = MacroAttrs {
+        root: false,
+        no_verify: false,
+    };
     syn::meta::parser(|meta| {
         if meta.path.is_ident("root") {
             attrs.root = true;
@@ -151,6 +154,14 @@ enum NestedState {
     Tagged,
 }
 
+enum AdaptInVerify {
+    /// `adapt_in_verify(SomeType)` — user explicitly provides the intermediate type (leaf/non-nested use)
+    Explicit(TokenStream2),
+    /// `adapt_in_verify` with no type arg, combined with `#[tpd(nested)]` — macro auto-detects
+    /// the partial type from the field's inner generic argument.
+    Auto,
+}
+
 #[derive(Default)]
 struct FieldAttrs {
     nested: NestedState,
@@ -159,8 +170,7 @@ struct FieldAttrs {
     default: bool,
     with_fn: Option<String>,
     absorb_remaining: bool,
-    /// Intermediate type for adapt_in_verify. None = not set. Some(tokens) = intermediate type.
-    adapt_in_verify: Option<TokenStream2>,
+    adapt_in_verify: Option<AdaptInVerify>,
 }
 
 impl FieldAttrs {
@@ -203,9 +213,9 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
                     let content;
                     syn::parenthesized!(content in meta.input);
                     let ty: syn::Type = content.parse()?;
-                    attrs.adapt_in_verify = Some(quote! { #ty });
+                    attrs.adapt_in_verify = Some(AdaptInVerify::Explicit(quote! { #ty }));
                 } else {
-                    attrs.adapt_in_verify = Some(quote! { toml_edit::Item });
+                    attrs.adapt_in_verify = Some(AdaptInVerify::Auto);
                 }
             } else {
                 return Err(meta.error(format!(
@@ -226,16 +236,21 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
         ));
     }
 
+    if let Some(AdaptInVerify::Explicit(_)) = &attrs.adapt_in_verify {
+        if matches!(attrs.nested, NestedState::Nested | NestedState::Tagged) {
+            return Err(syn::Error::new_spanned(
+                &field.ty,
+                "adapt_in_verify(Type) cannot be combined with nested/tagged; \
+                 use adapt_in_verify (no type arg) with nested instead",
+            ));
+        }
+    }
     if attrs.adapt_in_verify.is_some()
-        && (attrs.has_partial()
-            || attrs.with_fn.is_some()
-            || attrs.skip
-            || attrs.absorb_remaining
-            || attrs.default)
+        && (attrs.with_fn.is_some() || attrs.skip || attrs.absorb_remaining || attrs.default)
     {
         return Err(syn::Error::new_spanned(
             &field.ty,
-            "adapt_in_verify cannot be combined with nested/tagged/with/skip/absorb_remaining/default",
+            "adapt_in_verify cannot be combined with with/skip/absorb_remaining/default",
         ));
     }
 
@@ -321,6 +336,36 @@ fn extract_two_generics(args: &PathArguments, context_ty: &Type) -> syn::Result<
     ))
 }
 
+/// Recursively extracts the innermost concrete type from nested generic wrappers.
+/// E.g. `std::sync::Arc<Outer>` → `Outer`, `Rc<RefCell<Outer>>` → `Outer`.
+/// Stops when a type with no generic arguments is found (that's the nested struct type).
+/// Used by the `adapt_in_verify` (Auto) case to find the partial type.
+fn extract_innermost_type(ty: &Type) -> syn::Result<Type> {
+    if let Type::Path(TypePath { path, .. }) = ty {
+        if let Some(last) = path.segments.last() {
+            if let PathArguments::AngleBracketed(ab) = &last.arguments {
+                if ab.args.len() == 1 {
+                    if let GenericArgument::Type(inner) = &ab.args[0] {
+                        return extract_innermost_type(inner);
+                    }
+                } else if ab.args.len() > 1 {
+                    return Err(syn::Error::new_spanned(
+                        ty,
+                        "adapt_in_verify (without type argument) cannot auto-detect the nested \
+                         type when the wrapper has multiple generic arguments",
+                    ));
+                }
+            }
+            // No generic args (or non-angle-bracketed): this is the innermost type
+            return Ok(ty.clone());
+        }
+    }
+    Err(syn::Error::new_spanned(
+        ty,
+        "adapt_in_verify (without type argument) requires the field type to be a path type",
+    ))
+}
+
 /// Given a type like `foo::bar::MyStruct`, return a token stream for `foo::bar::PartialMyStruct`.
 /// For a simple `MyStruct`, returns `PartialMyStruct`.
 /// For wrapper types like `Box<Inner>`, returns `Box<PartialInner>`.
@@ -336,7 +381,9 @@ fn partial_type_path(ty: &Type) -> syn::Result<TokenStream2> {
                             let partial_inner = partial_type_path(inner_ty)?;
                             let leading_colon = &path.leading_colon;
                             let prefix_segments = segments.iter().take(segments.len() - 1);
-                            return Ok(quote! { #leading_colon #(#prefix_segments ::)* Box<#partial_inner> });
+                            return Ok(
+                                quote! { #leading_colon #(#prefix_segments ::)* Box<#partial_inner> },
+                            );
                         }
                     }
                 }
@@ -446,7 +493,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                 return Err(syn::Error::new_spanned(
                     input.ident.clone(),
                     "tpd only supports named struct fields",
-                ))
+                ));
             }
         },
         _ => unreachable!(),
@@ -468,7 +515,6 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                 ));
             }
 
-
             Ok(FieldInfo {
                 ident,
                 attrs,
@@ -479,8 +525,10 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
         })
         .collect::<syn::Result<Vec<_>>>()?;
 
-    let absorb_fields: Vec<&FieldInfo> =
-        field_infos.iter().filter(|f| f.attrs.absorb_remaining).collect();
+    let absorb_fields: Vec<&FieldInfo> = field_infos
+        .iter()
+        .filter(|f| f.attrs.absorb_remaining)
+        .collect();
     if absorb_fields.len() > 1 {
         return Err(syn::Error::new(
             absorb_fields[1].ident.span(),
@@ -497,8 +545,16 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             let ftype = &f.ty;
             if f.attrs.skip {
                 Ok(quote! { #fvis #ident: Option<#ftype> })
-            } else if let Some(ref intermediate_ty) = f.attrs.adapt_in_verify {
+            } else if let Some(AdaptInVerify::Explicit(ref intermediate_ty)) = f.attrs.adapt_in_verify {
                 Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #ftype>> })
+            } else if matches!(f.attrs.adapt_in_verify, Some(AdaptInVerify::Auto)) && f.attrs.has_partial() {
+                // nested + adapt_in_verify (no type arg): auto-detect partial from inner generic type
+                let inner_ty = extract_innermost_type(ftype)?;
+                let partial_inner_ty = partial_type_path(&inner_ty)?;
+                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdaptNested<#partial_inner_ty, #ftype>> })
+            } else if matches!(f.attrs.adapt_in_verify, Some(AdaptInVerify::Auto)) {
+                // adapt_in_verify (no type arg) without nested: default to toml_edit::Item
+                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<toml_edit::Item, #ftype>> })
             } else {
                 let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial())?;
                 Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> })
@@ -534,13 +590,33 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
 
             let is_option = matches!(&f.kind, TypeKind::Optional(_));
 
-            if let Some(ref intermediate_ty) = f.attrs.adapt_in_verify {
+            if let Some(AdaptInVerify::Explicit(ref intermediate_ty)) = f.attrs.adapt_in_verify {
                 let concrete_ty = &f.ty;
                 return Ok(quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #concrete_ty>> {
                         helper.get_with_aliases(#field_name_str, #aliases_expr)
                     }
                 });
+            }
+            if matches!(f.attrs.adapt_in_verify, Some(AdaptInVerify::Auto)) {
+                let concrete_ty = &f.ty;
+                if f.attrs.has_partial() {
+                    // nested + adapt_in_verify (no type arg): MustAdaptNested with auto partial
+                    let inner_ty = extract_innermost_type(concrete_ty)?;
+                    let partial_inner_ty = partial_type_path(&inner_ty)?;
+                    return Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdaptNested<#partial_inner_ty, #concrete_ty>> {
+                            helper.get_with_aliases(#field_name_str, #aliases_expr)
+                        }
+                    });
+                } else {
+                    // adapt_in_verify (no type arg) without nested: toml_edit::Item
+                    return Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<toml_edit::Item, #concrete_ty>> {
+                            helper.get_with_aliases(#field_name_str, #aliases_expr)
+                        }
+                    });
+                }
             }
 
             if let Some(ref with_fn) = f.attrs.with_fn {
@@ -857,9 +933,12 @@ fn derive_simple_enum(input: &DeriveInput) -> syn::Result<TokenStream2> {
         .filter(|v| !v.attrs.skip)
         .flat_map(|v| {
             let mut names = vec![v.ident.to_string()];
-            names.extend(v.attrs.aliases.iter().map(
-                |alias| format!("'{alias}' (='{ident}')", ident=v.ident)
-            ));
+            names.extend(
+                v.attrs
+                    .aliases
+                    .iter()
+                    .map(|alias| format!("'{alias}' (='{ident}')", ident = v.ident)),
+            );
             names
         })
         .collect();
@@ -940,7 +1019,7 @@ fn derive_tagged_enum(
                              {}(InnerType)",
                             v.ident, v.ident
                         ),
-                    ))
+                    ));
                 }
             };
             Ok(TaggedVariantInfo {
@@ -968,9 +1047,12 @@ fn derive_tagged_enum(
         .filter(|v| !v.attrs.skip)
         .flat_map(|v| {
             let mut names = vec![v.ident.to_string()];
-            names.extend(v.attrs.aliases.iter().map(
-                |alias| format!("'{alias}' (='{ident}')", ident = v.ident),
-            ));
+            names.extend(
+                v.attrs
+                    .aliases
+                    .iter()
+                    .map(|alias| format!("'{alias}' (='{ident}')", ident = v.ident)),
+            );
             names
         })
         .collect();

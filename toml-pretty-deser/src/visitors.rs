@@ -2,7 +2,7 @@
 use indexmap::IndexMap;
 
 use crate::{
-    AsTableLikePlus, TomlCollector, TomlHelper, TomlValue, ValidationFailure, VerifyIn, VerifyVisitor, helpers::Visitor, prelude::MustAdapt
+    AsTableLikePlus, TomlCollector, TomlHelper, TomlValue, ValidationFailure, VerifyIn, VerifyVisitor, helpers::{MustAdaptNested, Visitor}, prelude::MustAdapt
 };
 
 #[macro_export]
@@ -413,6 +413,58 @@ impl<R, A: Visitor + std::fmt::Debug + VerifyIn<R>, B: std::fmt::Debug> VerifyIn
         Self: Sized + Visitor,
     {
         match self {
+            MustAdapt::PreVerify(v) => v.verify(parent),
+            MustAdapt::PostVerify(_) => unreachable!(),
+        }
+    }
+}
+
+impl<A: Visitor, B> Visitor for MustAdaptNested<A, B> {
+    type Concrete = B;
+
+    #[mutants::skip]
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        A::fill_from_toml(helper).map(|a| MustAdaptNested(MustAdapt::PreVerify(a)))
+    }
+
+    fn can_concrete(&self) -> bool {
+        matches!(self.0, MustAdapt::PostVerify(_))
+    }
+
+    fn needs_further_validation(&self) -> bool {
+        matches!(self.0, MustAdapt::PreVerify(_))
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        if let MustAdapt::PreVerify(v) = &self.0 {
+            v.v_register_errors(col);
+        }
+    }
+
+    fn into_concrete(self) -> B {
+        match self.0 {
+            MustAdapt::PreVerify(_) => panic!("can_concrete invariant violated"),
+            MustAdapt::PostVerify(v) => v,
+        }
+    }
+}
+
+impl<R, A: Visitor + VerifyVisitor<R>, B> VerifyVisitor<R> for MustAdaptNested<A, B> {
+    fn vv_validate(self, parent: &R) -> Self {
+        let inner = match self.0 {
+            MustAdapt::PreVerify(v) => MustAdapt::PreVerify(v.vv_validate(parent)),
+            MustAdapt::PostVerify(_) => unreachable!(),
+        };
+        MustAdaptNested(inner)
+    }
+}
+
+impl<R, A: Visitor + VerifyIn<R>, B> VerifyIn<R> for MustAdaptNested<A, B> {
+    fn verify(&mut self, parent: &R) -> Result<(), ValidationFailure>
+    where
+        Self: Sized + Visitor,
+    {
+        match &mut self.0 {
             MustAdapt::PreVerify(v) => v.verify(parent),
             MustAdapt::PostVerify(_) => unreachable!(),
         }

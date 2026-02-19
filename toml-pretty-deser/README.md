@@ -332,18 +332,33 @@ impl_visitor!(DNA, |helper| {
 
 ### Adapt in VerifyIn
 
-On occasion, you need the parent to really to perform final validation
-, for example if you wanted to store a lookup into a vec on the parent.
+On occasion, you need the parent to really to perform final validation, 
+for example if you wanted to store a lookup into a vec on the parent.
+
+Or you need to adapt into a Wrapped type, like Rc::RefCell
 
 For this, you may tag fields with `#[tpd(adapt_in_verify(type))]`.
 These field get first deserialized into a `MustAdapt::PreVerify(type)`,
 and you must turn them into `MustAdapt::PostVerify(field_type)` in your VerifyIn
-implementation, or you will receive a `DeserError` 
+implementation (or you will receive a `DeserError`).
+
+There is a convenient wrapper fn adapt(|pre_value, span|) for this which only 
+requires you to return a TomlValue(post_value), not a MustAdapt.
+
+Combining adapt_in_verify and nested is special cased. You do not need (or should)
+specify the pre-verification type, it autodetects the inner most type.
+Since `adapt()` will only call it's callback if the partialT was ok,
+it will be called with a T already, and you only need turn it into 
+your final output type.
+
+
+
 
 Example:
 
 ```rust
 use toml_pretty_deser::prelude::*;
+use std::{rc::Rc, cell::RefCell};
 
 #[derive(Debug)]
 #[tpd(root)]
@@ -352,6 +367,14 @@ pub struct AdaptInVerify {
     inner: usize,
     #[tpd(adapt_in_verify(String))]
     other: usize,
+
+    #[tpd(adapt_in_verify, nested)]
+    nested: Rc<RefCell<Nested>>,
+}
+#[derive(Debug)]
+#[tpd(no_verify)]
+struct Nested {
+    level1: u8
 }
 
 impl VerifyIn<Root> for PartialAdaptInVerify {
@@ -360,13 +383,17 @@ impl VerifyIn<Root> for PartialAdaptInVerify {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         self.other = self
-            .other
+            .other.take()
             .adapt(|value, span| TomlValue::new_ok(value.len(), span));
 
-        self.inner = self.inner.adapt(|value, span| match value.as_str() {
+        self.inner = self.inner.take().adapt(|value, span| match value.as_str() {
             Some(v) => TomlValue::new_ok(v.len(), span),
             None => TomlValue::new_wrong_type(&value, span, "string"),
         });
+
+        self.nested = self.nested.take().adapt(|value, span| 
+            TomlValue::new_ok(Rc::new(RefCell::new(value)), span)
+        );
 
         Ok(())
     }

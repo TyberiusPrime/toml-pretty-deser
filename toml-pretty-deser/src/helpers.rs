@@ -3,7 +3,8 @@ use std::{cell::RefCell, rc::Rc};
 use toml_edit::Document;
 
 use crate::{
-    AnnotatedError, DeserError, FieldMatchMode, SpannedMessage, TomlCollector, TomlHelper, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn
+    AnnotatedError, DeserError, FieldMatchMode, SpannedMessage, TomlCollector, TomlHelper,
+    TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn,
 };
 
 /// The main parent-independent visitor trait.
@@ -94,7 +95,7 @@ where
                         value: Some(maybe_validated),
                         state: TomlValueState::NeedsFurtherValidation { span },
                     },
-                    (Err(ValidationFailure { message, help}), _, _) => TomlValue {
+                    (Err(ValidationFailure { message, help }), _, _) => TomlValue {
                         state: TomlValueState::ValidationFailed {
                             span,
                             message,
@@ -278,17 +279,17 @@ where
 }
 
 #[derive(Debug)]
-pub enum MustAdapt<A: std::fmt::Debug, B: std::fmt::Debug> {
+pub enum MustAdapt<A, B> {
     PreVerify(A),
     PostVerify(B),
 }
 
-impl<A: std::fmt::Debug, B: std::fmt::Debug> MustAdapt<A, B> {
+impl<A, B> MustAdapt<A, B> {
     pub fn unwrap_post(self) -> B {
         match self {
-            Self::PreVerify(a) => panic!(
-                "MustAdapt was not adapted before verification. Value: {:?}",
-                a
+            Self::PreVerify(_) => panic!(
+                "MustAdapt was not adapted before verification. Remained in PreVerify Type {}, but unwrap_post was called",
+                std::any::type_name::<A>()
             ),
             Self::PostVerify(b) => b,
         }
@@ -297,22 +298,24 @@ impl<A: std::fmt::Debug, B: std::fmt::Debug> MustAdapt<A, B> {
     pub fn unwrap_pre(self) -> A {
         match self {
             Self::PreVerify(a) => a,
-            Self::PostVerify(b) => panic!(
-                "MustAdapt was adapted before verification, but unwrap_pre was called. Value: {:?}",
-                b
-            ),
+            Self::PostVerify(_) => {
+                panic!("MustAdapt was adapted before verification, but unwrap_pre was called.",)
+            }
         }
     }
 }
 
-pub trait MustAdaptHelper<T, S> {
+/// User facing 'adapt' function for MustAdapt / MustAdaptNested
+pub trait MustAdaptHelper<A, S> {
     fn adapt<F>(&mut self, map_func: F) -> Self
     where
-        F: FnOnce(T, std::ops::Range<usize>) -> TomlValue<S>,
+        F: FnOnce(A, std::ops::Range<usize>) -> TomlValue<S>,
         Self: Sized;
 }
 
-impl<A: std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B> for TomlValue<MustAdapt<A, B>> {
+impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B>
+    for TomlValue<MustAdapt<A, B>>
+{
     fn adapt<F>(&mut self, map_func: F) -> Self
     where
         F: FnOnce(A, std::ops::Range<usize>) -> TomlValue<B>,
@@ -323,6 +326,55 @@ impl<A: std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B> for TomlValue
             (TomlValueState::NeedsFurtherValidation { span }, Some(MustAdapt::PreVerify(v))) => {
                 let value = map_func(v, span);
                 value.map(|x| MustAdapt::PostVerify(x))
+            }
+            (state, value) => TomlValue { state, value },
+        }
+    }
+}
+
+/// Like [`MustAdapt`], but used with `#[tpd(nested, adapt_in_verify)]`.
+///
+/// Stores `PartialT` during parsing/verification, then calls `into_concrete()` automatically
+/// before passing `T` (the concrete type) to the user's `adapt` closure.
+///
+/// Neither `A` nor `B` need to implement `Debug` to use this type; `Debug` is only required
+/// when actually formatting the value.
+pub struct MustAdaptNested<A: Visitor, B>(pub MustAdapt<A, B>);
+
+impl<A: Visitor, B> std::fmt::Debug for MustAdaptNested<A, B> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            MustAdapt::PreVerify(_) => f.debug_struct("MustAdaptNested::PreVerify").finish_non_exhaustive(),
+            MustAdapt::PostVerify(_) => f.debug_struct("MustAdaptNested::PostVerify").finish_non_exhaustive(),
+        }
+    }
+}
+
+impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B>
+    for TomlValue<MustAdaptNested<A, B>>
+{
+    fn adapt<F>(&mut self, map_func: F) -> Self
+    where
+        F: FnOnce(A::Concrete, std::ops::Range<usize>) -> TomlValue<B>,
+        Self: Sized,
+    {
+        let t = self.take();
+        match (t.state, t.value) {
+            (
+                TomlValueState::NeedsFurtherValidation { span },
+                Some(MustAdaptNested(MustAdapt::PreVerify(v))),
+            ) => {
+                if v.can_concrete() {
+                    let concrete = v.into_concrete();
+                    let value = map_func(concrete, span);
+                    value.map(|x| MustAdaptNested(MustAdapt::PostVerify(x)))
+                } else {
+                    // Inner has errors; preserve state so errors propagate via v_register_errors
+                    TomlValue {
+                        state: TomlValueState::NeedsFurtherValidation { span },
+                        value: Some(MustAdaptNested(MustAdapt::PreVerify(v))),
+                    }
+                }
             }
             (state, value) => TomlValue { state, value },
         }
