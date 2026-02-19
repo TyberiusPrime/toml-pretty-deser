@@ -69,17 +69,11 @@ impl VerifyIn<Root> for PartialOuterWithRc {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        self.value = self
-            .value
-            .take()
+        self.value
             .adapt(|value, span| TomlValue::new_ok(Rc::new(RefCell::new(value)), span));
-        self.outer = self
-            .outer
-            .take()
+        self.outer
             .adapt(|outer, span| TomlValue::new_ok(std::sync::Arc::new(outer), span));
-        self.outer_rc = self
-            .outer_rc
-            .take()
+        self.outer_rc
             .adapt(|outer, span| TomlValue::new_ok(Rc::new(RefCell::new(outer)), span));
         Ok(())
     }

@@ -1619,11 +1619,10 @@ impl VerifyIn<Root> for PartialAdaptInVerify {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        self.other = self
-            .other
+        self.other
             .adapt(|value, span| TomlValue::new_ok(value.len(), span));
 
-        self.inner = self.inner.adapt(|value, span| match value.as_str() {
+        self.inner.adapt(|value, span| match value.as_str() {
             Some(v) => TomlValue::new_ok(v.len(), span),
             None => TomlValue::new_wrong_type(&value, span, "string-to-convert"),
         });

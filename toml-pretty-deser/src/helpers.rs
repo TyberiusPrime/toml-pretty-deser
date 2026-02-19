@@ -278,6 +278,7 @@ where
     }
 }
 
+/// Wrapper type for #[tdp(adapt_in_verify)]
 #[derive(Debug)]
 pub enum MustAdapt<A, B> {
     PreVerify(A),
@@ -307,7 +308,7 @@ impl<A, B> MustAdapt<A, B> {
 
 /// User facing 'adapt' function for MustAdapt / MustAdaptNested
 pub trait MustAdaptHelper<A, S> {
-    fn adapt<F>(&mut self, map_func: F) -> Self
+    fn adapt<F>(&mut self, map_func: F)
     where
         F: FnOnce(A, std::ops::Range<usize>) -> TomlValue<S>,
         Self: Sized;
@@ -316,13 +317,13 @@ pub trait MustAdaptHelper<A, S> {
 impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B>
     for TomlValue<MustAdapt<A, B>>
 {
-    fn adapt<F>(&mut self, map_func: F) -> Self
+    fn adapt<F>(&mut self, map_func: F)
     where
         F: FnOnce(A, std::ops::Range<usize>) -> TomlValue<B>,
         Self: Sized,
     {
         let t = self.take();
-        match (t.state, t.value) {
+        *self = match (t.state, t.value) {
             (TomlValueState::NeedsFurtherValidation { span }, Some(MustAdapt::PreVerify(v))) => {
                 let value = map_func(v, span);
                 value.map(|x| MustAdapt::PostVerify(x))
@@ -344,22 +345,24 @@ pub struct MustAdaptNested<A: Visitor, B>(pub MustAdapt<A, B>);
 impl<A: Visitor, B> std::fmt::Debug for MustAdaptNested<A, B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
-            MustAdapt::PreVerify(_) => f.debug_struct("MustAdaptNested::PreVerify").finish_non_exhaustive(),
-            MustAdapt::PostVerify(_) => f.debug_struct("MustAdaptNested::PostVerify").finish_non_exhaustive(),
+            MustAdapt::PreVerify(_) => f
+                .debug_struct("MustAdaptNested::PreVerify")
+                .finish_non_exhaustive(),
+            MustAdapt::PostVerify(_) => f
+                .debug_struct("MustAdaptNested::PostVerify")
+                .finish_non_exhaustive(),
         }
     }
 }
 
-impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B>
-    for TomlValue<MustAdaptNested<A, B>>
-{
-    fn adapt<F>(&mut self, map_func: F) -> Self
+impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNested<A, B>> {
+    fn adapt<F>(&mut self, map_func: F)
     where
         F: FnOnce(A::Concrete, std::ops::Range<usize>) -> TomlValue<B>,
         Self: Sized,
     {
         let t = self.take();
-        match (t.state, t.value) {
+        *self = match (t.state, t.value) {
             (
                 TomlValueState::NeedsFurtherValidation { span },
                 Some(MustAdaptNested(MustAdapt::PreVerify(v))),

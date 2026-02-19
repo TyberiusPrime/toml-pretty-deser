@@ -382,27 +382,20 @@ impl VerifyIn<Root> for PartialAdaptInVerify {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        self.other = self
-            .other.take()
-            .adapt(|value, span| TomlValue::new_ok(value.len(), span));
+        self.other.adapt(|value, span| TomlValue::new_ok(value.len(), span));
 
-        self.inner = self.inner.take().adapt(|value, span| match value.as_str() {
+        self.inner.adapt(|value, span| match value.as_str() {
             Some(v) => TomlValue::new_ok(v.len(), span),
             None => TomlValue::new_wrong_type(&value, span, "string"),
         });
 
-        self.nested = self.nested.take().adapt(|value, span| 
+        self.nested.adapt(|value, span| 
             TomlValue::new_ok(Rc::new(RefCell::new(value)), span)
         );
-
         Ok(())
     }
 }
 ```
-
-
-
-
 
 ### Absorb remaining
 
