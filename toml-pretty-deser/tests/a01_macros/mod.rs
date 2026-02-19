@@ -8,7 +8,7 @@ use indexmap::IndexMap;
 use toml_pretty_deser::{
     DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyIn, VerifyVisitor,
     Visitor,
-    helpers::{Root, deserialize_toml},
+    Root, deserialize_toml,
     prelude::MustAdapt,
     suggest_alternatives,
 };

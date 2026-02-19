@@ -14,7 +14,7 @@ use toml_pretty_deser::{
 };
 //library code
 //
-use toml_pretty_deser::helpers::Root;
+use toml_pretty_deser::Root;
 
 mod a01_macros;
 use a01_macros::*;

@@ -546,15 +546,15 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             if f.attrs.skip {
                 Ok(quote! { #fvis #ident: Option<#ftype> })
             } else if let Some(AdaptInVerify::Explicit(ref intermediate_ty)) = f.attrs.adapt_in_verify {
-                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #ftype>> })
+                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdapt<#intermediate_ty, #ftype>> })
             } else if matches!(f.attrs.adapt_in_verify, Some(AdaptInVerify::Auto)) && f.attrs.has_partial() {
                 // nested + adapt_in_verify (no type arg): auto-detect partial from inner generic type
                 let inner_ty = extract_innermost_type(ftype)?;
                 let partial_inner_ty = partial_type_path(&inner_ty)?;
-                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdaptNested<#partial_inner_ty, #ftype>> })
+                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdaptNested<#partial_inner_ty, #ftype>> })
             } else if matches!(f.attrs.adapt_in_verify, Some(AdaptInVerify::Auto)) {
                 // adapt_in_verify (no type arg) without nested: default to toml_edit::Item
-                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<toml_edit::Item, #ftype>> })
+                Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdapt<toml_edit::Item, #ftype>> })
             } else {
                 let inner_ty = gen_partial_inner_type(&f.kind, f.attrs.has_partial())?;
                 Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<#inner_ty> })
@@ -593,7 +593,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             if let Some(AdaptInVerify::Explicit(ref intermediate_ty)) = f.attrs.adapt_in_verify {
                 let concrete_ty = &f.ty;
                 return Ok(quote! {
-                    fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<#intermediate_ty, #concrete_ty>> {
+                    fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdapt<#intermediate_ty, #concrete_ty>> {
                         helper.get_with_aliases(#field_name_str, #aliases_expr)
                     }
                 });
@@ -605,14 +605,14 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                     let inner_ty = extract_innermost_type(concrete_ty)?;
                     let partial_inner_ty = partial_type_path(&inner_ty)?;
                     return Ok(quote! {
-                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdaptNested<#partial_inner_ty, #concrete_ty>> {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdaptNested<#partial_inner_ty, #concrete_ty>> {
                             helper.get_with_aliases(#field_name_str, #aliases_expr)
                         }
                     });
                 } else {
                     // adapt_in_verify (no type arg) without nested: toml_edit::Item
                     return Ok(quote! {
-                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::helpers::MustAdapt<toml_edit::Item, #concrete_ty>> {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdapt<toml_edit::Item, #concrete_ty>> {
                             helper.get_with_aliases(#field_name_str, #aliases_expr)
                         }
                     });
@@ -761,7 +761,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                     field_match_mode: toml_pretty_deser::FieldMatchMode,
                     vec_mode: toml_pretty_deser::VecMode,
                 ) -> Result<#name, toml_pretty_deser::DeserError<#partial_name>> {
-                    toml_pretty_deser::helpers::deserialize_toml::<#partial_name>(toml_str, field_match_mode, vec_mode)
+                    toml_pretty_deser::deserialize_toml::<#partial_name>(toml_str, field_match_mode, vec_mode)
                 }
             }
         }

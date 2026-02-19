@@ -8,12 +8,12 @@
 
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    DeserError, FieldMatchMode, TomlValue, ValidationFailure, VecMode, VerifyIn,
-    helpers::MustAdaptHelper, impl_visitor_for_from_str, impl_visitor_for_try_from_str,
+    DeserError, FieldMatchMode, MustAdaptHelper, TomlValue, ValidationFailure, VecMode, VerifyIn,
+    impl_visitor_for_from_str, impl_visitor_for_try_from_str,
 };
 //library code
 //
-use toml_pretty_deser::helpers::Root;
+use toml_pretty_deser::Root;
 use toml_pretty_deser_macros::tpd;
 
 // Manually implemented example on how I want the API to look like

@@ -2,7 +2,8 @@
 use indexmap::IndexMap;
 
 use crate::{
-    AsTableLikePlus, TomlCollector, TomlHelper, TomlValue, ValidationFailure, VerifyIn, VerifyVisitor, helpers::{MustAdaptNested, Visitor}, prelude::MustAdapt
+    AsTableLikePlus, MustAdapt, MustAdaptNested, TomlCollector, TomlHelper, TomlValue,
+    ValidationFailure, VerifyIn, VerifyVisitor, Visitor,
 };
 
 #[macro_export]
@@ -151,8 +152,7 @@ impl<T: Visitor> Visitor for Option<T> {
     }
 
     fn can_concrete(&self) -> bool {
-        self.as_ref()
-            .is_none_or(super::helpers::Visitor::can_concrete)
+        self.as_ref().is_none_or(<T as Visitor>::can_concrete)
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
@@ -162,7 +162,7 @@ impl<T: Visitor> Visitor for Option<T> {
     }
 
     fn into_concrete(self) -> Option<T::Concrete> {
-        self.map(super::helpers::Visitor::into_concrete)
+        self.map(<T as Visitor>::into_concrete)
     }
 }
 
@@ -261,7 +261,7 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
     }
 
     fn can_concrete(&self) -> bool {
-        self.iter().all(super::TomlValue::is_ok)
+        self.iter().all(TomlValue::is_ok)
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
@@ -323,7 +323,7 @@ where
     }
 
     fn can_concrete(&self) -> bool {
-        self.values().all(super::TomlValue::is_ok)
+        self.values().all(TomlValue::is_ok)
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
@@ -370,11 +370,9 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> Visitor for MustAdapt<A, 
 
     fn can_concrete(&self) -> bool {
         matches!(self, MustAdapt::PostVerify(_))
-        //self.as_ref().is_none_or(super::helpers::Visitor::can_concrete)
     }
 
     fn needs_further_validation(&self) -> bool {
-        
         matches!(self, Self::PreVerify(_))
     }
 
