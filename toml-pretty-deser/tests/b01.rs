@@ -1140,9 +1140,9 @@ impl VerifyIn<Root> for PartialWithDefaults {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        self.a = self.a.take().or_default();
-        self.b = self.b.take().or_with(|| 55);
-        self.c = self.c.take().verify(|x| {
+        self.a.or_default();
+        self.b.or_with(|| 55);
+        self.c.verify(|x| {
             if x % 2 == 0 {
                 Ok(())
             } else {
@@ -1152,7 +1152,7 @@ impl VerifyIn<Root> for PartialWithDefaults {
                 ))
             }
         });
-        self.c = self.c.take().or(33);
+        self.c.or(33);
         self.s = Some(34);
         Ok(())
     }

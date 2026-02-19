@@ -634,7 +634,9 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             } else if f.attrs.default {
                 Ok(quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
-                        helper.get_with_aliases(#field_name_str, #aliases_expr).or_default()
+                        let mut t = helper.get_with_aliases(#field_name_str, #aliases_expr);
+                        t.or_default();
+                        t
                     }
                 })
             } else if is_option {

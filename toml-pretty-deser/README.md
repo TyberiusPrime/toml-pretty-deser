@@ -93,7 +93,8 @@ impl VerifyIn<Root> for PartialShowOffTwoValueErrors {
             }
         }
 
-        self.d = self.d.take().verify(|value| { //the take is necessary
+        //in place verification, no assignment required
+        self.d.verify(|value| { //the take is necessary
             if *value < 50 {
                 Ok(())
             } else {

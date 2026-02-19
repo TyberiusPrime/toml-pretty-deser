@@ -991,13 +991,13 @@ impl<T> TomlValue<T> {
 
     /// Verify this TOML value
     ///
-    /// Calls `verification_func` with a reference to the inner value
-    /// if this `TomlValue` is in the Ok state,
-    ///     and returns a new `TomlValue` that reflects the result of the verification:
-    /// otherwise, it remains in a previous error state.
+    /// If the value was 'Ok', call `verification_func`
+    /// and replace it on Err in-place with a `ValidationFailed` state.
+    ///
+    /// Non Ok `TomlValues`  are left as is.
+    ///
     #[allow(clippy::missing_panics_doc)]
-    #[must_use]
-    pub fn verify<F>(self, verification_func: F) -> Self
+    pub fn verify<F>(&mut self, verification_func: F)
     where
         F: FnOnce(&T) -> Result<(), (String, Option<String>)>,
     {
@@ -1007,52 +1007,52 @@ impl<T> TomlValue<T> {
                     .as_ref()
                     .expect("None value on TomlValueState::Ok"),
             ) {
-                Ok(()) => self,
+                Ok(()) => {
+                    //unchanged
+                }
                 Err((msg, help)) => {
-                    Self {
-                        value: None,
-                        state: TomlValueState::ValidationFailed {
-                            span: span.clone(),
-                            message: msg,
-                            help, //todo
-                        },
-                    }
+                    self.value = None;
+                    self.state = TomlValueState::ValidationFailed {
+                        span: span.clone(),
+                        message: msg,
+                        help, //todo
+                    };
                 }
             },
-            _ => self,
+            _ => {
+                //unchanged
+            }
         }
     }
 
     /// Replace the value with `default`if it was `Missing`
-    #[must_use]
-    pub fn or(self, default: T) -> Self {
+    pub fn or(&mut self, default: T) {
         match &self.state {
-            TomlValueState::Missing { .. } => Self {
+            TomlValueState::Missing { .. } => *self = Self {
                 value: Some(default),
                 state: TomlValueState::Ok { span: 0..0 },
             },
-            _ => self,
+            _ => {},
         }
     }
 
     /// Replace the value with the result of `default_func` if it was `Missing`
-    #[must_use]
-    pub fn or_with<F>(self, default_func: F) -> Self
+    pub fn or_with<F>(&mut self, default_func: F) 
     where
         F: FnOnce() -> T,
     {
         match &self.state {
-            TomlValueState::Missing { .. } => Self {
+            TomlValueState::Missing { .. } => {
+                *self = Self {
                 value: Some(default_func()),
                 state: TomlValueState::Ok { span: 0..0 },
-            },
-            _ => self,
+            }},
+            _ => {},
         }
     }
 
     /// Replace the value with `T::default()` if it was `Missing`
-    #[must_use]
-    pub fn or_default(self) -> Self
+    pub fn or_default(&mut self) 
     where
         T: Default,
     {

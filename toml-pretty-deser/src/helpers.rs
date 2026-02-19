@@ -307,10 +307,17 @@ impl<A, B> MustAdapt<A, B> {
 }
 
 /// User facing 'adapt' function for MustAdapt / MustAdaptNested
-pub trait MustAdaptHelper<A, S> {
+pub trait MustAdaptHelper<A, B> {
+    /// Adapt the value in place from `TomlValue::Ok(A)`
+    /// to TomlValue<B>
+    ///
+    /// You use this together with #[tdp(adapt_in_verify]).
+    ///
+    /// Does not need to return an Ok TomlValue,
+    /// failing teh conversion is ok.
     fn adapt<F>(&mut self, map_func: F)
     where
-        F: FnOnce(A, std::ops::Range<usize>) -> TomlValue<S>,
+        F: FnOnce(A, std::ops::Range<usize>) -> TomlValue<B>,
         Self: Sized;
 }
 

@@ -918,7 +918,8 @@ impl Visitor for PartialWithDefaults {
         p.a = helper.get_with_aliases("a", &[]);
         p.b = helper.get_with_aliases("b", &[]);
         p.c = helper.get_with_aliases("c", &[]);
-        p.d = helper.get_with_aliases("d", &[]).or_default();
+        p.d = helper.get_with_aliases("d", &[]);
+        p.d.or_default();
 
         TomlValue::from_visitor(p, helper)
     }
