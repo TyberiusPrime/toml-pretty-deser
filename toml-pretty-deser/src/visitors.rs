@@ -1,8 +1,7 @@
-
 use indexmap::IndexMap;
 
 use crate::{
-    AsTableLikePlus, MustAdapt, MustAdaptNested, TomlCollector, TomlHelper, TomlValue,
+    AsTableLikePlus, MapAndKeys, MustAdapt, MustAdaptNested, TomlCollector, TomlHelper, TomlValue,
     ValidationFailure, VerifyIn, VerifyVisitor, Visitor,
 };
 
@@ -291,8 +290,7 @@ impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R> for Vec<To
 }
 impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R> for Vec<TomlValue<T>> {}
 
-impl<T, K: From<String> + std::hash::Hash + Eq + std::fmt::Debug> Visitor
-    for IndexMap<K, TomlValue<T>>
+impl<T, K: From<String> + std::hash::Hash + Eq + std::fmt::Debug> Visitor for MapAndKeys<K, T>
 where
     T: Visitor,
 {
@@ -303,7 +301,14 @@ where
             Some(table) => {
                 let mut result = IndexMap::new();
                 let mut all_ok = true;
+                let mut keys = Vec::new();
                 for (key, value) in table.iter() {
+                    let key_span = table
+                        .key(key)
+                        .expect("Just queried!")
+                        .span()
+                        .unwrap_or(0..0);
+                    keys.push(TomlValue::new_ok(key.to_string(), key_span));
                     let key: K = key.to_string().into();
                     let mut value_helper = TomlHelper::from_item(value, helper.col.clone());
                     let deserialized_value = T::fill_from_toml(&mut value_helper);
@@ -312,6 +317,7 @@ where
                     }
                     result.insert(key, deserialized_value);
                 }
+                let result = MapAndKeys { map: result, keys };
                 if all_ok {
                     TomlValue::new_ok(result, helper.span())
                 } else {
@@ -323,39 +329,49 @@ where
     }
 
     fn can_concrete(&self) -> bool {
-        self.values().all(TomlValue::is_ok)
+        self.map.values().all(TomlValue::is_ok) && self.keys.iter().all(TomlValue::is_ok)
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
-        for (_key, value) in self {
+        for (_key, value) in &self.map {
             value.register_error(col);
+        }
+        for key in self.keys.iter() {
+            key.register_error(col);
         }
     }
 
     fn into_concrete(self) -> Self::Concrete {
-        self.into_iter()
+        self.map
+            .into_iter()
             .map(|(k, v)| (k, v.value.unwrap().into_concrete()))
             .collect()
     }
 }
 
 impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R>
-    for IndexMap<K, TomlValue<T>>
+    for MapAndKeys<K, T>
 {
     fn vv_validate(self, parent: &R) -> Self
     where
         Self: Sized + Visitor,
     {
-        let out: IndexMap<K, TomlValue<T>> = self
+        let map: IndexMap<K, TomlValue<T>> = self
+            .map
             .into_iter()
             .map(|(k, v)| (k, v.tpd_validate(parent)))
             .collect();
-        out
+        let keys = self
+            .keys
+            .into_iter()
+            .map(|k| k.tpd_validate(parent))
+            .collect();
+        MapAndKeys { map, keys }
     }
 }
 
 impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R>
-    for IndexMap<K, TomlValue<T>>
+    for MapAndKeys<K, T>
 {
 }
 
@@ -403,8 +419,8 @@ impl<R, A: Visitor + std::fmt::Debug + VerifyVisitor<R>, B: std::fmt::Debug> Ver
     }
 }
 
-impl<R, A: Visitor + std::fmt::Debug + VerifyIn<R>, B: std::fmt::Debug> VerifyIn<R> for
-    MustAdapt<A, B>
+impl<R, A: Visitor + std::fmt::Debug + VerifyIn<R>, B: std::fmt::Debug> VerifyIn<R>
+    for MustAdapt<A, B>
 {
     fn verify(&mut self, parent: &R) -> Result<(), ValidationFailure>
     where

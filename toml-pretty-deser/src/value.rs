@@ -1,5 +1,9 @@
 use std::ops::Range;
 
+use indexmap::IndexMap;
+
+use crate::ValidationFailure;
+
 /// Inner struct for `TomlValue::UnknownKeys`
 #[derive(Debug, Clone)]
 pub struct UnknownKey {
@@ -49,18 +53,13 @@ pub enum TomlValueState {
         found: &'static str,
     },
     /// This value had the right type, but failed validation
-    ValidationFailed {
-        span: Range<usize>,
-        message: String,
-    },
+    ValidationFailed { span: Range<usize>, message: String },
     /// There were one-or-more unknown keys within this table.
     UnknownKeys(Vec<UnknownKey>),
     /// This is a container, and one of it's children is in an error state
     Nested,
     /// A user defined error with multiple spans
-    Custom {
-        spans: Vec<(Range<usize>, String)>,
-    },
+    Custom { spans: Vec<(Range<usize>, String)> },
     /// used in #tdp(adapt_in_verify(..)]
     NeedsFurtherValidation { span: Range<usize> },
     /// This value was deserialized correctly.
@@ -270,7 +269,7 @@ impl<T> TomlValue<T> {
     pub fn is_ok(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
     }
-    
+
     /// Is this `TomlValue` in the Ok state?
     pub fn is_missing(&self) -> bool {
         matches!(self.state, TomlValueState::Missing { .. })
@@ -355,12 +354,14 @@ impl<T> TomlValue<T> {
     /// Replace the value with `default`if it was `Missing`
     pub fn or(&mut self, default: T) {
         match &self.state {
-            TomlValueState::Missing { .. } => *self = Self {
-                value: Some(default),
-                state: TomlValueState::Ok { span: 0..0 },
-                help: None,
-            },
-            _ => {},
+            TomlValueState::Missing { .. } => {
+                *self = Self {
+                    value: Some(default),
+                    state: TomlValueState::Ok { span: 0..0 },
+                    help: None,
+                }
+            }
+            _ => {}
         }
     }
 
@@ -372,11 +373,12 @@ impl<T> TomlValue<T> {
         match &self.state {
             TomlValueState::Missing { .. } => {
                 *self = Self {
-                value: Some(default_func()),
-                state: TomlValueState::Ok { span: 0..0 },
-                help: None,
-            }},
-            _ => {},
+                    value: Some(default_func()),
+                    state: TomlValueState::Ok { span: 0..0 },
+                    help: None,
+                }
+            }
+            _ => {}
         }
     }
 

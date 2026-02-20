@@ -2,6 +2,7 @@ use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use indexmap::{IndexMap, IndexSet};
 
+use crate::MapAndKeys;
 use crate::case::{FieldMatchMode, suggest_alternatives};
 use crate::collector::TomlCollector;
 use crate::error::HydratedAnnotatedError;
@@ -215,7 +216,7 @@ impl<'a> TomlHelper<'a> {
     ///
     /// Returns a `TomlValue` containing the map. The map preserves insertion order.
     #[allow(clippy::manual_let_else)]
-    pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, TomlValue<T>>>
+    pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<MapAndKeys<K, T>>
     where
         K: From<String> + std::hash::Hash + Eq,
         T: Visitor + Default,
@@ -228,15 +229,27 @@ impl<'a> TomlHelper<'a> {
             Some(t) => t,
             None => {
                 // No table - return empty map
-                return TomlValue::new_ok(IndexMap::new(), 0..0);
+                return TomlValue::new_ok(
+                    MapAndKeys {
+                        map: IndexMap::new(),
+                        keys: vec![],
+                    },
+                    0..0,
+                );
             }
         };
 
         let mut result_map: IndexMap<K, TomlValue<T>> = IndexMap::new();
+        let mut result_keys = Vec::new();
         let mut first_span: Option<Range<usize>> = None;
         let mut last_span: Option<Range<usize>> = None;
 
         for (key, item) in table.iter() {
+            let key_span = table
+                .key(key)
+                .and_then(toml_edit::Key::span)
+                .unwrap_or(0..0);
+            result_keys.push(TomlValue::new_ok(key.to_string(), key_span));
             let key_str = key.to_string();
             let normalized_key = self.col.match_mode.normalize(&key_str);
 
@@ -263,7 +276,13 @@ impl<'a> TomlHelper<'a> {
 
         let span = (first_span.unwrap_or(0..0).start)..(last_span.unwrap_or(0..0).end);
 
-        TomlValue::new_ok(result_map, span)
+        TomlValue::new_ok(
+            MapAndKeys {
+                map: result_map,
+                keys: result_keys,
+            },
+            span,
+        )
     }
 
     #[must_use]

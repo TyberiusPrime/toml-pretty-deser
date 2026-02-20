@@ -6,17 +6,15 @@
 #![allow(clippy::field_reassign_with_default)]
 use indexmap::IndexMap;
 use toml_pretty_deser::{
-    DeserError, TomlCollector, TomlHelper, TomlValue, TomlValueState, VerifyIn, VerifyVisitor,
-    Visitor,
-    TPDRoot, deserialize_toml,
-    prelude::MustAdapt,
-    suggest_alternatives,
+    DeserError, MapAndKeys, TPDRoot, TomlCollector, TomlHelper, TomlValue, TomlValueState,
+    VerifyIn, VerifyVisitor, Visitor, deserialize_toml, prelude::MustAdapt, suggest_alternatives,
 };
 
 use crate::{
-    Absorb, AdaptInVerify, BoxedInner, FailString, MapTest, MapTestValidationFailure, MyFromString,
-    MyTryFromString, NestedUnitField, OtherOuter, OuterWithBox, TypesTest, UnitField, WithDefaults,
-    WithVecOfTaggedEnums, adapt_from_u8, adapt_to_upper_case,
+    Absorb, AdaptInVerify, BoxedInner, FailString, MapKeyNotStartsWithA, MapTest,
+    MapTestValidationFailure, MyFromString, MyTryFromString, NestedUnitField, OtherOuter,
+    OuterWithBox, TypesTest, UnitField, WithDefaults, WithVecOfTaggedEnums, adapt_from_u8,
+    adapt_to_upper_case,
 };
 
 ///Code that would be macro derived, but is hand coded for the a01 test file.
@@ -37,7 +35,7 @@ pub struct PartialOuter {
     pub a_u8: TomlValue<u8>,
     pub opt_u8: TomlValue<Option<u8>>,
     pub vec_u8: TomlValue<Vec<TomlValue<u8>>>,
-    pub map_u8: TomlValue<IndexMap<String, TomlValue<u8>>>,
+    pub map_u8: TomlValue<MapAndKeys<String, u8>>,
     pub nested_struct: TomlValue<PartialNestedStruct>,
     pub simple_enum: TomlValue<AnEnum>,
     pub nested_tagged_enum: TomlValue<PartialTaggedEnum>,
@@ -57,10 +55,7 @@ impl PartialOuter {
         helper.get_with_aliases("vec_u8", &[])
     }
 
-    fn tpd_get_map_u8(
-        &self,
-        helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<IndexMap<String, TomlValue<u8>>> {
+    fn tpd_get_map_u8(&self, helper: &mut TomlHelper<'_>) -> TomlValue<MapAndKeys<String, u8>> {
         helper.get_with_aliases("map_u8", &[])
     }
 
@@ -775,34 +770,36 @@ impl VerifyIn<PartialOptionNested> for PartialNestedStruct {}
 //
 #[derive(Debug, Default)]
 pub struct PartialMapTest {
-    map_nested: TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>>,
-    map_tagged: TomlValue<IndexMap<String, TomlValue<PartialTaggedEnum>>>,
-    opt_map_nested: TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>>,
-    opt_map_tagged: TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>>,
+    map_nested: TomlValue<MapAndKeys<String, PartialNestedStruct>>,
+    map_tagged: TomlValue<MapAndKeys<String, PartialTaggedEnum>>,
+    opt_map_nested: TomlValue<Option<MapAndKeys<String, PartialNestedStruct>>>,
+    opt_map_tagged: TomlValue<Option<MapAndKeys<String, PartialTaggedEnum>>>,
 
-    map_nested_vec: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>>,
-    map_tagged_vec: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>>,
+    map_nested_vec:
+        TomlValue<MapAndKeys<String, Vec<TomlValue<PartialNestedStruct>>>>,
+    map_tagged_vec:
+        TomlValue<MapAndKeys<String, Vec<TomlValue<PartialTaggedEnum>>>>,
 }
 
 impl PartialMapTest {
     fn tpd_get_map_nested(
         &self,
         helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<IndexMap<String, TomlValue<PartialNestedStruct>>> {
+    ) -> TomlValue<MapAndKeys<String, PartialNestedStruct>> {
         helper.get_with_aliases("map_nested", &[])
     }
 
     fn tpd_get_map_tagged(
         &self,
         helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<IndexMap<String, TomlValue<PartialTaggedEnum>>> {
+    ) -> TomlValue<MapAndKeys<String, PartialTaggedEnum>> {
         helper.get_with_aliases("map_tagged", &[])
     }
 
     fn tpd_get_opt_map_nested(
         &self,
         helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialNestedStruct>>>> {
+    ) -> TomlValue<Option<MapAndKeys<String, PartialNestedStruct>>> {
         helper
             .get_with_aliases("opt_map_nested", &[])
             .into_optional()
@@ -811,7 +808,7 @@ impl PartialMapTest {
     fn tpd_get_opt_map_tagged(
         &self,
         helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<Option<IndexMap<String, TomlValue<PartialTaggedEnum>>>> {
+    ) -> TomlValue<Option<MapAndKeys<String, PartialTaggedEnum>>> {
         helper
             .get_with_aliases("opt_map_tagged", &[])
             .into_optional()
@@ -820,14 +817,15 @@ impl PartialMapTest {
     fn tpd_get_map_nested_vec(
         &self,
         helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialNestedStruct>>>>> {
+    ) -> TomlValue<MapAndKeys<String, Vec<TomlValue<PartialNestedStruct>>>>
+    {
         helper.get_with_aliases("map_nested_vec", &[])
     }
 
     fn tpd_get_map_tagged_vec(
         &self,
         helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<PartialTaggedEnum>>>>> {
+    ) -> TomlValue<MapAndKeys<String, Vec<TomlValue<PartialTaggedEnum>>>> {
         helper.get_with_aliases("map_tagged_vec", &[])
     }
 }
@@ -963,7 +961,7 @@ impl Absorb {
 #[derive(Debug, Default)]
 pub struct PartialAbsorb {
     anton: TomlValue<u8>,
-    remainder: TomlValue<IndexMap<String, TomlValue<u8>>>,
+    remainder: TomlValue<MapAndKeys<String, u8>>,
     zeta: TomlValue<u8>,
 }
 
@@ -1174,7 +1172,6 @@ impl Visitor for PartialOuterWithBox {
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         let mut partial = PartialOuterWithBox::default();
         partial.boxed = partial.tpd_get_boxed_struct(helper, 0..0);
-        dbg!(&partial.boxed);
         partial.regular_field = helper.get_with_aliases("regular_field", &[]);
 
         TomlValue::from_visitor(partial, helper)
@@ -1283,7 +1280,7 @@ impl MapTestValidationFailure {
 
 #[derive(Debug, Default)]
 pub struct PartialMapTestValidationFailure {
-    inner: TomlValue<IndexMap<String, TomlValue<Vec<TomlValue<FailString>>>>>,
+    inner: TomlValue<MapAndKeys<String, Vec<TomlValue<FailString>>>>,
 }
 
 impl Visitor for PartialMapTestValidationFailure {
@@ -1338,7 +1335,7 @@ impl UnitField {
 #[derive(Debug, Default)]
 pub struct PartialUnitField {
     pub add_error: TomlValue<()>,
-    pub remainder: TomlValue<IndexMap<String, TomlValue<String>>>,
+    pub remainder: TomlValue<MapAndKeys<String, String>>,
 }
 
 impl PartialUnitField {
@@ -1509,6 +1506,68 @@ impl VerifyVisitor<TPDRoot> for PartialAdaptInVerify {
     {
         self.inner = self.inner.take().tpd_validate(&self);
         self.other = self.other.take().tpd_validate(&self);
+        self
+    }
+}
+
+//MapKeyNotStartsWithA
+//
+impl MapKeyNotStartsWithA {
+    pub fn tpd_from_toml(
+        toml_str: &str,
+        field_match_mode: toml_pretty_deser::FieldMatchMode,
+        vec_mode: toml_pretty_deser::VecMode,
+    ) -> Result<MapKeyNotStartsWithA, DeserError<PartialMapKeyNotStartsWithA>> {
+        deserialize_toml::<PartialMapKeyNotStartsWithA>(toml_str, field_match_mode, vec_mode)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PartialMapKeyNotStartsWithA {
+    pub inner: TomlValue<MapAndKeys<String, u8>>,
+}
+
+impl PartialMapKeyNotStartsWithA {
+    pub fn tpd_get_inner(
+        &self,
+        helper: &mut TomlHelper<'_>,
+    ) -> TomlValue<MapAndKeys<String, u8>> {
+        helper.get_with_aliases("inner", &[])
+    }
+}
+
+impl Visitor for PartialMapKeyNotStartsWithA {
+    type Concrete = MapKeyNotStartsWithA;
+
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let p = PartialMapKeyNotStartsWithA {
+            inner: helper.get_with_aliases("inner", &[]),
+        };
+
+        TomlValue::from_visitor(p, helper)
+    }
+
+    fn can_concrete(&self) -> bool {
+        self.inner.is_ok() && self.inner.value.as_ref().unwrap().can_concrete()
+    }
+
+    fn into_concrete(self) -> Self::Concrete {
+        MapKeyNotStartsWithA {
+            inner: self.inner.value.unwrap().into_concrete(),
+        }
+    }
+
+    fn v_register_errors(&self, col: &TomlCollector) {
+        self.inner.register_error(col);
+    }
+}
+
+impl VerifyVisitor<TPDRoot> for PartialMapKeyNotStartsWithA {
+    fn vv_validate(mut self, _parent: &TPDRoot) -> Self
+    where
+        Self: Sized + Visitor,
+    {
+        self.inner = self.inner.take().tpd_validate(&self);
         self
     }
 }

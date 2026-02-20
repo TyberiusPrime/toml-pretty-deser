@@ -1,0 +1,5 @@
+---
+source: toml-pretty-deser/tests/a01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+
