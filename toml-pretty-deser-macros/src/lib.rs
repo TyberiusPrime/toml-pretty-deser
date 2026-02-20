@@ -506,7 +506,13 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                 syn::Error::new_spanned(&f.ty, "tpd only supports named struct fields")
             })?;
             let attrs = parse_field_attrs(f)?;
-            let kind = analyze_type(&f.ty)?;
+            // Skipped fields are emitted verbatim as `Option<FieldType>`; their kind is never
+            // used for code generation, so skip the type analysis (which would reject HashMap etc.)
+            let kind = if attrs.skip {
+                TypeKind::Leaf(f.ty.clone())
+            } else {
+                analyze_type(&f.ty)?
+            };
 
             if attrs.absorb_remaining && !is_indexmap_type(&f.ty) {
                 return Err(syn::Error::new_spanned(

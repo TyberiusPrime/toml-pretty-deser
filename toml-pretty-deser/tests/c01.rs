@@ -97,3 +97,25 @@ fn test_refcell() {
         panic!("Unexpected error: {result:?}");
     }
 }
+
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+pub struct WithSkippedHashmap {
+    name: String,
+    #[tpd(skip)]
+    ignored: std::collections::HashMap<String, String>,
+}
+
+#[test]
+fn test_skip_hashmap_field() {
+    let toml_str = "
+        name = 'hello'
+    ";
+    let parsed =
+        WithSkippedHashmap::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    assert!(parsed.is_ok());
+    if let Ok(parsed) = parsed {
+        assert_eq!(parsed.name, "hello");
+        assert!(parsed.ignored.is_empty()); // Default::default() for HashMap
+    }
+}
