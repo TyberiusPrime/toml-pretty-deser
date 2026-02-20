@@ -52,7 +52,6 @@ pub enum TomlValueState {
     ValidationFailed {
         span: Range<usize>,
         message: String,
-        help: Option<String>,
     },
     /// There were one-or-more unknown keys within this table.
     UnknownKeys(Vec<UnknownKey>),
@@ -60,7 +59,6 @@ pub enum TomlValueState {
     Nested,
     /// A user defined error with multiple spans
     Custom {
-        help: Option<String>,
         spans: Vec<(Range<usize>, String)>,
     },
     /// used in #tdp(adapt_in_verify(..)]
@@ -81,6 +79,9 @@ pub struct TomlValue<T> {
     /// Value is independent of the state,
     /// so that containers can pinpoint which of their values failed.
     pub value: Option<T>,
+    /// Optional help text for error reporting.
+    /// Applies to any non-Ok state.
+    pub help: Option<String>,
 }
 
 impl<T> TomlValue<T> {
@@ -90,6 +91,7 @@ impl<T> TomlValue<T> {
         Self {
             value: Some(value),
             state: TomlValueState::Ok { span },
+            help: None,
         }
     }
 
@@ -111,10 +113,8 @@ impl<T> TomlValue<T> {
         );
         Self {
             value,
-            state: TomlValueState::Custom {
-                help: help.map(ToString::to_string),
-                spans,
-            },
+            state: TomlValueState::Custom { spans },
+            help: help.map(ToString::to_string),
         }
     }
 
@@ -127,6 +127,7 @@ impl<T> TomlValue<T> {
                 key: String::new(),
                 parent_span,
             },
+            help: None,
         }
     }
     /// Create a new `TomlValue` with a `ValidationFailed` state.
@@ -138,11 +139,8 @@ impl<T> TomlValue<T> {
     ) -> Self {
         Self {
             value: None,
-            state: TomlValueState::ValidationFailed {
-                span,
-                message,
-                help,
-            },
+            state: TomlValueState::ValidationFailed { span, message },
+            help,
         }
     }
 
@@ -160,6 +158,7 @@ impl<T> TomlValue<T> {
                 expected,
                 found: item.type_name(),
             },
+            help: None,
         }
     }
 
@@ -169,6 +168,7 @@ impl<T> TomlValue<T> {
         Self {
             value,
             state: TomlValueState::Nested {},
+            help: None,
         }
     }
 
@@ -179,6 +179,7 @@ impl<T> TomlValue<T> {
             TomlValueState::Ok { span } => TomlValue {
                 value: Some(self.value),
                 state: TomlValueState::Ok { span },
+                help: self.help,
             },
             TomlValueState::Missing {
                 key: _,
@@ -186,14 +187,17 @@ impl<T> TomlValue<T> {
             } => TomlValue {
                 value: Some(None),
                 state: TomlValueState::Ok { span: parent_span },
+                help: None,
             },
             TomlValueState::Nested => TomlValue {
                 value: Some(self.value),
                 state: TomlValueState::Nested {},
+                help: self.help,
             },
             _ => TomlValue {
                 value: None,
                 state: self.state,
+                help: self.help,
             },
         }
     }
@@ -222,6 +226,7 @@ impl<T> TomlValue<T> {
         TomlValue {
             state: self.state,
             value: self.value.map(map_function),
+            help: self.help,
         }
     }
 
@@ -238,6 +243,7 @@ impl<T> TomlValue<T> {
             _ => TomlValue {
                 value: None,
                 state: self.state.clone(),
+                help: self.help.clone(),
             },
         }
     }
@@ -250,8 +256,14 @@ impl<T> TomlValue<T> {
             TomlValue {
                 value: None,
                 state: TomlValueState::NotSet,
+                help: None,
             },
         )
+    }
+
+    /// Set help text on this `TomlValue`.
+    pub fn set_help(&mut self, help: impl Into<String>) {
+        self.help = Some(help.into());
     }
 
     /// Is this `TomlValue` in the Ok state?
@@ -325,8 +337,8 @@ impl<T> TomlValue<T> {
                     self.state = TomlValueState::ValidationFailed {
                         span: span.clone(),
                         message: msg,
-                        help, //todo
                     };
+                    self.help = help;
                 }
             },
             _ => {
@@ -341,6 +353,7 @@ impl<T> TomlValue<T> {
             TomlValueState::Missing { .. } => *self = Self {
                 value: Some(default),
                 state: TomlValueState::Ok { span: 0..0 },
+                help: None,
             },
             _ => {},
         }
@@ -356,6 +369,7 @@ impl<T> TomlValue<T> {
                 *self = Self {
                 value: Some(default_func()),
                 state: TomlValueState::Ok { span: 0..0 },
+                help: None,
             }},
             _ => {},
         }
@@ -376,6 +390,7 @@ impl<T> Default for TomlValue<T> {
         TomlValue {
             value: None,
             state: TomlValueState::NotSet,
+            help: None,
         }
     }
 }

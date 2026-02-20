@@ -363,6 +363,7 @@ impl Visitor for PartialTaggedEnum {
             return TomlValue {
                 value: None,
                 state: tag_value.state,
+                help: tag_value.help,
             };
         }
         let tag = tag_value.value.as_ref().unwrap();

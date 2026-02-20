@@ -53,12 +53,12 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B>
         Self: Sized,
     {
         let t = self.take();
-        *self = match (t.state, t.value) {
-            (TomlValueState::NeedsFurtherValidation { span }, Some(MustAdapt::PreVerify(v))) => {
+        *self = match (t.state, t.value, t.help) {
+            (TomlValueState::NeedsFurtherValidation { span }, Some(MustAdapt::PreVerify(v)), _) => {
                 let value = map_func(v, span);
                 value.map(|x| MustAdapt::PostVerify(x))
             }
-            (state, value) => TomlValue { state, value },
+            (state, value, help) => TomlValue { state, value, help },
         }
     }
 }
@@ -92,10 +92,11 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
         Self: Sized,
     {
         let t = self.take();
-        *self = match (t.state, t.value) {
+        *self = match (t.state, t.value, t.help) {
             (
                 TomlValueState::NeedsFurtherValidation { span },
                 Some(MustAdaptNested(MustAdapt::PreVerify(v))),
+                _,
             ) => {
                 if v.can_concrete() {
                     let concrete = v.into_concrete();
@@ -106,10 +107,11 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
                     TomlValue {
                         state: TomlValueState::NeedsFurtherValidation { span },
                         value: Some(MustAdaptNested(MustAdapt::PreVerify(v))),
+                        help: None,
                     }
                 }
             }
-            (state, value) => TomlValue { state, value },
+            (state, value, help) => TomlValue { state, value, help },
         }
     }
 }

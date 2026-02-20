@@ -1167,6 +1167,7 @@ fn derive_tagged_enum(
                     return toml_pretty_deser::TomlValue {
                         value: None,
                         state: tag_value.state,
+                        help: tag_value.help,
                     };
                 }
                 let tag = tag_value.value.as_ref().expect("tag value missing after is_ok check");

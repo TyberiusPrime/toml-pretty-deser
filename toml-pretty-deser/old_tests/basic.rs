@@ -1868,8 +1868,8 @@ impl VerifyFromToml for PartialConfigWithUnitFields {
                     state: TomlValueState::ValidationFailed {
                         span: 0..0,
                         message: "Value must be non-negative".to_string(),
-                        help: Some("Please use a positive number".to_string()),
                     },
+                    help: Some("Please use a positive number".to_string()),
                 };
             }
         }
@@ -1882,8 +1882,8 @@ impl VerifyFromToml for PartialConfigWithUnitFields {
                     state: TomlValueState::ValidationFailed {
                         span: 0..0,
                         message: "When name is 'special', value must be 42".to_string(),
-                        help: None,
                     },
+                    help: None,
                 };
             }
         }

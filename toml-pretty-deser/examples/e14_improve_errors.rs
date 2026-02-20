@@ -4,8 +4,8 @@
 //! text on errors — for example, adding links to per-plugin documentation.
 //!
 //! The key idea: inside `VerifyIn::verify` you have mutable access to every
-//! `TomlValue` field. Since `TomlValue.state` is public, you can match on
-//! error variants and enrich their help text before the errors are collected.
+//! `TomlValue` field. Since `TomlValue.help` lives on the struct (not per-variant),
+//! you can set help text on any error state without changing the error kind.
 
 
 #![allow(dead_code)]
@@ -60,36 +60,16 @@ impl VerifyIn<Root> for PartialConfig {
 }
 
 /// Append a documentation link to the help text of a single TomlValue,
-/// if it is in an error state that carries help text.
+/// if it is in an error state.
 fn amend_help<T>(field: &mut TomlValue<T>, extra: &str) {
-    match &mut field.state {
-        TomlValueState::WrongType { span, expected, found } => {
-            // WrongType has no help field — replace with ValidationFailed
-            // so we can attach our documentation link.
-            field.state = TomlValueState::ValidationFailed {
-                span: span.clone(),
-                message: format!("Expected {expected}, found {found}"),
-                help: Some(extra.to_string()),
-            };
-        }
-        TomlValueState::ValidationFailed { help, .. } => {
-            let combined = match help.take() {
-                Some(existing) => format!("{existing}\n{extra}"),
-                None => extra.to_string(),
-            };
-            *help = Some(combined);
-        }
-        TomlValueState::Missing { .. } => {
-            // Missing has no help field — replace with Custom to attach help.
-            let parent_span = field.span();
-            field.state = TomlValueState::Custom {
-                spans: vec![(parent_span, "Required field is missing".to_string())],
-                help: Some(extra.to_string()),
-            };
-        }
-        // Ok, Nested, NotSet, etc. — nothing to amend
-        _ => {}
+    if field.is_ok() {
+        return;
     }
+    let combined = match field.help.take() {
+        Some(existing) => format!("{existing}\n{extra}"),
+        None => extra.to_string(),
+    };
+    field.help = Some(combined);
 }
 
 fn main() {

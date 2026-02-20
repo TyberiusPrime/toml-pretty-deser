@@ -1185,6 +1185,7 @@ mod with {
                 Ok(num) => TomlValue {
                     value: Some(num),
                     state: TomlValueState::Ok { span: input.span() },
+                    help: None,
                 },
                 Err(_) => TomlValue::new_validation_failed(
                     input.span(),
@@ -1202,6 +1203,7 @@ mod with {
             TomlValue {
                 value: Some(input.value.unwrap() * 2),
                 state: TomlValueState::Ok { span: input.span() },
+                help: None,
             }
         } else {
             input

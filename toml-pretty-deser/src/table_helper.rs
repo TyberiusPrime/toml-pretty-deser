@@ -161,6 +161,7 @@ impl<'a> TomlHelper<'a> {
                         key: query_key.to_string(),
                         parent_span,
                     },
+                    help: None,
                 }
             }
             1 => {
@@ -187,6 +188,7 @@ impl<'a> TomlHelper<'a> {
                         key: query_key.to_string(),
                         spans,
                     },
+                    help: None,
                 }
             }
         }

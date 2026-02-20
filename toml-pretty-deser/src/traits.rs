@@ -108,6 +108,7 @@ where
             TomlValue {
                 value: Some(visitor),
                 state: TomlValueState::UnknownKeys(helper.unknown_spans()),
+                help: None,
             }
         } else if visitor.can_concrete() {
             TomlValue::new_ok(visitor, helper.span())
@@ -140,14 +141,12 @@ where
                     (Ok(()), false, true) => TomlValue {
                         value: Some(maybe_validated),
                         state: TomlValueState::NeedsFurtherValidation { span },
+                        help: None,
                     },
                     (Err(ValidationFailure { message, help }), _, _) => TomlValue {
-                        state: TomlValueState::ValidationFailed {
-                            span,
-                            message,
-                            help,
-                        },
+                        state: TomlValueState::ValidationFailed { span, message },
                         value: Some(maybe_validated),
+                        help,
                     },
                 }
             }
@@ -192,13 +191,14 @@ where
             TomlValueState::Missing { key, parent_span } => vec![AnnotatedError::placed(
                 parent_span.clone(),
                 &format!("Missing required key: '{key}'."),
-                "",
+                self.help.as_ref().map_or("", String::as_str),
             )],
             TomlValueState::MultiDefined { key, spans } => {
+                let default_help = format!("Use only one of the keys involved. Canonical is '{key}'.");
                 let mut err = AnnotatedError::placed(
                     spans[0].clone(),
                     "Key/alias conflict (defined multiple times).",
-                    &format!("Use only one of the keys involved. Canonical is '{key}'."),
+                    self.help.as_ref().map_or(default_help.as_str(), String::as_str),
                 );
                 for span in spans.iter().skip(1) {
                     err.add_span(span.clone(), "Also defined here");
@@ -212,16 +212,12 @@ where
             } => vec![AnnotatedError::placed(
                 span.clone(),
                 &format!("Wrong type: expected {expected}, found {found}."),
-                "This value has the wrong type.",
+                self.help.as_ref().map_or("This value has the wrong type.", String::as_str),
             )],
-            TomlValueState::ValidationFailed {
-                span,
-                message,
-                help,
-            } => vec![AnnotatedError::placed(
+            TomlValueState::ValidationFailed { span, message } => vec![AnnotatedError::placed(
                 span.clone(),
                 message,
-                help.as_ref().map_or("", std::string::String::as_str),
+                self.help.as_ref().map_or("", String::as_str),
             )],
             TomlValueState::UnknownKeys(unknown_keys) => {
                 if let Some(value) = self.value.as_ref() {
@@ -239,7 +235,7 @@ where
                     })
                     .collect()
             }
-            TomlValueState::Custom { spans, help } => {
+            TomlValueState::Custom { spans } => {
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
                 }
@@ -249,7 +245,7 @@ where
                         .iter()
                         .next()
                         .map_or_else(|| "Missing message", |x| x.1.as_str()),
-                    help.as_ref().map_or("", std::string::String::as_str),
+                    self.help.as_ref().map_or("", String::as_str),
                 );
                 for (span, msg) in spans.iter().skip(1) {
                     err.add_span(span.clone(), msg);
@@ -259,7 +255,7 @@ where
             TomlValueState::NeedsFurtherValidation { span } => vec![AnnotatedError::placed(
                 span.clone(),
                 "This value was expected to receive further transformation in VerifyIn",
-                "This points to a bug in the deserilization code, please report it.",
+                self.help.as_ref().map_or("This points to a bug in the deserilization code, please report it.", String::as_str),
             )],
         };
 
