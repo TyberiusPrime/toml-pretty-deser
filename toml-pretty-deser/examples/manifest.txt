@@ -12,3 +12,4 @@ e11_absorb_remaining.rs
 e12_adapt_in_verify.rs
 e13_error_handling.rs
 e14_improve_errors.rs
+e15_map_key_validation.rs

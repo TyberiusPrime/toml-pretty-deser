@@ -402,6 +402,47 @@ impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
 }
 ```
 
+
+### Verifying Map keys
+
+To enable the verification of map keys, `IndexMaps` get stored into 
+`MapAndKeys` inside `PartialT`s.
+
+This allows you to verify & fail them in VerifyIn:
+```rust
+use toml_pretty_deser::prelude::*;
+use indexmap::IndexMap;
+
+#[derive(Debug)]
+#[tpd(root)]
+#[allow(dead_code)]
+pub struct MapKeyNotStartsWithA {
+    a_map: IndexMap<String, u8>,
+}
+
+impl VerifyIn<TPDRoot> for PartialMapKeyNotStartsWithA {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        self.a_map.verify_keys(|key_string| {
+            if key_string.starts_with("A") || key_string.starts_with("a") {
+                Err(ValidationFailure::new(
+                    "Keys cannot start with 'A'",
+                    Some("Help text goes here"),
+                ))
+            } else {
+                Ok(())
+            }
+        });
+        Ok(())
+    }
+}
+```
+
+
+
+
 ### Absorb remaining
 
 By default, non-matching keys are errors.
