@@ -211,11 +211,9 @@ impl<T> TomlValue<T> {
     where
         F: FnOnce(T) -> R,
     {
-        match &self.state {
-            TomlValueState::Ok => {
-                TomlValue::new_ok(map_function(self.value.unwrap()), self.span.clone())
-            }
-            _ => self.convert_failed_type(),
+        match self.state {
+            TomlValueState::Ok => TomlValue::new_ok(map_function(self.value.unwrap()), self.span),
+            state => TomlValue { value: None, state, span: self.span, help: self.help },
         }
     }
 
@@ -358,17 +356,9 @@ impl<T> TomlValue<T> {
 
     /// Replace the value with `default`if it was `Missing`
     pub fn or(&mut self, default: T) {
-        match &self.state {
-            TomlValueState::Missing { .. } => {
-                let span = self.span.clone();
-                *self = Self {
-                    value: Some(default),
-                    state: TomlValueState::Ok,
-                    span,
-                    help: None,
-                }
-            }
-            _ => {}
+        if matches!(self.state, TomlValueState::Missing { .. }) {
+            let old = self.take();
+            *self = Self { value: Some(default), state: TomlValueState::Ok, span: old.span, help: None };
         }
     }
 
@@ -377,17 +367,9 @@ impl<T> TomlValue<T> {
     where
         F: FnOnce() -> T,
     {
-        match &self.state {
-            TomlValueState::Missing { .. } => {
-                let span = self.span.clone();
-                *self = Self {
-                    value: Some(default_func()),
-                    state: TomlValueState::Ok,
-                    span,
-                    help: None,
-                }
-            }
-            _ => {}
+        if matches!(self.state, TomlValueState::Missing { .. }) {
+            let old = self.take();
+            *self = Self { value: Some(default_func()), state: TomlValueState::Ok, span: old.span, help: None };
         }
     }
 

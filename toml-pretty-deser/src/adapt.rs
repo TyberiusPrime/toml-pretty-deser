@@ -92,8 +92,8 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
         Self: Sized,
     {
         let t = self.take();
-        let span = t.span.clone();
-        *self = match (t.state, t.value, t.help) {
+        let TomlValue { span, state: t_state, value: t_value, help: t_help } = t;
+        *self = match (t_state, t_value, t_help) {
             (
                 TomlValueState::NeedsFurtherValidation,
                 Some(MustAdaptNested(MustAdapt::PreVerify(v))),

@@ -128,7 +128,7 @@ where
     {
         match self.state {
             TomlValueState::Ok => {
-                let span = self.span.clone();
+                let span = self.span;
                 let mut maybe_validated =
                     self.value.expect("ok, but no value?").vv_validate(parent);
                 let v = maybe_validated.verify(parent);
