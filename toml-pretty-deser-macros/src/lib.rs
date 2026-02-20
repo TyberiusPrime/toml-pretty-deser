@@ -231,10 +231,10 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
 
     //Test cases sugges this works.
     //if attrs.has_partial() && attrs.with_fn.is_some() {
-        // return Err(syn::Error::new_spanned(
-        //     &field.ty,
-        //     "field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]",
-        // ));
+    // return Err(syn::Error::new_spanned(
+    //     &field.ty,
+    //     "field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]",
+    // ));
     //}
 
     if let Some(AdaptInVerify::Explicit(_)) = &attrs.adapt_in_verify {
@@ -730,8 +730,11 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
         .iter()
         .map(|f| {
             let ident = &f.ident;
-            if f.attrs.skip {
+            if f.attrs.skip && f.attrs.default {
                 quote! { #ident: self.#ident.unwrap_or_default() }
+            }
+            else if f.attrs.skip {
+                quote! { #ident: self.#ident.expect("Expected #ident to have been set in VerifyIn") }
             } else if is_unit_type(&f.kind) {
                 quote! { #ident: () }
             } else if f.attrs.adapt_in_verify.is_some() {

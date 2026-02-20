@@ -102,7 +102,7 @@ fn test_refcell() {
 #[derive(Debug)]
 pub struct WithSkippedHashmap {
     name: String,
-    #[tpd(skip)]
+    #[tpd(skip, default)]
     ignored: std::collections::HashMap<String, String>,
 }
 
