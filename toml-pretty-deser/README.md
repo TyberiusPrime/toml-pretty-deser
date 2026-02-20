@@ -4,6 +4,10 @@ Deserialize [TOML 1.1.0](https://toml.io/en/v1.1.0) with pretty error messages.
 
 [![docs.rs](https://img.shields.io/docsrs/toml-pretty-deser?version=0.3.0)](https://docs.rs/toml-pretty-deser)
 
+## Examples
+
+See the [examples folder](https://github.com/TyberiusPrime/toml-pretty-deser/tree/main/toml-pretty-deser/examples) for self-contained, runnable examples covering all features.
+
 ## Usage:
 
 Deserialize your configuration structs from TOML with beautiful error message,

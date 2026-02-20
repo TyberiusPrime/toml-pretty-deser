@@ -1,0 +1,14 @@
+e01_basic.rs
+e02_nested.rs
+e03_enums.rs
+e04_tagged_enum.rs
+e05_validation.rs
+e06_defaults_and_optionals.rs
+e07_collections.rs
+e08_aliases_and_casing.rs
+e09_adapter_functions.rs
+e10_custom_types.rs
+e11_absorb_remaining.rs
+e12_adapt_in_verify.rs
+e13_error_handling.rs
+e14_improve_errors.rs
