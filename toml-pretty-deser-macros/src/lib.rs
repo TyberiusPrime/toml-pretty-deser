@@ -229,13 +229,14 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
         })?;
     }
 
-    //Test cases sugges this works.
-    //if attrs.has_partial() && attrs.with_fn.is_some() {
-    // return Err(syn::Error::new_spanned(
-    //     &field.ty,
-    //     "field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]",
-    // ));
-    //}
+    //yeah that's a pile of worms, because the adapted values 
+    //are not necessarily Visitor.
+    if attrs.has_partial() && attrs.with_fn.is_some() {
+    return Err(syn::Error::new_spanned(
+        &field.ty,
+        "field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]",
+    ));
+    }
 
     if let Some(AdaptInVerify::Explicit(_)) = &attrs.adapt_in_verify {
         if matches!(attrs.nested, NestedState::Nested | NestedState::Tagged) {
@@ -757,6 +758,15 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                 quote! { #ident: () }
             } else if f.attrs.adapt_in_verify.is_some() {
                 quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false").into_concrete() }
+            } else if f.attrs.with_fn.is_some() && matches!(&f.kind, TypeKind::Vector(_)) {
+                // with + Vec: inner values are already the concrete type (adapter produced them),
+                // so just unwrap each TomlValue without calling into_concrete (which requires Visitor).
+                quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false")
+                    .into_iter().map(|v| v.value.expect("inner value missing after with adapter")).collect() }
+            } else if f.attrs.with_fn.is_some() && matches!(&f.kind, TypeKind::Map(_, _)) {
+                // with + Map: inner values are already the concrete type, just unwrap.
+                quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false")
+                    .map.into_iter().map(|(k, v)| (k, v.value.expect("inner value missing after with adapter"))).collect() }
             } else if needs_into_concrete(&f.kind, f.attrs.has_partial()) {
                 quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false").into_concrete() }
             } else {
