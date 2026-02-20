@@ -26,8 +26,8 @@ struct Config {
     plugins: Vec<Plugin>,
 }
 
-impl VerifyIn<Root> for PartialConfig {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure> {
+impl VerifyIn<TPDRoot> for PartialConfig {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure> {
         // Iterate through all plugins in the partial vec and amend errors
         if let Some(plugins_vec) = &mut self.plugins.value {
             for (i, plugin_tv) in plugins_vec.iter_mut().enumerate() {

@@ -69,10 +69,10 @@ struct ShowOffTwoValueErrors {
     d: i64,
 }
 
-impl VerifyIn<Root> for PartialShowOffTwoValueErrors {
+impl VerifyIn<TPDRoot> for PartialShowOffTwoValueErrors {
     fn verify(
         &mut self,
-        parent: &Root,
+        parent: &TPDRoot,
     ) -> Result<(), ValidationFailure>
     where
         Self: Sized,
@@ -198,10 +198,10 @@ if they are missing (not if they fail otherwise!).
 
 Alternatively, you can always apply defaults in your `VerifyIn` implementation
 ```rust, ignore
-impl VerifyIn<Root> for PartialWithDefaults {
+impl VerifyIn<TPDRoot> for PartialWithDefaults {
     fn verify(
         &mut self,
-        _parent: &Root,
+        _parent: &TPDRoot,
     ) -> Result<(), (String, Option<String>)>
     self.field = self.field.take().or_default() // equivalent to #[tpd(default)]
     self.field = self.field.take().or(435) // const value
@@ -382,8 +382,8 @@ struct Nested {
     level1: u8
 }
 
-impl VerifyIn<Root> for PartialAdaptInVerify {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
+impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {

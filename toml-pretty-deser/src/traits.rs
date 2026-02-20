@@ -95,7 +95,7 @@ pub trait VerifyVisitor<Parent> {
 
 /// The empty struct passed to top level [`VerifyIn`] calls.
 #[derive(Default)]
-pub struct Root;
+pub struct TPDRoot;
 
 /// methods powering the `toml-pretty-deser-macros` crate's `#[tpd]` struct implementations.
 impl<T> TomlValue<T>

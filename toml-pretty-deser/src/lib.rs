@@ -17,7 +17,7 @@ pub use error::{AnnotatedError, DeserError, HydratedAnnotatedError, SpannedMessa
 pub use value::{TomlValue, TomlValueState, UnknownKey, VecMode};
 pub use collector::TomlCollector;
 pub use table_helper::TomlHelper;
-pub use traits::{Root, ValidationFailure, VerifyIn, VerifyVisitor, Visitor};
+pub use traits::{TPDRoot, ValidationFailure, VerifyIn, VerifyVisitor, Visitor};
 pub use adapt::{MustAdapt, MustAdaptHelper, MustAdaptNested};
 pub use deser::deserialize_toml;
 pub use case::{FieldMatchMode, suggest_alternatives};

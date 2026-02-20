@@ -11,7 +11,7 @@ struct Outer {
     value: u8,
 }
 
-impl VerifyIn<Root> for PartialOuter {}
+impl VerifyIn<TPDRoot> for PartialOuter {}
 
 #[test]
 fn test_deser_error_std_error_impl() {
@@ -64,8 +64,8 @@ struct OuterWithRc {
 
 impl VerifyIn<PartialOuterWithRc> for PartialOuter {}
 
-impl VerifyIn<Root> for PartialOuterWithRc {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
+impl VerifyIn<TPDRoot> for PartialOuterWithRc {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {

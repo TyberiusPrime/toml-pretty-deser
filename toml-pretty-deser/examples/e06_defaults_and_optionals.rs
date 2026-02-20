@@ -28,8 +28,8 @@ struct AppConfig {
     computed_id: String,
 }
 
-impl VerifyIn<Root> for PartialAppConfig {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure> {
+impl VerifyIn<TPDRoot> for PartialAppConfig {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure> {
         // .or_with(): provide a default via closure if missing
         self.timeout_ms.or_with(|| 5000);
 

@@ -25,8 +25,8 @@ struct Config {
     count: usize,
 }
 
-impl VerifyIn<Root> for PartialConfig {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure> {
+impl VerifyIn<TPDRoot> for PartialConfig {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure> {
         // adapt_in_verify (bare): receives toml_edit::Item
         self.name_length.adapt(|item, span| {
             match item.as_str() {
@@ -68,8 +68,8 @@ struct SharedConfig {
     shared_data: Rc<RefCell<InnerData>>,
 }
 
-impl VerifyIn<Root> for PartialSharedConfig {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure> {
+impl VerifyIn<TPDRoot> for PartialSharedConfig {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure> {
         // Nested adapt: receives the concrete InnerData (already converted from partial)
         self.shared_data.adapt(|inner, span| {
             TomlValue::new_ok(Rc::new(RefCell::new(inner)), span)

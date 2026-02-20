@@ -6,7 +6,7 @@ use crate::case::FieldMatchMode;
 use crate::collector::TomlCollector;
 use crate::error::DeserError;
 use crate::table_helper::TomlHelper;
-use crate::traits::{Root, VerifyIn, VerifyVisitor, Visitor};
+use crate::traits::{TPDRoot, VerifyIn, VerifyVisitor, Visitor};
 use crate::value::{TomlValueState, VecMode};
 
 /// Helper to implement `T::tpd_from_toml` in toml-pretty-deser-macros
@@ -27,7 +27,7 @@ pub fn deserialize_toml<P>(
     vec_mode: VecMode,
 ) -> Result<P::Concrete, DeserError<P>>
 where
-    P: Visitor + VerifyVisitor<Root> + VerifyIn<Root> + std::fmt::Debug + Default,
+    P: Visitor + VerifyVisitor<TPDRoot> + VerifyIn<TPDRoot> + std::fmt::Debug + Default,
 {
     let parsed_toml = toml_str
         .parse::<Document<String>>()
@@ -44,7 +44,7 @@ where
     let mut helper = TomlHelper::from_item(&top_level, col.clone());
 
     let root = P::fill_from_toml(&mut helper);
-    let mut root = root.tpd_validate(&Root);
+    let mut root = root.tpd_validate(&TPDRoot);
     if helper.has_unknown() {
         root.state = TomlValueState::UnknownKeys(helper.unknown_spans());
     }

@@ -17,8 +17,8 @@ struct ServerConfig {
     min_connections: u32,
 }
 
-impl VerifyIn<Root> for PartialServerConfig {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure> {
+impl VerifyIn<TPDRoot> for PartialServerConfig {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure> {
         // Single-field validation: port must be > 1024
         self.port.verify(|p| {
             if *p > 1024 {

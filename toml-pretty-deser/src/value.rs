@@ -270,6 +270,11 @@ impl<T> TomlValue<T> {
     pub fn is_ok(&self) -> bool {
         matches!(self.state, TomlValueState::Ok { .. })
     }
+    
+    /// Is this `TomlValue` in the Ok state?
+    pub fn is_missing(&self) -> bool {
+        matches!(self.state, TomlValueState::Missing { .. })
+    }
 
     /// Get a reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
     pub fn as_ref(&self) -> Option<&T> {

@@ -8,7 +8,7 @@ struct Skipped {
     skipped: u8,
 }
 
-impl VerifyIn<Root> for PartialSkipped {}
+impl VerifyIn<TPDRoot> for PartialSkipped {}
 
 fn main() {
     let toml = "";

@@ -13,7 +13,7 @@ use toml_pretty_deser::{
 };
 //library code
 //
-use toml_pretty_deser::Root;
+use toml_pretty_deser::TPDRoot;
 use toml_pretty_deser_macros::tpd;
 
 // Manually implemented example on how I want the API to look like
@@ -1135,8 +1135,8 @@ pub struct WithDefaults {
     s: u8,
 }
 
-impl VerifyIn<Root> for PartialWithDefaults {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
+impl VerifyIn<TPDRoot> for PartialWithDefaults {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1571,8 +1571,8 @@ pub struct UnitField {
     remainder: IndexMap<String, String>,
 }
 
-impl VerifyIn<Root> for PartialUnitField {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
+impl VerifyIn<TPDRoot> for PartialUnitField {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1809,8 +1809,8 @@ pub struct AdaptInVerify {
     other: usize,
 }
 
-impl VerifyIn<Root> for PartialAdaptInVerify {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
+impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {

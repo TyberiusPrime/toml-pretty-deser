@@ -14,7 +14,7 @@ use toml_pretty_deser::{
 };
 //library code
 //
-use toml_pretty_deser::Root;
+use toml_pretty_deser::TPDRoot;
 
 mod a01_macros;
 use a01_macros::*;
@@ -1081,8 +1081,8 @@ pub struct WithDefaults {
     s: u8,
 }
 
-impl VerifyIn<Root> for PartialWithDefaults {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
+impl VerifyIn<TPDRoot> for PartialWithDefaults {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1510,8 +1510,8 @@ pub struct UnitField {
     remainder: IndexMap<String, String>,
 }
 
-impl VerifyIn<Root> for PartialUnitField {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
+impl VerifyIn<TPDRoot> for PartialUnitField {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1588,7 +1588,7 @@ fn test_nested_unit_field() {
     }
 }
 
-impl VerifyIn<Root> for PartialNestedUnitField {}
+impl VerifyIn<TPDRoot> for PartialNestedUnitField {}
 
 impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
     fn verify(&mut self, _parent: &PartialNestedUnitField) -> Result<(), ValidationFailure>
@@ -1615,8 +1615,8 @@ pub struct AdaptInVerify {
     other: usize,
 }
 
-impl VerifyIn<Root> for PartialAdaptInVerify {
-    fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure>
+impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
