@@ -15,6 +15,20 @@ pub struct MapAndKeys<K, V> {
     pub keys: Vec<TomlValue<String>>,
 }
 
+impl<K: std::hash::Hash + Eq, V> MapAndKeys<K, V> {
+    /// Apply a function to each value in the map, producing a new `MapAndKeys` with the results.
+    /// Used by the `#[tpd(with)]` macro for `IndexMap<K, V>` fields.
+    pub fn map_values<W, F>(self, f: F) -> MapAndKeys<K, W>
+    where
+        F: Fn(TomlValue<V>) -> TomlValue<W>,
+    {
+        MapAndKeys {
+            map: self.map.into_iter().map(|(k, v)| (k, f(v))).collect(),
+            keys: self.keys,
+        }
+    }
+}
+
 impl<K, V> FailableKeys for TomlValue<MapAndKeys<K, V>> {
     fn verify_keys<F>(&mut self, callback: F)
     where

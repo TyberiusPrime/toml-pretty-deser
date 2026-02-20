@@ -181,6 +181,45 @@ fn test_with_non_string() {
     assert_eq!(parsed.b.0, "23");
 }
 
+// Verify that `with` on a Vec<T> field calls the adapter on each element (not the whole Vec).
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+struct WithOnVec {
+    #[tpd(with = "adapt_to_upper_case")]
+    items: Vec<String>,
+}
+
+#[test]
+fn test_with_on_vec_applies_per_element() {
+    let toml = "items = ['hello', 'world']";
+    let parsed = WithOnVec::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict)
+        .expect("should parse");
+    assert_eq!(parsed.items, vec!["HELLO".to_string(), "WORLD".to_string()]);
+
+    // empty vec: adapter is never called, result is empty
+    let toml = "items = []";
+    let parsed = WithOnVec::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict)
+        .expect("should parse with empty vec");
+    assert!(parsed.items.is_empty());
+}
+
+// Verify that `with` on an IndexMap<K, V> field calls the adapter on each value (not the whole map).
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+struct WithOnMap {
+    #[tpd(with = "adapt_to_upper_case")]
+    items: indexmap::IndexMap<String, String>,
+}
+
+#[test]
+fn test_with_on_map_applies_per_value() {
+    let toml = "[items]\nhello = 'world'\nfoo = 'bar'";
+    let parsed = WithOnMap::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict)
+        .expect("should parse");
+    assert_eq!(parsed.items["hello"], "WORLD");
+    assert_eq!(parsed.items["foo"], "BAR");
+}
+
 ///Even nested  and adapt works now...
 mod adapt_test {
     use toml_pretty_deser::{TomlCollector, Visitor, prelude::*};

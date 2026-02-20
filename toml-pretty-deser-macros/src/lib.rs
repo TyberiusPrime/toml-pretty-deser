@@ -596,6 +596,8 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             };
 
             let is_option = matches!(&f.kind, TypeKind::Optional(_));
+            let is_vec = matches!(&f.kind, TypeKind::Vector(_));
+            let is_map = matches!(&f.kind, TypeKind::Map(_, _));
 
             if let Some(AdaptInVerify::Explicit(ref intermediate_ty)) = f.attrs.adapt_in_verify {
                 let concrete_ty = &f.ty;
@@ -639,6 +641,22 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                     Ok(quote! {
                         fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
                             #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr)).into_optional()
+                        }
+                    })
+                } else if is_vec {
+                    // For Vec<T> fields: the with-func sees T (not Vec<T>).
+                    // get_vec_with_adapter anchors the source element type via the fn signature.
+                    Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
+                            helper.get_vec_with_adapter(#field_name_str, #aliases_expr, #with_fn_ident)
+                        }
+                    })
+                } else if is_map {
+                    // For IndexMap<K, V> fields: the with-func sees V (not the whole map).
+                    // get_map_with_adapter anchors the source value type via the fn signature.
+                    Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
+                            helper.get_map_with_adapter(#field_name_str, #aliases_expr, #with_fn_ident)
                         }
                     })
                 } else {

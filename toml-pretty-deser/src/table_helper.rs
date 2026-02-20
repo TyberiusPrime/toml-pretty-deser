@@ -195,6 +195,41 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
+    /// Like `get_with_aliases`, but applies `f` to each element of a `Vec` field.
+    /// The adapter sees `TomlValue<S>` (the element type), not `TomlValue<Vec<S>>`.
+    /// Used by the `#[tpd(with)]` macro on `Vec<T>` fields.
+    pub fn get_vec_with_adapter<S, T, F>(
+        &mut self,
+        query_key: &str,
+        aliases: &'static [&'static str],
+        f: F,
+    ) -> TomlValue<Vec<TomlValue<T>>>
+    where
+        Vec<TomlValue<S>>: Visitor + std::fmt::Debug,
+        F: Fn(TomlValue<S>) -> TomlValue<T>,
+    {
+        self.get_with_aliases::<Vec<TomlValue<S>>>(query_key, aliases)
+            .map(|v| v.into_iter().map(f).collect())
+    }
+
+    /// Like `get_with_aliases`, but applies `f` to each value of an `IndexMap` field.
+    /// The adapter sees `TomlValue<S>` (the value type), not the whole map.
+    /// Used by the `#[tpd(with)]` macro on `IndexMap<K, V>` fields.
+    pub fn get_map_with_adapter<K, S, T, F>(
+        &mut self,
+        query_key: &str,
+        aliases: &'static [&'static str],
+        f: F,
+    ) -> TomlValue<MapAndKeys<K, T>>
+    where
+        MapAndKeys<K, S>: Visitor + std::fmt::Debug,
+        K: std::hash::Hash + Eq,
+        F: Fn(TomlValue<S>) -> TomlValue<T>,
+    {
+        self.get_with_aliases::<MapAndKeys<K, S>>(query_key, aliases)
+            .map(|m| m.map_values(f))
+    }
+
     fn span_from_key(&self, key: &str) -> Range<usize> {
         if let Some(table) = self.item.as_table_like_plus() {
             TableLikePlus::key(table, key)
