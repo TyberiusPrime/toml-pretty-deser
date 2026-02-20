@@ -1089,7 +1089,7 @@ fn derive_tagged_enum(
                 #ident_str #(| #aliases)* => {
                     let mut partial_inner = <#partial_inner as toml_pretty_deser::Visitor>::fill_from_toml(helper);
                     match &mut partial_inner.state {
-                        toml_pretty_deser::TomlValueState::Ok { .. } => {
+                        toml_pretty_deser::TomlValueState::Ok => {
                             let visitor = #partial_name::#ident(partial_inner);
                             toml_pretty_deser::TomlValue::new_ok(visitor, helper.span())
                         }
@@ -1183,6 +1183,7 @@ fn derive_tagged_enum(
                     return toml_pretty_deser::TomlValue {
                         value: None,
                         state: tag_value.state,
+                        span: tag_value.span,
                         help: tag_value.help,
                     };
                 }

@@ -108,6 +108,7 @@ where
             TomlValue {
                 value: Some(visitor),
                 state: TomlValueState::UnknownKeys(helper.unknown_spans()),
+                span: helper.span(),
                 help: None,
             }
         } else if visitor.can_concrete() {
@@ -126,8 +127,8 @@ where
         T: Visitor + VerifyVisitor<R> + VerifyIn<R>,
     {
         match self.state {
-            TomlValueState::Ok { .. } => {
-                let span = self.span();
+            TomlValueState::Ok => {
+                let span = self.span.clone();
                 let mut maybe_validated =
                     self.value.expect("ok, but no value?").vv_validate(parent);
                 let v = maybe_validated.verify(parent);
@@ -140,12 +141,14 @@ where
                     (Ok(()), false, false) => TomlValue::new_nested(Some(maybe_validated)),
                     (Ok(()), false, true) => TomlValue {
                         value: Some(maybe_validated),
-                        state: TomlValueState::NeedsFurtherValidation { span },
+                        state: TomlValueState::NeedsFurtherValidation,
+                        span,
                         help: None,
                     },
                     (Err(ValidationFailure { message, help }), _, _) => TomlValue {
-                        state: TomlValueState::ValidationFailed { span, message },
+                        state: TomlValueState::ValidationFailed { message },
                         value: Some(maybe_validated),
+                        span,
                         help,
                     },
                 }
@@ -179,7 +182,7 @@ where
         context_spans: &[SpannedMessage],
     ) {
         let errs: Vec<AnnotatedError> = match &self.state {
-            TomlValueState::NotSet | TomlValueState::Ok { .. } => {
+            TomlValueState::NotSet | TomlValueState::Ok => {
                 return;
             }
             TomlValueState::Nested => {
@@ -188,8 +191,8 @@ where
                 }
                 return;
             }
-            TomlValueState::Missing { key, parent_span } => vec![AnnotatedError::placed(
-                parent_span.clone(),
+            TomlValueState::Missing { key } => vec![AnnotatedError::placed(
+                self.span.clone(),
                 &format!("Missing required key: '{key}'."),
                 self.help.as_ref().map_or("", String::as_str),
             )],
@@ -208,19 +211,15 @@ where
                 }
                 vec![err]
             }
-            TomlValueState::WrongType {
-                span,
-                expected,
-                found,
-            } => vec![AnnotatedError::placed(
-                span.clone(),
+            TomlValueState::WrongType { expected, found } => vec![AnnotatedError::placed(
+                self.span.clone(),
                 &format!("Wrong type: expected {expected}, found {found}."),
                 self.help
                     .as_ref()
                     .map_or("This value has the wrong type.", String::as_str),
             )],
-            TomlValueState::ValidationFailed { span, message } => vec![AnnotatedError::placed(
-                span.clone(),
+            TomlValueState::ValidationFailed { message } => vec![AnnotatedError::placed(
+                self.span.clone(),
                 message,
                 self.help.as_ref().map_or("", String::as_str),
             )],
@@ -257,8 +256,8 @@ where
                 }
                 vec![err]
             }
-            TomlValueState::NeedsFurtherValidation { span } => vec![AnnotatedError::placed(
-                span.clone(),
+            TomlValueState::NeedsFurtherValidation => vec![AnnotatedError::placed(
+                self.span.clone(),
                 "This value was expected to receive further transformation in VerifyIn",
                 self.help.as_ref().map_or(
                     "This points to a bug in the deserilization code, please report it.",

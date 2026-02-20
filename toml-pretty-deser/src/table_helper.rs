@@ -155,13 +155,12 @@ impl<'a> TomlHelper<'a> {
         match found_keys.len() {
             0 => {
                 // No match found
-
                 TomlValue {
                     value: None,
                     state: TomlValueState::Missing {
                         key: query_key.to_string(),
-                        parent_span,
                     },
+                    span: parent_span,
                     help: None,
                 }
             }
@@ -174,7 +173,7 @@ impl<'a> TomlHelper<'a> {
                 res
             }
             _ => {
-                let spans = found_keys
+                let spans: Vec<_> = found_keys
                     .iter()
                     .map(|(matched_key, _item)| self.span_from_key(matched_key))
                     .collect();
@@ -182,13 +181,14 @@ impl<'a> TomlHelper<'a> {
                     self.observed
                         .push(self.col.match_mode.normalize(matched_key));
                 }
-
+                let primary_span = spans[0].clone();
                 TomlValue {
                     value: None,
                     state: TomlValueState::MultiDefined {
                         key: query_key.to_string(),
                         spans,
                     },
+                    span: primary_span,
                     help: None,
                 }
             }

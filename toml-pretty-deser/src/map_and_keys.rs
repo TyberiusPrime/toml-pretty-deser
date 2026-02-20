@@ -28,7 +28,6 @@ impl<K, V> FailableKeys for TomlValue<MapAndKeys<K, V>> {
                         Ok(_) => {}
                         Err(err) => {
                             key.state = TomlValueState::ValidationFailed {
-                                span: key.span(),
                                 message: err.message,
                             };
                             key.help = err.help;

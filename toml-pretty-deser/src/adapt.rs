@@ -53,12 +53,13 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B>
         Self: Sized,
     {
         let t = self.take();
+        let span = t.span;
         *self = match (t.state, t.value, t.help) {
-            (TomlValueState::NeedsFurtherValidation { span }, Some(MustAdapt::PreVerify(v)), _) => {
-                let value = map_func(v, span);
+            (TomlValueState::NeedsFurtherValidation, Some(MustAdapt::PreVerify(v)), _) => {
+                let value = map_func(v, span.clone());
                 value.map(|x| MustAdapt::PostVerify(x))
             }
-            (state, value, help) => TomlValue { state, value, help },
+            (state, value, help) => TomlValue { state, span, value, help },
         }
     }
 }
@@ -92,26 +93,28 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
         Self: Sized,
     {
         let t = self.take();
+        let span = t.span.clone();
         *self = match (t.state, t.value, t.help) {
             (
-                TomlValueState::NeedsFurtherValidation { span },
+                TomlValueState::NeedsFurtherValidation,
                 Some(MustAdaptNested(MustAdapt::PreVerify(v))),
                 _,
             ) => {
                 if v.can_concrete() {
                     let concrete = v.into_concrete();
-                    let value = map_func(concrete, span);
+                    let value = map_func(concrete, span.clone());
                     value.map(|x| MustAdaptNested(MustAdapt::PostVerify(x)))
                 } else {
                     // Inner has errors; preserve state so errors propagate via v_register_errors
                     TomlValue {
-                        state: TomlValueState::NeedsFurtherValidation { span },
+                        state: TomlValueState::NeedsFurtherValidation,
                         value: Some(MustAdaptNested(MustAdapt::PreVerify(v))),
+                        span,
                         help: None,
                     }
                 }
             }
-            (state, value, help) => TomlValue { state, value, help },
+            (state, value, help) => TomlValue { state, span, value, help },
         }
     }
 }

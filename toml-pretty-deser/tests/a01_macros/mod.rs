@@ -357,6 +357,7 @@ impl Visitor for PartialTaggedEnum {
             return TomlValue {
                 value: None,
                 state: tag_value.state,
+                span: tag_value.span,
                 help: tag_value.help,
             };
         }

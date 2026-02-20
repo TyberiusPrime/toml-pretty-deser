@@ -35,7 +35,6 @@ pub enum TomlValueState {
     /// This value was missing - and that's a problem
     Missing {
         key: String,
-        parent_span: Range<usize>,
     },
     /// This value was defined more than once
     /// possibly using aliases.
@@ -46,12 +45,11 @@ pub enum TomlValueState {
     },
     /// This value had the wrong type
     WrongType {
-        span: Range<usize>,
         expected: &'static str,
         found: &'static str,
     },
     /// This value had the right type, but failed validation
-    ValidationFailed { span: Range<usize>, message: String },
+    ValidationFailed { message: String },
     /// There were one-or-more unknown keys within this table.
     UnknownKeys(Vec<UnknownKey>),
     /// This is a container, and one of it's children is in an error state
@@ -59,9 +57,9 @@ pub enum TomlValueState {
     /// A user defined error with multiple spans
     Custom { spans: Vec<(Range<usize>, String)> },
     /// used in #tdp(adapt_in_verify(..)]
-    NeedsFurtherValidation { span: Range<usize> },
+    NeedsFurtherValidation,
     /// This value was deserialized correctly.
-    Ok { span: Range<usize> },
+    Ok,
 }
 
 /// The Result+Option representation of a TOML value that we will have
@@ -73,6 +71,8 @@ pub struct TomlValue<T> {
     /// Was this value deserialized successfully,
     /// and if not, why not
     pub state: TomlValueState,
+    /// The span of this value in the source TOML, always present.
+    pub span: Range<usize>,
     /// Value is independent of the state,
     /// so that containers can pinpoint which of their values failed.
     pub value: Option<T>,
@@ -87,7 +87,8 @@ impl<T> TomlValue<T> {
     pub const fn new_ok(value: T, span: Range<usize>) -> Self {
         Self {
             value: Some(value),
-            state: TomlValueState::Ok { span },
+            state: TomlValueState::Ok,
+            span,
             help: None,
         }
     }
@@ -108,9 +109,11 @@ impl<T> TomlValue<T> {
             !spans.is_empty(),
             "new_custom should have at least one span"
         );
+        let primary_span = spans[0].0.clone();
         Self {
             value,
             state: TomlValueState::Custom { spans },
+            span: primary_span,
             help: help.map(ToString::to_string),
         }
     }
@@ -120,10 +123,8 @@ impl<T> TomlValue<T> {
     pub const fn new_empty_missing(parent_span: Range<usize>) -> Self {
         Self {
             value: None,
-            state: TomlValueState::Missing {
-                key: String::new(),
-                parent_span,
-            },
+            state: TomlValueState::Missing { key: String::new() },
+            span: parent_span,
             help: None,
         }
     }
@@ -136,7 +137,8 @@ impl<T> TomlValue<T> {
     ) -> Self {
         Self {
             value: None,
-            state: TomlValueState::ValidationFailed { span, message },
+            state: TomlValueState::ValidationFailed { message },
+            span,
             help,
         }
     }
@@ -151,10 +153,10 @@ impl<T> TomlValue<T> {
         Self {
             value: None,
             state: TomlValueState::WrongType {
-                span: item.span().unwrap_or(parent_span),
                 expected,
                 found: item.type_name(),
             },
+            span: item.span().unwrap_or(parent_span),
             help: None,
         }
     }
@@ -164,7 +166,8 @@ impl<T> TomlValue<T> {
     pub fn new_nested(value: Option<T>) -> Self {
         Self {
             value,
-            state: TomlValueState::Nested {},
+            state: TomlValueState::Nested,
+            span: 0..0,
             help: None,
         }
     }
@@ -173,27 +176,28 @@ impl<T> TomlValue<T> {
     /// and promote Missing from an error state into `Ok`
     pub fn into_optional(self) -> TomlValue<Option<T>> {
         match self.state {
-            TomlValueState::Ok { span } => TomlValue {
+            TomlValueState::Ok => TomlValue {
                 value: Some(self.value),
-                state: TomlValueState::Ok { span },
+                state: TomlValueState::Ok,
+                span: self.span,
                 help: self.help,
             },
-            TomlValueState::Missing {
-                key: _,
-                parent_span,
-            } => TomlValue {
+            TomlValueState::Missing { key: _ } => TomlValue {
                 value: Some(None),
-                state: TomlValueState::Ok { span: parent_span },
+                state: TomlValueState::Ok,
+                span: self.span,
                 help: None,
             },
             TomlValueState::Nested => TomlValue {
                 value: Some(self.value),
-                state: TomlValueState::Nested {},
+                state: TomlValueState::Nested,
+                span: self.span,
                 help: self.help,
             },
             _ => TomlValue {
                 value: None,
                 state: self.state,
+                span: self.span,
                 help: self.help,
             },
         }
@@ -208,8 +212,8 @@ impl<T> TomlValue<T> {
         F: FnOnce(T) -> R,
     {
         match &self.state {
-            TomlValueState::Ok { span } => {
-                TomlValue::new_ok(map_function(self.value.unwrap()), span.clone())
+            TomlValueState::Ok => {
+                TomlValue::new_ok(map_function(self.value.unwrap()), self.span.clone())
             }
             _ => self.convert_failed_type(),
         }
@@ -222,6 +226,7 @@ impl<T> TomlValue<T> {
     {
         TomlValue {
             state: self.state,
+            span: self.span,
             value: self.value.map(map_function),
             help: self.help,
         }
@@ -235,14 +240,14 @@ impl<T> TomlValue<T> {
         F: FnOnce(&T) -> Result<R, ValidationFailure>,
     {
         match &self.state {
-            TomlValueState::Ok { span } => match map_func(
+            TomlValueState::Ok => match map_func(
                 self.value
                     .as_ref()
                     .expect("None value on TomlValueState::Ok"),
             ) {
-                Ok(v) => TomlValue::new_ok(v, span.clone()),
+                Ok(v) => TomlValue::new_ok(v, self.span.clone()),
                 Err(ValidationFailure { message, help }) => {
-                    TomlValue::new_validation_failed(span.clone(), message, help)
+                    TomlValue::new_validation_failed(self.span.clone(), message, help)
                 }
             },
             _ => self.convert_failed_type(),
@@ -256,12 +261,13 @@ impl<T> TomlValue<T> {
     /// When called on an ok `TomlValue`
     pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
         match &self.state {
-            TomlValueState::Ok { span } => {
-                panic!("called convert_failed_type on a TomlValue that is Ok. Span was: {span:?}")
+            TomlValueState::Ok => {
+                panic!("called convert_failed_type on a TomlValue that is Ok. Span was: {:?}", self.span)
             }
             _ => TomlValue {
                 value: None,
                 state: self.state.clone(),
+                span: self.span.clone(),
                 help: self.help.clone(),
             },
         }
@@ -275,6 +281,7 @@ impl<T> TomlValue<T> {
             TomlValue {
                 value: None,
                 state: TomlValueState::NotSet,
+                span: 0..0,
                 help: None,
             },
         )
@@ -287,7 +294,7 @@ impl<T> TomlValue<T> {
 
     /// Is this `TomlValue` in the Ok state?
     pub fn is_ok(&self) -> bool {
-        matches!(self.state, TomlValueState::Ok { .. })
+        matches!(self.state, TomlValueState::Ok)
     }
 
     /// Is this `TomlValue` in the Ok state?
@@ -298,7 +305,7 @@ impl<T> TomlValue<T> {
     /// Get a reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
     pub fn as_ref(&self) -> Option<&T> {
         match self.state {
-            TomlValueState::Ok { .. } => self.value.as_ref(),
+            TomlValueState::Ok => self.value.as_ref(),
             _ => None,
         }
     }
@@ -306,33 +313,14 @@ impl<T> TomlValue<T> {
     /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
     pub fn as_mut(&mut self) -> Option<&mut T> {
         match self.state {
-            TomlValueState::Ok { .. } => self.value.as_mut(),
+            TomlValueState::Ok => self.value.as_mut(),
             _ => None,
         }
     }
 
     /// Retrieve the primary span in the input TOML source.
-    /// If no such span is available, return the 0..0 span.
-    ///
-    ///
-    /// # Panics
-    ///
-    /// When called on `UnknownKeys`
-    /// When called on a Custom without spans
     pub fn span(&self) -> Range<usize> {
-        match &self.state {
-            TomlValueState::Ok { span }
-            | TomlValueState::Missing {
-                parent_span: span, ..
-            }
-            | TomlValueState::WrongType { span, .. }
-            | TomlValueState::ValidationFailed { span, .. } => span.clone(),
-            TomlValueState::NotSet | TomlValueState::Nested => 0..0,
-            TomlValueState::MultiDefined { spans, .. } => spans[0].clone(), //just return the first one
-            TomlValueState::UnknownKeys(_) => panic!("don't call span on UnknownKeys?"),
-            TomlValueState::Custom { spans, .. } => spans[0].0.clone(),
-            TomlValueState::NeedsFurtherValidation { span, .. } => span.clone(),
-        }
+        self.span.clone()
     }
 
     /// Verify this TOML value
@@ -348,7 +336,7 @@ impl<T> TomlValue<T> {
         F: FnOnce(&T) -> Result<(), ValidationFailure>,
     {
         match &self.state {
-            TomlValueState::Ok { span } => match verification_func(
+            TomlValueState::Ok => match verification_func(
                 self.value
                     .as_ref()
                     .expect("None value on TomlValueState::Ok"),
@@ -358,10 +346,7 @@ impl<T> TomlValue<T> {
                 }
                 Err(ValidationFailure { message, help }) => {
                     self.value = None;
-                    self.state = TomlValueState::ValidationFailed {
-                        span: span.clone(),
-                        message: message,
-                    };
+                    self.state = TomlValueState::ValidationFailed { message };
                     self.help = help;
                 }
             },
@@ -375,9 +360,11 @@ impl<T> TomlValue<T> {
     pub fn or(&mut self, default: T) {
         match &self.state {
             TomlValueState::Missing { .. } => {
+                let span = self.span.clone();
                 *self = Self {
                     value: Some(default),
-                    state: TomlValueState::Ok { span: 0..0 },
+                    state: TomlValueState::Ok,
+                    span,
                     help: None,
                 }
             }
@@ -392,9 +379,11 @@ impl<T> TomlValue<T> {
     {
         match &self.state {
             TomlValueState::Missing { .. } => {
+                let span = self.span.clone();
                 *self = Self {
                     value: Some(default_func()),
-                    state: TomlValueState::Ok { span: 0..0 },
+                    state: TomlValueState::Ok,
+                    span,
                     help: None,
                 }
             }
@@ -417,6 +406,7 @@ impl<T> Default for TomlValue<T> {
         TomlValue {
             value: None,
             state: TomlValueState::NotSet,
+            span: 0..0,
             help: None,
         }
     }
