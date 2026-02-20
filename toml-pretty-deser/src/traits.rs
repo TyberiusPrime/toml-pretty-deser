@@ -5,8 +5,8 @@ use crate::value::{TomlValue, TomlValueState};
 
 /// The error type for `VerifyIn.verify()`
 pub struct ValidationFailure {
-    pub(crate) message: String,
-    pub(crate) help: Option<String>,
+    pub message: String,
+    pub help: Option<String>,
 }
 
 impl ValidationFailure {
