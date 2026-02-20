@@ -152,3 +152,31 @@ fn test_with_on_option_sees_inner_t() {
     assert_eq!(parsed.required, "HELLO");
     assert_eq!(parsed.optional, None);
 }
+
+#[derive(Debug)]
+struct NotAString(String);
+
+fn adapt_not_a_string(input: TomlValue<String>) -> TomlValue<NotAString> {
+    input.map(NotAString)
+}
+fn adapt_not_a_string_from_toml_item(input: TomlValue<toml_edit::Item>) -> TomlValue<NotAString> {
+    input.map(|value| NotAString(format!("{:?}", value)))
+}
+
+#[tpd(root, no_verify)]
+struct AdaptTest {
+    #[tpd(with = "adapt_not_a_string")]
+    a: NotAString,
+    #[tpd(with = "adapt_not_a_string_from_toml_item")]
+    b: NotAString,
+}
+
+#[test]
+fn test_with_non_string() {
+    let toml = "a = 'hello'
+    b = 23";
+    let parsed = AdaptTest::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict)
+        .expect("should parse");
+    assert_eq!(parsed.a.0, "hello");
+    assert_eq!(parsed.b.0, "23");
+}
