@@ -632,11 +632,21 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                         format!("#[tpd(with)] value `{with_fn}` is not a valid Rust path"),
                     )
                 })?;
-                Ok(quote! {
-                    fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
-                        #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr))
-                    }
-                })
+                if is_option {
+                    // For Option<T> fields: the with-func sees T (not Option<T>).
+                    // We call into_optional() on the result so the field stays Option<T>.
+                    Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
+                            #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr)).into_optional()
+                        }
+                    })
+                } else {
+                    Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
+                            #with_fn_ident(helper.get_with_aliases(#field_name_str, #aliases_expr))
+                        }
+                    })
+                }
             } else if f.attrs.default {
                 Ok(quote! {
                     fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {

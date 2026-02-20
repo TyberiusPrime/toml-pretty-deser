@@ -1144,9 +1144,9 @@ impl VerifyIn<TPDRoot> for PartialWithDefaults {
             if x % 2 == 0 {
                 Ok(())
             } else {
-                Err((
-                    "Must be even".to_string(),
-                    Some("Like, 2, or four.".to_string()),
+                Err(ValidationFailure::new(
+                    "Must be even",
+                    Some("Like, 2, or four."),
                 ))
             }
         });
@@ -1669,7 +1669,7 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
             .unwrap_or(0);
         if !len.is_multiple_of(2) {
             return Err(ValidationFailure::new(
-                "there must be an even number of fields",
+                "there must be an even number of fields".to_string(),
                 Some(format!("There were {} fields", len)),
             ));
         }

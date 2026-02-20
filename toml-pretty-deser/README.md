@@ -102,9 +102,9 @@ impl VerifyIn<TPDRoot> for PartialShowOffTwoValueErrors {
             if *value < 50 {
                 Ok(())
             } else {
-               Err((
-                   "Must be below 50".to_string(),
-                   Some("For demonstration purposes only".to_string())
+               Err(ValidationFailure::new(
+                   "Must be below 50",
+                   Some("For demonstration purposes only")
                ))
             }
         });

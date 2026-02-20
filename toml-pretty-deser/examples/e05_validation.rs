@@ -24,8 +24,10 @@ impl VerifyIn<TPDRoot> for PartialServerConfig {
             if *p > 1024 {
                 Ok(())
             } else {
-                Err(("Port must be greater than 1024".to_string(),
-                     Some("Use a port in the range 1025..65535".to_string())))
+                Err(ValidationFailure::new(
+                    "Port must be greater than 1024",
+                    Some("Use a port in the range 1025..65535"),
+                ))
             }
         });
 
@@ -37,8 +39,14 @@ impl VerifyIn<TPDRoot> for PartialServerConfig {
             let max_val = *max;
             // Create a custom error pointing at both fields
             let spans = vec![
-                (self.max_connections.span(), "max_connections is here".to_string()),
-                (self.min_connections.span(), "min_connections is here".to_string()),
+                (
+                    self.max_connections.span(),
+                    "max_connections is here".to_string(),
+                ),
+                (
+                    self.min_connections.span(),
+                    "min_connections is here".to_string(),
+                ),
             ];
             // Store the error on a field — using new_custom on max_connections
             self.max_connections = TomlValue::new_custom(

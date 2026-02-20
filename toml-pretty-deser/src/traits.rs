@@ -10,7 +10,7 @@ pub struct ValidationFailure {
 }
 
 impl ValidationFailure {
-    pub fn new(message: impl AsRef<str>, help: Option<impl AsRef<str>>) -> Self {
+    pub fn new<T: AsRef<str>>(message: T, help: Option<T>) -> Self {
         Self {
             message: message.as_ref().to_string(),
             help: help.map(|h| h.as_ref().to_string()),
@@ -194,11 +194,14 @@ where
                 self.help.as_ref().map_or("", String::as_str),
             )],
             TomlValueState::MultiDefined { key, spans } => {
-                let default_help = format!("Use only one of the keys involved. Canonical is '{key}'.");
+                let default_help =
+                    format!("Use only one of the keys involved. Canonical is '{key}'.");
                 let mut err = AnnotatedError::placed(
                     spans[0].clone(),
                     "Key/alias conflict (defined multiple times).",
-                    self.help.as_ref().map_or(default_help.as_str(), String::as_str),
+                    self.help
+                        .as_ref()
+                        .map_or(default_help.as_str(), String::as_str),
                 );
                 for span in spans.iter().skip(1) {
                     err.add_span(span.clone(), "Also defined here");
@@ -212,7 +215,9 @@ where
             } => vec![AnnotatedError::placed(
                 span.clone(),
                 &format!("Wrong type: expected {expected}, found {found}."),
-                self.help.as_ref().map_or("This value has the wrong type.", String::as_str),
+                self.help
+                    .as_ref()
+                    .map_or("This value has the wrong type.", String::as_str),
             )],
             TomlValueState::ValidationFailed { span, message } => vec![AnnotatedError::placed(
                 span.clone(),
@@ -255,7 +260,10 @@ where
             TomlValueState::NeedsFurtherValidation { span } => vec![AnnotatedError::placed(
                 span.clone(),
                 "This value was expected to receive further transformation in VerifyIn",
-                self.help.as_ref().map_or("This points to a bug in the deserilization code, please report it.", String::as_str),
+                self.help.as_ref().map_or(
+                    "This points to a bug in the deserilization code, please report it.",
+                    String::as_str,
+                ),
             )],
         };
 

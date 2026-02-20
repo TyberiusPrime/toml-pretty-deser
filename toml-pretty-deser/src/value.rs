@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use crate::ValidationFailure;
 
 /// Inner struct for `TomlValue::UnknownKeys`
 #[derive(Debug, Clone)]
@@ -226,6 +227,28 @@ impl<T> TomlValue<T> {
         }
     }
 
+    ///Try to convert this toml value, if it was ok,
+    ///but allow returing an Error message
+    #[allow(clippy::missing_panics_doc)]
+    pub fn try_map<F, R>(&mut self, map_func: F) -> TomlValue<R>
+    where
+        F: FnOnce(&T) -> Result<R, ValidationFailure>,
+    {
+        match &self.state {
+            TomlValueState::Ok { span } => match map_func(
+                self.value
+                    .as_ref()
+                    .expect("None value on TomlValueState::Ok"),
+            ) {
+                Ok(v) => TomlValue::new_ok(v, span.clone()),
+                Err(ValidationFailure { message, help }) => {
+                    TomlValue::new_validation_failed(span.clone(), message, help)
+                }
+            },
+            _ => self.convert_failed_type(),
+        }
+    }
+
     /// Adapt failed types, eating the value
     ///
     /// # Panics
@@ -322,7 +345,7 @@ impl<T> TomlValue<T> {
     #[allow(clippy::missing_panics_doc)]
     pub fn verify<F>(&mut self, verification_func: F)
     where
-        F: FnOnce(&T) -> Result<(), (String, Option<String>)>,
+        F: FnOnce(&T) -> Result<(), ValidationFailure>,
     {
         match &self.state {
             TomlValueState::Ok { span } => match verification_func(
@@ -333,11 +356,11 @@ impl<T> TomlValue<T> {
                 Ok(()) => {
                     //unchanged
                 }
-                Err((msg, help)) => {
+                Err(ValidationFailure { message, help }) => {
                     self.value = None;
                     self.state = TomlValueState::ValidationFailed {
                         span: span.clone(),
-                        message: msg,
+                        message: message,
                     };
                     self.help = help;
                 }

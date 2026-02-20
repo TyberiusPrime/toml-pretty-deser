@@ -119,3 +119,36 @@ fn test_skip_hashmap_field() {
         assert!(parsed.ignored.is_empty()); // Default::default() for HashMap
     }
 }
+
+pub fn adapt_to_upper_case(input: TomlValue<String>) -> TomlValue<String> {
+    input.map(|s| s.to_uppercase())
+}
+
+// Verify that `with` on an Option<T> field passes T (not Option<T>) to the adapter function.
+// `adapt_to_upper_case` takes TomlValue<String> -> TomlValue<String>; if it saw Option<String>
+// the field would fail to compile.
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+struct WithOnOption {
+    #[tpd(with = "adapt_to_upper_case")]
+    required: String,
+    #[tpd(with = "adapt_to_upper_case")]
+    optional: Option<String>,
+}
+
+#[test]
+fn test_with_on_option_sees_inner_t() {
+    // Both present: adapter is applied to the inner string
+    let toml = "required = 'hello'\noptional = 'world'";
+    let parsed = WithOnOption::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict)
+        .expect("should parse");
+    assert_eq!(parsed.required, "HELLO");
+    assert_eq!(parsed.optional, Some("WORLD".to_string()));
+
+    // optional absent: field becomes None, not an error
+    let toml = "required = 'hello'";
+    let parsed = WithOnOption::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict)
+        .expect("should parse with optional absent");
+    assert_eq!(parsed.required, "HELLO");
+    assert_eq!(parsed.optional, None);
+}
