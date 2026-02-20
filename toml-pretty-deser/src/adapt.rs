@@ -1,5 +1,5 @@
 use crate::traits::Visitor;
-use crate::value::{TomlValue, TomlValueState};
+use crate::value::{TomlOr, TomlValue, TomlValueState};
 
 /// Wrapper type for #[tdp(adapt_in_verify)]
 #[derive(Debug)]
@@ -98,6 +98,64 @@ impl<A: Visitor, B> std::fmt::Debug for MustAdaptNested<A, B> {
             MustAdapt::PostVerify(_) => f
                 .debug_struct("MustAdaptNested::PostVerify")
                 .finish_non_exhaustive(),
+        }
+    }
+}
+
+impl<A: std::fmt::Debug, B: std::fmt::Debug> TomlOr<B> for TomlValue<MustAdapt<A, B>> {
+    fn or(&mut self, default: B) {
+        if matches!(self.state, TomlValueState::Missing { .. }) {
+            let old = self.take();
+            *self = Self {
+                value: Some(MustAdapt::PostVerify(default)),
+                state: TomlValueState::Ok,
+                span: old.span,
+                help: None,
+            };
+        }
+    }
+
+    fn or_with<F>(&mut self, default_func: F)
+    where
+        F: FnOnce() -> B,
+    {
+        if matches!(self.state, TomlValueState::Missing { .. }) {
+            let old = self.take();
+            *self = Self {
+                value: Some(MustAdapt::PostVerify(default_func())),
+                state: TomlValueState::Ok,
+                span: old.span,
+                help: None,
+            };
+        }
+    }
+}
+
+impl<A: Visitor, B> TomlOr<B> for TomlValue<MustAdaptNested<A, B>> {
+    fn or(&mut self, default: B) {
+        if matches!(self.state, TomlValueState::Missing { .. }) {
+            let old = self.take();
+            *self = Self {
+                value: Some(MustAdaptNested(MustAdapt::PostVerify(default))),
+                state: TomlValueState::Ok,
+                span: old.span,
+                help: None,
+            };
+        }
+    }
+
+    fn or_with<F>(&mut self, default_func: F)
+    where
+        F: FnOnce() -> B,
+    {
+        if matches!(self.state, TomlValueState::Missing { .. }) {
+            let old = self.take();
+            *self = Self {
+                value: Some(MustAdaptNested(MustAdapt::PostVerify(default_func()))),
+                state: TomlValueState::Ok,
+                span: old.span,
+                help: None,
+            };
         }
     }
 }

@@ -5,7 +5,7 @@
 // this is explicitly what we want!
 #![allow(clippy::field_reassign_with_default)]
 use toml_pretty_deser::{
-    DeserError, MapAndKeys, TPDRoot, TomlCollector, TomlHelper, TomlValue, TomlValueState,
+    DeserError, MapAndKeys, TPDRoot, TomlCollector, TomlHelper, TomlOr, TomlValue, TomlValueState,
     VerifyIn, VerifyVisitor, Visitor, deserialize_toml, prelude::MustAdapt, suggest_alternatives,
 };
 

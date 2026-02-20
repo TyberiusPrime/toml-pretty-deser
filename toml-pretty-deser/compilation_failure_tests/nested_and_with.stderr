@@ -1,0 +1,23 @@
+error: field cannot have both #[tpd(nested)] and #[tpd(with = "...")]
+ --> compilation_failure_tests/nested_and_with.rs:7:13
+  |
+7 |     nested: Inner,
+  |             ^^^^^
+
+error[E0412]: cannot find type `PartialNestedAndAdapt` in this scope
+  --> compilation_failure_tests/nested_and_with.rs:16:28
+   |
+16 | impl VerifyIn<TPDRoot> for PartialNestedAndAdapt {}
+   |                            ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: failed to resolve: use of undeclared type `NestedAndAdapt`
+  --> compilation_failure_tests/nested_and_with.rs:45:9
+   |
+45 |         NestedAndAdapt::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
+   |         ^^^^^^^^^^^^^^ use of undeclared type `NestedAndAdapt`
+
+error[E0433]: failed to resolve: use of undeclared type `NestedAndAdapt`
+  --> compilation_failure_tests/nested_and_with.rs:55:9
+   |
+55 |         NestedAndAdapt::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
+   |         ^^^^^^^^^^^^^^ use of undeclared type `NestedAndAdapt`

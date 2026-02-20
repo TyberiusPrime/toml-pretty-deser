@@ -9,7 +9,7 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::prelude::MustAdaptHelper;
 use toml_pretty_deser::{
-    DeserError, FailableKeys, FieldMatchMode, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
+    DeserError, FailableKeys, FieldMatchMode, TomlOr, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
 };
 //library code
 //

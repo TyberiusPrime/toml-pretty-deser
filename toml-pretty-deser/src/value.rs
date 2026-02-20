@@ -369,8 +369,33 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Replace the value with `default`if it was `Missing`
-    pub fn or(&mut self, default: T) {
+}
+
+/// Trait for providing default values to `TomlValue` when the field is missing.
+///
+/// For regular `TomlValue<T>`, the default type `D` is `T` itself.
+/// For `TomlValue<MustAdapt<A, B>>`, the default type `D` is `B` (the post-verify type),
+/// so you can write `.or(some_b)` instead of `.or(MustAdapt::PostVerify(some_b))`.
+pub trait TomlOr<D> {
+    /// Replace the value with `default` if it was `Missing`
+    fn or(&mut self, default: D);
+
+    /// Replace the value with the result of `default_func` if it was `Missing`
+    fn or_with<F>(&mut self, default_func: F)
+    where
+        F: FnOnce() -> D;
+
+    /// Replace the value with `D::default()` if it was `Missing`
+    fn or_default(&mut self)
+    where
+        D: Default,
+    {
+        self.or_with(Default::default);
+    }
+}
+
+impl<T> TomlOr<T> for TomlValue<T> {
+    fn or(&mut self, default: T) {
         if matches!(self.state, TomlValueState::Missing { .. }) {
             let old = self.take();
             *self = Self {
@@ -382,8 +407,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Replace the value with the result of `default_func` if it was `Missing`
-    pub fn or_with<F>(&mut self, default_func: F)
+    fn or_with<F>(&mut self, default_func: F)
     where
         F: FnOnce() -> T,
     {
@@ -396,14 +420,6 @@ impl<T> TomlValue<T> {
                 help: None,
             };
         }
-    }
-
-    /// Replace the value with `T::default()` if it was `Missing`
-    pub fn or_default(&mut self)
-    where
-        T: Default,
-    {
-        self.or_with(Default::default)
     }
 }
 
