@@ -1020,22 +1020,21 @@ struct Config {
 impl VerifyIn<Root> for PartialConfig {
     fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure> {
         // adapt_in_verify (bare): receives toml_edit::Item
-        self.name_length.adapt(|item, span| {
+        self.name_length.adapt(|item| {
+            let found = item.type_name();
             match item.as_str() {
-                Some(s) => TomlValue::new_ok(s.len(), span),
-                None => TomlValue::new_wrong_type(&item, span, "string"),
+                Some(s) => (s.len(), TomlValueState::Ok),
+                None => (0, TomlValueState::WrongType { expected: "string", found }),
             }
         });
 
         // adapt_in_verify(String): receives String
-        self.count.adapt(|s, span| {
+        self.count.adapt(|s| {
             match s.parse::<usize>() {
-                Ok(n) => TomlValue::new_ok(n, span),
-                Err(_) => TomlValue::new_validation_failed(
-                    span,
-                    "Not a valid number".to_string(),
-                    Some("Provide a numeric string like '42'".to_string()),
-                ),
+                Ok(n) => (n, TomlValueState::Ok),
+                Err(_) => (0, TomlValueState::ValidationFailed {
+                    message: "Not a valid number".to_string(),
+                }),
             }
         });
 
@@ -1063,9 +1062,7 @@ struct SharedConfig {
 impl VerifyIn<Root> for PartialSharedConfig {
     fn verify(&mut self, _parent: &Root) -> Result<(), ValidationFailure> {
         // Nested adapt: receives the concrete InnerData (already converted from partial)
-        self.shared_data.adapt(|inner, span| {
-            TomlValue::new_ok(Rc::new(RefCell::new(inner)), span)
-        });
+        self.shared_data.adapt(|inner| (Rc::new(RefCell::new(inner)), TomlValueState::Ok));
         Ok(())
     }
 }

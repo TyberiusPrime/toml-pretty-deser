@@ -1822,12 +1822,14 @@ impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        self.other
-            .adapt(|value, span| TomlValue::new_ok(value.len(), span));
+        self.other.adapt(|value| (value.len(), TomlValueState::Ok));
 
-        self.inner.adapt(|value, span| match value.as_str() {
-            Some(v) => TomlValue::new_ok(v.len(), span),
-            None => TomlValue::new_wrong_type(&value, span, "string-to-convert"),
+        self.inner.adapt(|value| {
+            let found = value.type_name();
+            match value.as_str() {
+                Some(v) => (v.len(), TomlValueState::Ok),
+                None => (0, TomlValueState::WrongType { expected: "string-to-convert", found }),
+            }
         });
 
         Ok(())

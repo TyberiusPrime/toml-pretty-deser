@@ -9,7 +9,7 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::prelude::MustAdaptHelper;
 use toml_pretty_deser::{
-    DeserError, FailableKeys, FieldMatchMode, TomlValue, ValidationFailure, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
+    DeserError, FailableKeys, FieldMatchMode, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
 };
 //library code
 //
@@ -1620,12 +1620,14 @@ impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        self.other
-            .adapt(|value, span| TomlValue::new_ok(value.len(), span));
+        self.other.adapt(|value| (value.len(), TomlValueState::Ok));
 
-        self.inner.adapt(|value, span| match value.as_str() {
-            Some(v) => TomlValue::new_ok(v.len(), span),
-            None => TomlValue::new_wrong_type(&value, span, "string-to-convert"),
+        self.inner.adapt(|value| {
+            let found = value.type_name();
+            match value.as_str() {
+                Some(v) => (v.len(), TomlValueState::Ok),
+                None => (0, TomlValueState::WrongType { expected: "string-to-convert", found }),
+            }
         });
 
         Ok(())

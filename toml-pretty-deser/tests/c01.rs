@@ -70,11 +70,11 @@ impl VerifyIn<TPDRoot> for PartialOuterWithRc {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         self.value
-            .adapt(|value, span| TomlValue::new_ok(Rc::new(RefCell::new(value)), span));
+            .adapt(|value| (Rc::new(RefCell::new(value)), TomlValueState::Ok));
         self.outer
-            .adapt(|outer, span| TomlValue::new_ok(std::sync::Arc::new(outer), span));
+            .adapt(|outer| (std::sync::Arc::new(outer), TomlValueState::Ok));
         self.outer_rc
-            .adapt(|outer, span| TomlValue::new_ok(Rc::new(RefCell::new(outer)), span));
+            .adapt(|outer| (Rc::new(RefCell::new(outer)), TomlValueState::Ok));
         Ok(())
     }
 }
