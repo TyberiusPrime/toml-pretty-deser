@@ -1,8 +1,5 @@
 use std::ops::Range;
 
-use indexmap::IndexMap;
-
-use crate::ValidationFailure;
 
 /// Inner struct for `TomlValue::UnknownKeys`
 #[derive(Debug, Clone)]

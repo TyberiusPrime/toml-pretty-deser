@@ -4,7 +4,6 @@
 #![allow(clippy::redundant_closure_for_method_calls)]
 // this is explicitly what we want!
 #![allow(clippy::field_reassign_with_default)]
-use indexmap::IndexMap;
 use toml_pretty_deser::{
     DeserError, MapAndKeys, TPDRoot, TomlCollector, TomlHelper, TomlValue, TomlValueState,
     VerifyIn, VerifyVisitor, Visitor, deserialize_toml, prelude::MustAdapt, suggest_alternatives,
@@ -1548,7 +1547,7 @@ impl Visitor for PartialMapKeyNotStartsWithA {
     }
 
     fn can_concrete(&self) -> bool {
-        self.inner.is_ok() && self.inner.value.as_ref().unwrap().can_concrete()
+        self.inner.is_ok() 
     }
 
     fn into_concrete(self) -> Self::Concrete {

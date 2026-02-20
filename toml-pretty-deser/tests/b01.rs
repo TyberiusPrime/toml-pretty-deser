@@ -7,10 +7,7 @@
 #![allow(clippy::uninlined_format_args)]
 
 use indexmap::IndexMap;
-use toml_pretty_deser::{
-    DeserError, FieldMatchMode, MustAdaptHelper, TomlValue, ValidationFailure, VecMode, VerifyIn,
-    impl_visitor_for_from_str, impl_visitor_for_try_from_str,
-};
+use toml_pretty_deser::prelude::*;
 //library code
 //
 use toml_pretty_deser::TPDRoot;
@@ -465,6 +462,7 @@ fn test_error_in_vec() {
                 .value
                 .as_ref()
                 .unwrap()
+                .map
                 .get("a")
                 .unwrap()
                 .as_ref()
@@ -1576,7 +1574,12 @@ impl VerifyIn<TPDRoot> for PartialUnitField {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
+        let len = self
+            .remainder
+            .value
+            .as_ref()
+            .map(|x| x.map.len())
+            .unwrap_or(0);
         if !len.is_multiple_of(2) {
             // this is barely useful since we could just return the Err()
             // and end up with pretty much the same error message.
@@ -1658,7 +1661,12 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        let len = self.remainder.value.as_ref().map(|x| x.len()).unwrap_or(0);
+        let len = self
+            .remainder
+            .value
+            .as_ref()
+            .map(|x| x.map.len())
+            .unwrap_or(0);
         if !len.is_multiple_of(2) {
             return Err(ValidationFailure::new(
                 "there must be an even number of fields",
@@ -1861,5 +1869,47 @@ other = 123
 
     if let Err(e) = result {
         insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
+#[derive(Debug)]
+#[tpd(root)]
+#[allow(dead_code)]
+pub struct MapKeyNotStartsWithA {
+    inner: IndexMap<String, u8>,
+}
+
+impl VerifyIn<TPDRoot> for PartialMapKeyNotStartsWithA {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        self.inner.verify_keys(|key_string| {
+            if key_string.starts_with("A") || key_string.starts_with("a") {
+                Err(ValidationFailure::new(
+                    "Keys cannot start with 'A'",
+                    Some("Help text goes here"),
+                ))
+            } else {
+                Ok(())
+            }
+        });
+        Ok(())
+    }
+}
+
+#[test]
+fn test_map_erroron_key() {
+    let toml = "
+    [inner]
+        ok = 42
+        absolutly_not = 43
+    ";
+    let result: Result<_, _> =
+        MapKeyNotStartsWithA::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    } else {
+        panic!("Parsing succeeded?");
     }
 }

@@ -421,7 +421,7 @@ fn gen_partial_inner_type(kind: &TypeKind, is_nested: bool) -> syn::Result<Token
         }
         TypeKind::Map(key, inner) => {
             let inner_ty = gen_partial_inner_type(inner, is_nested)?;
-            Ok(quote! { indexmap::IndexMap<#key, toml_pretty_deser::TomlValue<#inner_ty>> })
+            Ok(quote! { toml_pretty_deser::MapAndKeys<#key, #inner_ty> })
         }
         TypeKind::Boxed(inner) => {
             let inner_ty = gen_partial_inner_type(inner, is_nested)?;

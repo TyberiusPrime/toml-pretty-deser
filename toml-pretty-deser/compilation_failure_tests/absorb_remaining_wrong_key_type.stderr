@@ -13,57 +13,57 @@ error[E0277]: the trait bound `i32: From<String>` is not satisfied
 note: required by a bound in `TomlHelper::<'a>::absorb_remaining`
  --> src/table_helper.rs
   |
-  |     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<IndexMap<K, TomlValue<T>>>
+  |     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<MapAndKeys<K, T>>
   |            ---------------- required by a bound in this associated function
   |     where
   |         K: From<String> + std::hash::Hash + Eq,
   |            ^^^^^^^^^^^^ required by this bound in `TomlHelper::<'a>::absorb_remaining`
   = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0599]: the method `register_error` exists for struct `TomlValue<IndexMap<i32, TomlValue<String>>>`, but its trait bounds were not satisfied
+error[E0599]: the method `register_error` exists for struct `TomlValue<MapAndKeys<i32, String>>`, but its trait bounds were not satisfied
  --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
   |
 5 | #[tpd]
-  | ^^^^^^ method cannot be called on `TomlValue<IndexMap<i32, TomlValue<String>>>` due to unsatisfied trait bounds
+  | ^^^^^^ method cannot be called on `TomlValue<MapAndKeys<i32, String>>` due to unsatisfied trait bounds
   |
- ::: $CARGO/indexmap-$VERSION/src/map.rs
+ ::: src/map_and_keys.rs
   |
-  | pub struct IndexMap<K, V, S = RandomState> {
-  | ------------------------------------------ doesn't satisfy `IndexMap<i32, TomlValue<String>>: Visitor`
+  | pub struct MapAndKeys<K, V> {
+  | --------------------------- doesn't satisfy `MapAndKeys<i32, String>: Visitor`
   |
   = note: the following trait bounds were not satisfied:
           `i32: From<String>`
-          which is required by `IndexMap<i32, TomlValue<String>>: Visitor`
+          which is required by `MapAndKeys<i32, String>: Visitor`
   = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0599]: the method `into_concrete` exists for struct `IndexMap<i32, TomlValue<String>>`, but its trait bounds were not satisfied
+error[E0599]: the method `into_concrete` exists for struct `MapAndKeys<i32, String>`, but its trait bounds were not satisfied
  --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
   |
 5 | #[tpd]
-  | ^^^^^^ method cannot be called on `IndexMap<i32, TomlValue<String>>` due to unsatisfied trait bounds
+  | ^^^^^^ method cannot be called on `MapAndKeys<i32, String>` due to unsatisfied trait bounds
   |
- ::: $CARGO/indexmap-$VERSION/src/map.rs
+ ::: src/map_and_keys.rs
   |
-  | pub struct IndexMap<K, V, S = RandomState> {
-  | ------------------------------------------ doesn't satisfy `IndexMap<i32, TomlValue<String>>: Visitor`
+  | pub struct MapAndKeys<K, V> {
+  | --------------------------- doesn't satisfy `MapAndKeys<i32, String>: Visitor`
   |
   = note: the following trait bounds were not satisfied:
           `i32: From<String>`
-          which is required by `IndexMap<i32, TomlValue<String>>: Visitor`
+          which is required by `MapAndKeys<i32, String>: Visitor`
   = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0599]: the method `tpd_validate` exists for struct `TomlValue<IndexMap<i32, TomlValue<String>>>`, but its trait bounds were not satisfied
+error[E0599]: the method `tpd_validate` exists for struct `TomlValue<MapAndKeys<i32, String>>`, but its trait bounds were not satisfied
  --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
   |
 5 | #[tpd]
-  | ^^^^^^ method cannot be called on `TomlValue<IndexMap<i32, TomlValue<String>>>` due to unsatisfied trait bounds
+  | ^^^^^^ method cannot be called on `TomlValue<MapAndKeys<i32, String>>` due to unsatisfied trait bounds
   |
- ::: $CARGO/indexmap-$VERSION/src/map.rs
+ ::: src/map_and_keys.rs
   |
-  | pub struct IndexMap<K, V, S = RandomState> {
-  | ------------------------------------------ doesn't satisfy `IndexMap<i32, TomlValue<String>>: Visitor`
+  | pub struct MapAndKeys<K, V> {
+  | --------------------------- doesn't satisfy `MapAndKeys<i32, String>: Visitor`
   |
   = note: the following trait bounds were not satisfied:
           `i32: From<String>`
-          which is required by `IndexMap<i32, TomlValue<String>>: Visitor`
+          which is required by `MapAndKeys<i32, String>: Visitor`
   = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)

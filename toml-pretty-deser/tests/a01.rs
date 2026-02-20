@@ -9,7 +9,7 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::prelude::MustAdaptHelper;
 use toml_pretty_deser::{
-    DeserError, FailableKeys, FieldMatchMode, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
+    DeserError, FailableKeys, FieldMatchMode, TomlValue, ValidationFailure, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
 };
 //library code
 //
@@ -1672,12 +1672,13 @@ other = 123
 
 #[derive(Debug)]
 //#[tpd(root)]
+#[allow(dead_code)]
 pub struct MapKeyNotStartsWithA {
     inner: IndexMap<String, u8>,
 }
 
 impl VerifyIn<TPDRoot> for PartialMapKeyNotStartsWithA {
-    fn verify(&mut self, parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {

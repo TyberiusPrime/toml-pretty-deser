@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 
-use crate::{TomlValue, TomlValueState, ValidationFailure, Visitor};
+use crate::{TomlValue, TomlValueState, ValidationFailure};
 
 pub trait FailableKeys {
     fn verify_keys<F>(&mut self, callback: F)
@@ -16,10 +16,11 @@ pub struct MapAndKeys<K, V> {
 }
 
 impl<K, V> FailableKeys for TomlValue<MapAndKeys<K, V>> {
-    fn verify_keys<F>(&mut  self, callback: F)
+    fn verify_keys<F>(&mut self, callback: F)
     where
         F: Fn(&str) -> Result<(), ValidationFailure>,
     {
+        let mut any_failed = false;
         if let Some(value) = self.as_mut() {
             for key in &mut value.keys {
                 if let Some(str_key) = key.as_ref() {
@@ -31,10 +32,14 @@ impl<K, V> FailableKeys for TomlValue<MapAndKeys<K, V>> {
                                 message: err.message,
                             };
                             key.help = err.help;
+                            any_failed = true;
                         }
                     }
                 }
             }
+        }
+        if any_failed {
+            self.state = TomlValueState::Nested {};
         }
     }
 }
