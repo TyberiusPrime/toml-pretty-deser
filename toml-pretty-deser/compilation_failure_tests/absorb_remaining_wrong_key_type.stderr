@@ -24,7 +24,7 @@ error[E0599]: the method `register_error` exists for struct `TomlValue<MapAndKey
  --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
   |
 5 | #[tpd]
-  | ^^^^^^ method cannot be called on `TomlValue<MapAndKeys<i32, String>>` due to unsatisfied trait bounds
+  | ^^^^^^
   |
  ::: src/map_and_keys.rs
   |

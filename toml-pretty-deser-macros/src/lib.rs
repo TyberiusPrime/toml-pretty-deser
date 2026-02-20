@@ -715,7 +715,12 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
         .filter(|f| !f.attrs.skip)
         .map(|f| {
             let ident = &f.ident;
-            quote! { self.#ident.register_error(col); }
+            // `with` fields hold an already-adapted leaf: use the no-Visitor-bound variant
+            if f.attrs.with_fn.is_some() {
+                quote! { self.#ident.register_error_leaf(col); }
+            } else {
+                quote! { self.#ident.register_error(col); }
+            }
         })
         .collect();
 
@@ -741,7 +746,8 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
     // --- vv_validate statements ---
     let vv_validate_stmts: Vec<TokenStream2> = field_infos
         .iter()
-        .filter(|f| !f.attrs.skip && !is_unit_type(&f.kind))
+        // `with` fields are already in their final form after fill_from_toml; no tpd_validate needed
+        .filter(|f| !f.attrs.skip && !is_unit_type(&f.kind) && f.attrs.with_fn.is_none())
         .map(|f| {
             let ident = &f.ident;
             quote! { self.#ident = self.#ident.take().tpd_validate(&self); }

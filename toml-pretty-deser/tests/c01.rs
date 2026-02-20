@@ -160,7 +160,7 @@ fn adapt_not_a_string(input: TomlValue<String>) -> TomlValue<NotAString> {
     input.map(NotAString)
 }
 fn adapt_not_a_string_from_toml_item(input: TomlValue<toml_edit::Item>) -> TomlValue<NotAString> {
-    input.map(|value| NotAString(format!("{:?}", value)))
+    input.map(|value| NotAString(value.to_string().trim().to_string()))
 }
 
 #[tpd(root, no_verify)]
