@@ -27,6 +27,13 @@ impl<A, B> MustAdapt<A, B> {
             }
         }
     }
+
+    pub fn as_ref_post(&self) -> Option<&B> {
+        match self {
+            MustAdapt::PreVerify(_) => None,
+            MustAdapt::PostVerify(v) => Some(v),
+        }
+    }
 }
 
 /// User facing 'adapt' function for MustAdapt / MustAdaptNested
@@ -56,9 +63,19 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B>
         *self = match (t.state, t.value, t.help) {
             (TomlValueState::NeedsFurtherValidation, Some(MustAdapt::PreVerify(v)), _) => {
                 let (b, state) = map_func(v);
-                TomlValue { state, span, value: Some(MustAdapt::PostVerify(b)), help: None }
+                TomlValue {
+                    state,
+                    span,
+                    value: Some(MustAdapt::PostVerify(b)),
+                    help: None,
+                }
             }
-            (state, value, help) => TomlValue { state, span, value, help },
+            (state, value, help) => TomlValue {
+                state,
+                span,
+                value,
+                help,
+            },
         }
     }
 }
@@ -92,7 +109,12 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
         Self: Sized,
     {
         let t = self.take();
-        let TomlValue { span, state: t_state, value: t_value, help: t_help } = t;
+        let TomlValue {
+            span,
+            state: t_state,
+            value: t_value,
+            help: t_help,
+        } = t;
         *self = match (t_state, t_value, t_help) {
             (
                 TomlValueState::NeedsFurtherValidation,
@@ -102,7 +124,12 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
                 if v.can_concrete() {
                     let concrete = v.into_concrete();
                     let (b, state) = map_func(concrete);
-                    TomlValue { state, span, value: Some(MustAdaptNested(MustAdapt::PostVerify(b))), help: None }
+                    TomlValue {
+                        state,
+                        span,
+                        value: Some(MustAdaptNested(MustAdapt::PostVerify(b))),
+                        help: None,
+                    }
                 } else {
                     // Inner has errors; preserve state so errors propagate via v_register_errors
                     TomlValue {
@@ -113,7 +140,12 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
                     }
                 }
             }
-            (state, value, help) => TomlValue { state, span, value, help },
+            (state, value, help) => TomlValue {
+                state,
+                span,
+                value,
+                help,
+            },
         }
     }
 }
