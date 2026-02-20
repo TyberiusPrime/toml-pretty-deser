@@ -7,7 +7,7 @@ use crate::value::VecMode;
 /// Container that collects the errors and provides parameterisation to
 /// the deser functions
 #[doc(hidden)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct TomlCollector {
     pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
     pub match_mode: FieldMatchMode,

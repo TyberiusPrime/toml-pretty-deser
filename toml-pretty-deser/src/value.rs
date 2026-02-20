@@ -13,11 +13,12 @@ pub struct UnknownKey {
 
 /// Parameter to `tpd_from_toml` that controls whether
 /// single values in lieu of an array are ok.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum VecMode {
     /// Accept single values in lieu of ```[value]```
     SingleOk,
     /// Vecs must be TOML arrays. Always.
+    #[default]
     Strict,
 }
 
@@ -33,9 +34,7 @@ pub enum TomlValueState {
     /// This value has not been set yet
     NotSet,
     /// This value was missing - and that's a problem
-    Missing {
-        key: String,
-    },
+    Missing { key: String },
     /// This value was defined more than once
     /// possibly using aliases.
     /// Spans point to all definitions.
@@ -213,7 +212,12 @@ impl<T> TomlValue<T> {
     {
         match self.state {
             TomlValueState::Ok => TomlValue::new_ok(map_function(self.value.unwrap()), self.span),
-            state => TomlValue { value: None, state, span: self.span, help: self.help },
+            state => TomlValue {
+                value: None,
+                state,
+                span: self.span,
+                help: self.help,
+            },
         }
     }
 
@@ -260,7 +264,10 @@ impl<T> TomlValue<T> {
     pub fn convert_failed_type<S>(&self) -> TomlValue<S> {
         match &self.state {
             TomlValueState::Ok => {
-                panic!("called convert_failed_type on a TomlValue that is Ok. Span was: {:?}", self.span)
+                panic!(
+                    "called convert_failed_type on a TomlValue that is Ok. Span was: {:?}",
+                    self.span
+                )
             }
             _ => TomlValue {
                 value: None,
@@ -298,6 +305,14 @@ impl<T> TomlValue<T> {
     /// Is this `TomlValue` in the Ok state?
     pub fn is_missing(&self) -> bool {
         matches!(self.state, TomlValueState::Missing { .. })
+    }
+
+    pub fn into_inner(self) -> Option<T> {
+        if self.is_ok() {
+            Some(self.value.expect("None value on TomlValueState::Ok"))
+        } else {
+            None
+        }
     }
 
     /// Get a reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
@@ -358,7 +373,12 @@ impl<T> TomlValue<T> {
     pub fn or(&mut self, default: T) {
         if matches!(self.state, TomlValueState::Missing { .. }) {
             let old = self.take();
-            *self = Self { value: Some(default), state: TomlValueState::Ok, span: old.span, help: None };
+            *self = Self {
+                value: Some(default),
+                state: TomlValueState::Ok,
+                span: old.span,
+                help: None,
+            };
         }
     }
 
@@ -369,7 +389,12 @@ impl<T> TomlValue<T> {
     {
         if matches!(self.state, TomlValueState::Missing { .. }) {
             let old = self.take();
-            *self = Self { value: Some(default_func()), state: TomlValueState::Ok, span: old.span, help: None };
+            *self = Self {
+                value: Some(default_func()),
+                state: TomlValueState::Ok,
+                span: old.span,
+                help: None,
+            };
         }
     }
 

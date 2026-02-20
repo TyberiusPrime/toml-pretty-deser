@@ -1,7 +1,8 @@
 /// Controls how field names are matched against TOML keys
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FieldMatchMode {
     /// Exact match only (field name must match exactly)
+    #[default]
     Exact,
     /// Case insensitive match (case insensitive exact match only)
     UpperLower,
