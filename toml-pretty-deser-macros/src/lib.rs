@@ -1201,6 +1201,16 @@ fn derive_tagged_enum(
         })
         .collect();
 
+    // where clauses: each variant's partial inner type must implement VerifyIn<__TpdX>
+    let verify_in_where_clauses: Vec<TokenStream2> = variant_infos
+        .iter()
+        .filter(|v| !v.attrs.skip)
+        .map(|v| -> syn::Result<TokenStream2> {
+            let partial_inner = partial_type_path(&v.inner_type)?;
+            Ok(quote! { #partial_inner: toml_pretty_deser::VerifyIn<__TpdX> })
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+
     Ok(quote! {
         #original_item
 
@@ -1257,8 +1267,11 @@ fn derive_tagged_enum(
             }
         }
 
-        impl<__TpdR> toml_pretty_deser::VerifyVisitor<__TpdR> for #partial_name {
-            fn vv_validate(mut self, parent: &__TpdR) -> Self
+        impl<__TpdX> toml_pretty_deser::VerifyVisitor<__TpdX> for #partial_name
+        where
+            #(#verify_in_where_clauses,)*
+        {
+            fn vv_validate(mut self, parent: &__TpdX) -> Self
             where
                 Self: Sized + toml_pretty_deser::Visitor,
             {

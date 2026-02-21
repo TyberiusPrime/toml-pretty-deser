@@ -368,6 +368,38 @@ impl<T> TomlValue<T> {
             }
         }
     }
+ /// Verify this TOML value and potentially modify nested values
+    ///
+    /// If the value was 'Ok', call `verification_func`
+    /// and replace it on Err in-place with a `ValidationFailed` state.
+    ///
+    /// Non Ok `TomlValues`  are left as is.
+    ///
+    #[allow(clippy::missing_panics_doc)]
+    pub fn verify_mut<F>(&mut self, verification_func: F)
+    where
+        F: FnOnce(&mut T) -> Result<(), ValidationFailure>,
+    {
+        match &self.state {
+            TomlValueState::Ok => match verification_func(
+                self.value
+                    .as_mut()
+                    .expect("None value on TomlValueState::Ok"),
+            ) {
+                Ok(()) => {
+                    //unchanged
+                }
+                Err(ValidationFailure { message, help }) => {
+                    self.value = None;
+                    self.state = TomlValueState::ValidationFailed { message };
+                    self.help = help;
+                }
+            },
+            _ => {
+                //unchanged
+            }
+        }
+    }
 
 }
 
