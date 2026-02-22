@@ -94,7 +94,13 @@ impl_visitor!(bool, |helper| {
 impl_visitor!(f64, |helper| {
     match helper.item.as_float() {
         Some(v) => TomlValue::new_ok(v, helper.span()),
-        None => TomlValue::new_wrong_type(helper.item, helper.span(), "float"),
+        None => {
+            if let Some(0) = helper.item.as_integer() {
+                TomlValue::new_ok(0.0, helper.span())
+            } else {
+                TomlValue::new_wrong_type(helper.item, helper.span(), "float")
+            }
+        }
     }
 });
 

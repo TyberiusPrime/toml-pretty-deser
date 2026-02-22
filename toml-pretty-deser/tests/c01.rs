@@ -48,6 +48,22 @@ fn test_deser_error_std_error_impl() {
     }
 }
 
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+struct TakeFloat {
+    value: f64,
+}
+
+#[test]
+fn test_float_takes_0_int() {
+    let result: Result<TakeFloat, _> =
+        TakeFloat::tpd_from_toml("value = 0", FieldMatchMode::Exact, VecMode::Strict);
+    assert!(result.is_ok(), "should int 0 as float 0.0");
+    if let Ok(parsed) = result {
+        assert_eq!(parsed.value, 0.0);
+    }
+}
+
 #[tpd(root)]
 #[derive(Debug)]
 #[allow(dead_code)]
