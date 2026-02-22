@@ -231,7 +231,7 @@ fn test_basic_alias_anycase() {
         u_8 = 1
         oPt_u8 =2
         vec-u8 = 3
-        SimpleEnum = 'TypeB'
+        SimpleEnum = 'TYPEB'
         [MAP--u8]
             a = 4
         [NeStEdStruCt]

@@ -975,14 +975,14 @@ fn derive_simple_enum(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
             if v.attrs.aliases.is_empty() {
                 quote! {
-                    if str_val == #name_str {
+                    if helper.col.match_mode.matches(str_val, #name_str) {
                         return toml_pretty_deser::TomlValue::new_ok(#name::#ident, helper.span());
                     }
                 }
             } else {
                 let aliases = &v.attrs.aliases;
                 quote! {
-                    if str_val == #name_str #(|| str_val == #aliases)* {
+                    if helper.col.match_mode.matches(str_val, #name_str) #(|| helper.col.match_mode.matches(str_val, #aliases))* {
                         return toml_pretty_deser::TomlValue::new_ok(#name::#ident, helper.span());
                     }
                 }
