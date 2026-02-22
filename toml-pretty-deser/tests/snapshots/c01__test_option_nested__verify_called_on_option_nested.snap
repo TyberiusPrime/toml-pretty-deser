@@ -1,0 +1,12 @@
+---
+source: toml-pretty-deser/tests/c01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │ v_inner = [{a=5}, {a=3}, {a=0}]
+  ┆                             ┬
+  ┆                             │
+  ┆                             ╰─── Can not be zero
+──╯

@@ -201,7 +201,17 @@ impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Box<T> {
 }
 impl<R, T: Visitor + VerifyVisitor<R>> VerifyIn<R> for Box<T> {}
 
-impl<R, T: VerifyIn<R>> VerifyIn<R> for Option<T> {}
+impl<R, T: VerifyIn<R> + Visitor> VerifyIn<R> for Option<T> {
+    fn verify(&mut self, parent: &R) -> Result<(), crate::ValidationFailure>
+    where
+        Self: Sized + Visitor,
+    {
+        if let Some(inner) = self {
+            inner.verify(parent)?;
+        }
+        Ok(())
+    }
+}
 
 impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
     type Concrete = Vec<T::Concrete>;

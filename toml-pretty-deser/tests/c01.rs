@@ -307,6 +307,11 @@ mod test_option_nested {
         ";
         let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
         assert!(result.is_ok(), "should parse with valid inner");
+        let result = result.unwrap();
+        assert_eq!(result.inner.unwrap().a, 5);
+        assert_eq!(result.v_inner.unwrap()[0].a, 6);
+        assert_eq!(result.m_inner.unwrap()["key"].a, 7);
+        assert_eq!(result.mv_inner.unwrap()["key"][0].a, 8);
 
         // valid case: inner is absent (Option::None), should not call verify and should succeed
         let toml = "";
@@ -334,5 +339,11 @@ mod test_option_nested {
         let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
         assert!(result.is_err(), "should fail with invalid inner");
 
+        let toml = "v_inner = [{a=5}, {a=3}, {a=0}]";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
+        assert!(result.is_err(), "should fail with invalid inner");
+        if let Err(e) = result {
+            insta::assert_snapshot!(e.pretty("test.toml"));
+        }
     }
 }
