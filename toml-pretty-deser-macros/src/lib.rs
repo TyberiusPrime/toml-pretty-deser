@@ -256,6 +256,13 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
         ));
     }
 
+    if attrs.has_partial() && attrs.default {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "nested/tagged cannot be combined with default",
+        ));
+    }
+
     Ok(attrs)
 }
 
@@ -753,7 +760,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                 quote! { #ident: self.#ident.unwrap_or_default() }
             }
             else if f.attrs.skip {
-                quote! { #ident: self.#ident.expect("Expected #ident to have been set in VerifyIn") }
+                { let msg = format!("Expected {} to have been set in VerifyIn", ident); quote! { #ident: self.#ident.expect(#msg) } }
             } else if is_unit_type(&f.kind) {
                 quote! { #ident: () }
             } else if f.attrs.adapt_in_verify.is_some() {

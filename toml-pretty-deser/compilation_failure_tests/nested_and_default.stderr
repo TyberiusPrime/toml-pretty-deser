@@ -1,0 +1,5 @@
+error: nested/tagged cannot be combined with default
+ --> compilation_failure_tests/nested_and_default.rs:7:13
+  |
+7 |     nested: Inner,
+  |             ^^^^^

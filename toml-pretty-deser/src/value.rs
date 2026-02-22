@@ -34,7 +34,16 @@ pub enum TomlValueState {
     /// This value has not been set yet
     NotSet,
     /// This value was missing - and that's a problem
-    Missing { key: String },
+    Missing {
+        key: String,
+    },
+    /// A user defined error with multiple spans
+    /// used in #tdp(adapt_in_verify(..)]
+    Custom {
+        spans: Vec<(Range<usize>, String)>,
+    },
+    /// This value was deserialized correctly.
+    Ok,
     /// This value was defined more than once
     /// possibly using aliases.
     /// Spans point to all definitions.
@@ -48,17 +57,14 @@ pub enum TomlValueState {
         found: &'static str,
     },
     /// This value had the right type, but failed validation
-    ValidationFailed { message: String },
+    ValidationFailed {
+        message: String,
+    },
     /// There were one-or-more unknown keys within this table.
     UnknownKeys(Vec<UnknownKey>),
     /// This is a container, and one of it's children is in an error state
     Nested,
-    /// A user defined error with multiple spans
-    Custom { spans: Vec<(Range<usize>, String)> },
-    /// used in #tdp(adapt_in_verify(..)]
     NeedsFurtherValidation,
-    /// This value was deserialized correctly.
-    Ok,
 }
 
 /// The Result+Option representation of a TOML value that we will have
@@ -368,7 +374,7 @@ impl<T> TomlValue<T> {
             }
         }
     }
- /// Verify this TOML value and potentially modify nested values
+    /// Verify this TOML value and potentially modify nested values
     ///
     /// If the value was 'Ok', call `verification_func`
     /// and replace it on Err in-place with a `ValidationFailed` state.
@@ -400,7 +406,6 @@ impl<T> TomlValue<T> {
             }
         }
     }
-
 }
 
 /// Trait for providing default values to `TomlValue` when the field is missing.

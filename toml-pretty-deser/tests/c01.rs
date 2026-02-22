@@ -254,3 +254,85 @@ fn test_with_on_map_non_visitor_target() {
     assert_eq!(parsed.items["foo"].0, "bar");
 }
 
+/// test that option<nested> calls verify in?
+///
+///
+mod test_option_nested {
+    use indexmap::IndexMap;
+    use toml_pretty_deser::prelude::*;
+    #[tpd]
+    struct Inner {
+        a: u8,
+    }
+
+    #[tpd(root)]
+    struct Outer {
+        #[tpd(nested)]
+        inner: Option<Inner>,
+        #[tpd(nested)]
+        v_inner: Option<Vec<Inner>>,
+
+        #[tpd(nested)]
+        m_inner: Option<IndexMap<String, Inner>>,
+
+        #[tpd(nested)]
+        mv_inner: Option<IndexMap<String, Vec<Inner>>>,
+    }
+
+    impl VerifyIn<TPDRoot> for PartialOuter {}
+
+    impl VerifyIn<PartialOuter> for PartialInner {
+        fn verify(&mut self, _parent: &PartialOuter) -> Result<(), ValidationFailure>
+        where
+            Self: Sized + toml_pretty_deser::Visitor,
+        {
+            self.a.verify(|a| {
+                if *a == 0 {
+                    Err(ValidationFailure::new("Can not be zero", None))
+                } else {
+                    Ok(())
+                }
+            });
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn verify_called_on_option_nested() {
+        // valid case: inner is present and valid
+        let toml = "inner.a = 5
+            v_inner = [{a=6}]
+            m_inner.key = {a=7}
+            mv_inner.key = [{a=8}, {a=9}]
+        ";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_ok(), "should parse with valid inner");
+
+        // valid case: inner is absent (Option::None), should not call verify and should succeed
+        let toml = "";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_ok(), "should parse with missing inner");
+
+        // invalid case: inner is present but invalid (a == 0), should call verify and fail
+        //   // invalid case: inner is present but invalid (a == 0), should call verify and fail
+        let toml = "inner.a = 0";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_err(), "should fail with invalid inner");
+        let toml = "v_inner = [{a=0}]";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_err(), "should fail with invalid inner");
+
+        let toml = "v_inner = {a=0}";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
+        assert!(result.is_err(), "should fail with invalid inner");
+
+        let toml = "m_inner.key = {a=0}";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_err(), "should fail with invalid inner");
+
+        let toml = "mv_inner.key = [{a=0}]";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_err(), "should fail with invalid inner");
+
+    }
+}
