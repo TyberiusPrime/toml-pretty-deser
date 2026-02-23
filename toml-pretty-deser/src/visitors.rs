@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 
 use crate::{
     AsTableLikePlus, MapAndKeys, MustAdapt, MustAdaptNested, TomlCollector, TomlHelper, TomlValue,
-    ValidationFailure, VerifyIn, VerifyVisitor, Visitor,
+    TomlValueState, ValidationFailure, VerifyIn, VerifyVisitor, Visitor,
 };
 
 #[macro_export]
@@ -151,9 +151,13 @@ impl<T: Visitor> Visitor for Option<T> {
     type Concrete = Option<T::Concrete>;
 
     #[mutants::skip]
-    fn fill_from_toml(_helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
-        unreachable!(); // since we always start with a concrete TomlValue<T>
-        // and then convert the missing into Some(None) in into_optional
+    fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
+        let inner = T::fill_from_toml(helper);
+        match inner.state {
+            TomlValueState::Ok => TomlValue::new_ok(Some(inner.value.unwrap()), helper.span()),
+            TomlValueState::Missing {..} => unreachable!(),
+            _ => inner.convert_failed_type(),
+        }
     }
 
     fn can_concrete(&self) -> bool {

@@ -72,7 +72,7 @@ pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> St
     }
 }
 
-fn format_quoted_list(items: &[&str]) -> String {
+pub fn format_quoted_list(items: &[&str]) -> String {
     match items {
         [] => String::new(),
         [single] => format!("{single}"),

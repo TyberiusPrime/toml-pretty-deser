@@ -363,3 +363,34 @@ mod test_option_nested {
         }
     }
 }
+
+mod test_opt_vec_string_default {
+    use toml_pretty_deser::prelude::*;
+    #[tpd(root, no_verify)]
+    struct Outer {
+        #[tpd(default)]
+        pub output: Option<Vec<String>>,
+    }
+
+    #[test]
+    fn test_opt_vec_string_default() {
+        let toml = "";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(
+            result.output.is_none(),
+            "default on Option<Vec<String>> should produce None, not Some(vec![])"
+        );
+
+        let toml = "output = ['a','b']";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.output.is_some(), "should parse provided output");
+        assert_eq!(
+            result.output.unwrap(),
+            vec!["a".to_string(), "b".to_string()]
+        );
+    }
+}
