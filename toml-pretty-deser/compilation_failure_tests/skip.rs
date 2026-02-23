@@ -12,10 +12,12 @@ impl VerifyIn<TPDRoot> for PartialSkipped {}
 
 fn main() {
     let toml = "";
-    let result: Result<_, _> = Skipped::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
+    let result: Result<_, _> =
+        Skipped::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
     dbg!(&result);
     assert!(!result.is_ok());
-    if let Err(DeserError::DeserFailure(_errors, partial)) = result {
+    if let Err(e @ DeserError::DeserFailure(..)) = result {
+        let partial = e.partial().unwrap().value.as_ref().unwrap();
         // Skipped fields now exist in the partial as Option<T>, not TomlValue<T>
         // This test verifies they don't have .value (which would be TomlValue's field)
         assert_eq!(partial.skipped.value, None);

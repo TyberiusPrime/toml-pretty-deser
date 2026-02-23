@@ -328,10 +328,12 @@ fn test_basic_missing() {
     );
     dbg!(&parsed);
     assert!(!parsed.is_ok());
-    if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
+    if let Err(ref e @ DeserError::DeserFailure(..)) = parsed {
+        let errors = e.get_errors();
+        let inner = e.partial().unwrap().value.as_ref().unwrap();
         assert_eq!(inner.a_u8.value, None);
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
-        assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
+        assert_eq!(inner.vec_u8.value.as_ref().unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
         assert_ne!(inner.nested_struct.span(), 0..0);
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
@@ -363,10 +365,12 @@ fn test_basic_unknown() {
     );
     dbg!(&parsed);
     assert!(!parsed.is_ok());
-    if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
+    if let Err(ref e @ DeserError::DeserFailure(..)) = parsed {
+        let errors = e.get_errors();
+        let inner = e.partial().unwrap().value.as_ref().unwrap();
         assert_eq!(inner.a_u8.value, Some(1));
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
-        assert_eq!(inner.vec_u8.value.unwrap()[0].value.unwrap(), 3);
+        assert_eq!(inner.vec_u8.value.as_ref().unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
     }
@@ -396,13 +400,15 @@ fn test_basic_unknown_in_nested() {
     );
     dbg!(&parsed);
     assert!(!parsed.is_ok());
-    if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
+    if let Err(e) = parsed {
+        let _errors = e.get_errors();
+        let inner = e.partial().unwrap().value.as_ref().unwrap();
         assert_eq!(inner.a_u8.value, Some(1));
         assert_eq!(inner.opt_u8.value, Some(Some(2)));
         assert_eq!(inner.vec_u8.value.as_ref().unwrap()[0].value.unwrap(), 3);
         assert_eq!(inner.simple_enum.value, Some(AnEnum::TypeA));
         assert!(!inner.nested_struct.is_ok());
-        insta::assert_snapshot!(DeserError::DeserFailure(errors, inner).pretty("test.toml"));
+        insta::assert_snapshot!(e.pretty("test.toml"));
     }
 }
 
@@ -456,7 +462,9 @@ fn test_error_in_vec() {
     );
     dbg!(&parsed);
     assert!(!parsed.is_ok());
-    if let Err(DeserError::DeserFailure(errors, inner)) = parsed {
+    if let Err(ref e @ DeserError::DeserFailure(..)) = parsed {
+        let errors = e.get_errors();
+        let inner = e.partial().unwrap().value.as_ref().unwrap();
         insta::assert_snapshot!(errors[0].pretty("test.toml"));
         assert_eq!(
             inner
@@ -650,7 +658,8 @@ fn test_tagged_enum_invalid_kind() {
     );
     dbg!(&parsed);
     assert!(parsed.is_err());
-    if let Err(DeserError::DeserFailure(errors, _partial)) = parsed {
+    if let Err(ref e @ DeserError::DeserFailure(..)) = parsed {
+        let errors = e.get_errors();
         assert!(!errors.is_empty());
         let error_str = errors[0].pretty("test.toml");
         assert!(error_str.contains("Invalid tag value"));
@@ -1424,12 +1433,22 @@ fn test_box_nested_inner_field_missing() {
         OuterWithBox::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
     dbg!(&result);
     assert!(result.is_err());
-    if let Err(e) = result {
+    if let Err(ref e) = result {
         insta::assert_snapshot!(e.pretty("test.toml"));
-        if let DeserError::DeserFailure(_errors, partial) = e {
+        if let Some(partial) = e.partial() {
             // Check that we can still access the partial's boxed inner name
             assert_eq!(
-                partial.boxed.value.as_ref().unwrap().name.as_ref().unwrap(),
+                partial
+                    .value
+                    .as_ref()
+                    .unwrap()
+                    .boxed
+                    .value
+                    .as_ref()
+                    .unwrap()
+                    .name
+                    .as_ref()
+                    .unwrap(),
                 "only_name"
             );
         }

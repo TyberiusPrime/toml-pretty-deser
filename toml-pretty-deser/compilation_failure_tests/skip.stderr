@@ -1,5 +1,5 @@
 error[E0609]: no field `value` on type `Option<u8>`
-  --> compilation_failure_tests/skip.rs:21:36
+  --> compilation_failure_tests/skip.rs:23:36
    |
-21 |         assert_eq!(partial.skipped.value, None);
+23 |         assert_eq!(partial.skipped.value, None);
    |                                    ^^^^^ unknown field

@@ -1,21 +1,33 @@
+use crate::collector::TomlCollector;
+use crate::traits::Visitor;
+use crate::value::TomlValue;
+use std::cell::RefCell;
 use std::fmt::Write;
 use std::ops::Range;
+use std::rc::Rc;
 use toml_edit::TomlError;
 
 /// The failure states of deserialization
 ///
 /// Use `DeserError.pretty(source_name)` to get a nice error message with code snippets and hints.
 #[derive(Debug)]
-pub enum DeserError<P> {
+pub enum DeserError<P>
+where
+    P: Visitor,
+{
     /// TOML parsing failed. No `PartialT` available.
     /// A wrapper around [`toml_edit::TomlError`]
     ParsingFailure(TomlError, String),
     /// Parsing succeeded, but deserialization failed. `PartialT` available with whatever could be
     /// understood.
-    DeserFailure(Vec<HydratedAnnotatedError>, Box<P>),
+    /// Stores the source TOML and the partial result.
+    DeserFailure(String, TomlValue<P>),
 }
 
-impl<P> DeserError<P> {
+impl<P> DeserError<P>
+where
+    P: Visitor,
+{
     #[must_use]
     pub fn pretty(&self, toml_filename: &str) -> String {
         let mut out = String::new();
@@ -32,7 +44,8 @@ impl<P> DeserError<P> {
                     Some(&"See the TOML Spec: https://toml.io/en/v1.1.0".to_string()),
                 ));
             }
-            Self::DeserFailure(items, _) => {
+            Self::DeserFailure(_source, _) => {
+                let items = self.get_errors();
                 let total = items.len();
                 for (ii, item) in items.iter().enumerate() {
                     let ii = ii + 1;
@@ -44,13 +57,48 @@ impl<P> DeserError<P> {
         }
         out
     }
+
+    #[must_use]
+    pub fn get_errors(&self) -> Vec<HydratedAnnotatedError> {
+        match self {
+            Self::ParsingFailure(_, _) => vec![],
+            Self::DeserFailure(source, partial) => {
+                let collector = TomlCollector {
+                    errors: Rc::new(RefCell::new(vec![])),
+                    context_spans: Rc::new(RefCell::new(vec![])),
+                };
+                partial.register_error(&collector);
+                collector
+                    .errors
+                    .borrow_mut()
+                    .drain(..)
+                    .map(|error| HydratedAnnotatedError {
+                        source: source.clone(),
+                        inner: error,
+                    })
+                    .collect()
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn partial(&self) -> Option<&TomlValue<P>> {
+        match self {
+            Self::ParsingFailure(_, _) => None,
+            Self::DeserFailure(_, partial) => Some(partial),
+        }
+    }
 }
 
-impl<P: std::fmt::Debug> std::fmt::Display for DeserError<P> {
+impl<P> std::fmt::Display for DeserError<P>
+where
+    P: Visitor + std::fmt::Debug,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ParsingFailure(e, _) => write!(f, "TOML parse error: {e}"),
-            Self::DeserFailure(errors, _) => {
+            Self::DeserFailure(_, _) => {
+                let errors = self.get_errors();
                 write!(
                     f,
                     "TOML deserialization failed with {} error(s) \
@@ -62,7 +110,10 @@ impl<P: std::fmt::Debug> std::fmt::Display for DeserError<P> {
     }
 }
 
-impl<P: std::fmt::Debug> std::error::Error for DeserError<P> {
+impl<P> std::error::Error for DeserError<P>
+where
+    P: Visitor + std::fmt::Debug,
+{
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::ParsingFailure(e, _) => Some(e),

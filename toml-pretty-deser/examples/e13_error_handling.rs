@@ -30,7 +30,10 @@ workers = 999
         Ok(config) => {
             println!("Config: {:?}", config);
         }
-        Err(ref e @ DeserError::DeserFailure(ref errors, ref partial)) => {
+        Err(ref e @ DeserError::DeserFailure(..)) => {
+            let errors = e.get_errors();
+            let partial = e.partial().unwrap().value.as_ref().unwrap();
+
             // Pretty-print the errors
             println!("=== Pretty error output ===");
             println!("{}", e.pretty("config.toml"));
