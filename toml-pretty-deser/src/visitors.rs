@@ -95,8 +95,8 @@ impl_visitor!(f64, |helper| {
     match helper.item.as_float() {
         Some(v) => TomlValue::new_ok(v, helper.span()),
         None => {
-            if let Some(0) = helper.item.as_integer() {
-                TomlValue::new_ok(0.0, helper.span())
+            if let Some(x) = helper.item.as_integer() {
+                TomlValue::new_ok(x as f64, helper.span())
             } else {
                 TomlValue::new_wrong_type(helper.item, helper.span(), "float")
             }
@@ -155,7 +155,7 @@ impl<T: Visitor> Visitor for Option<T> {
         let inner = T::fill_from_toml(helper);
         match inner.state {
             TomlValueState::Ok => TomlValue::new_ok(Some(inner.value.unwrap()), helper.span()),
-            TomlValueState::Missing {..} => unreachable!(),
+            TomlValueState::Missing { .. } => unreachable!(),
             _ => inner.convert_failed_type(),
         }
     }
@@ -421,7 +421,9 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> Visitor for MustAdapt<A, 
 
     fn into_concrete(self) -> B {
         match self {
-            MustAdapt::PreVerify(_) => panic!("can_concrete invariant violated"),
+            MustAdapt::PreVerify(_) => panic!(
+                "can_concrete invariant violated, was pre_verify, can_concrete checks for post_verify. Self={self:?}"
+            ),
             MustAdapt::PostVerify(v) => v,
         }
     }

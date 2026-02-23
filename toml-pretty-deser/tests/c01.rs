@@ -55,12 +55,19 @@ struct TakeFloat {
 }
 
 #[test]
-fn test_float_takes_0_int() {
+fn test_float_takes_int() {
     let result: Result<TakeFloat, _> =
         TakeFloat::tpd_from_toml("value = 0", FieldMatchMode::Exact, VecMode::Strict);
     assert!(result.is_ok(), "should int 0 as float 0.0");
     if let Ok(parsed) = result {
         assert_eq!(parsed.value, 0.0);
+    }
+
+    let result: Result<TakeFloat, _> =
+        TakeFloat::tpd_from_toml("value = 9", FieldMatchMode::Exact, VecMode::Strict);
+    assert!(result.is_ok(), "should int 9 as float 9.0");
+    if let Ok(parsed) = result {
+        assert_eq!(parsed.value, 9.0);
     }
 }
 
