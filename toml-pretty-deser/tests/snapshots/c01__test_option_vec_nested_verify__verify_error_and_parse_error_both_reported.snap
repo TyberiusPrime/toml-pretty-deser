@@ -1,0 +1,22 @@
+---
+source: toml-pretty-deser/tests/c01.rs
+expression: pretty
+---
+Error 1/2
+  ╭─test.toml
+  ┆
+1 │ items = [{val = 0, extra = 'bad'}]
+  ┆                            ──┬──
+  ┆                              │
+  ┆                              ╰───── Wrong type: expected u8, found string.
+──╯
+Hint: This value has the wrong type.
+
+Error 2/2
+  ╭─test.toml
+  ┆
+1 │ items = [{val = 0, extra = 'bad'}]
+  ┆          ────────────┬───────────
+  ┆                      │
+  ┆                      ╰───────────── val must not be zero
+──╯

@@ -1093,14 +1093,15 @@ fn derive_tagged_enum(
         })
         .collect::<syn::Result<Vec<_>>>()?;
 
-    // Generate PartialTaggedEnum variants: Variant(TomlValue<PartialInner>)
+    // Generate PartialTaggedEnum variants: Variant(TomlValue<PartialInner>, Range<usize>)
+    // The Range<usize> stores the tag value span for use in error reporting.
     let partial_variants: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
         .map(|v| -> syn::Result<TokenStream2> {
             let ident = &v.ident;
             let partial_inner = partial_type_path(&v.inner_type)?;
-            Ok(quote! { #ident(toml_pretty_deser::TomlValue<#partial_inner>) })
+            Ok(quote! { #ident(toml_pretty_deser::TomlValue<#partial_inner>, std::ops::Range<usize>) })
         })
         .collect::<syn::Result<Vec<_>>>()?;
 
@@ -1132,26 +1133,13 @@ fn derive_tagged_enum(
 
             Ok(quote! {
                 #ident_str #(| #aliases)* => {
-                    let mut partial_inner = <#partial_inner as toml_pretty_deser::Visitor>::fill_from_toml(helper);
-                    match &mut partial_inner.state {
-                        toml_pretty_deser::TomlValueState::Ok => {
-                            let visitor = #partial_name::#ident(partial_inner);
-                            toml_pretty_deser::TomlValue::new_ok(visitor, helper.span())
-                        }
-                        toml_pretty_deser::TomlValueState::UnknownKeys(unknown_keys) => {
-                            for k in unknown_keys.iter_mut() {
-                                k.additional_spans.push((
-                                    tag_span.clone(),
-                                    "Involving this enum variant.".to_string(),
-                                ));
-                            }
-                            let visitor = #partial_name::#ident(partial_inner);
-                            toml_pretty_deser::TomlValue::new_nested(Some(visitor))
-                        }
-                        _ => {
-                            let visitor = #partial_name::#ident(partial_inner);
-                            toml_pretty_deser::TomlValue::new_nested(Some(visitor))
-                        }
+                    let partial_inner = <#partial_inner as toml_pretty_deser::Visitor>::fill_from_toml(helper);
+                    let is_ok = partial_inner.is_ok();
+                    let visitor = #partial_name::#ident(partial_inner, tag_span.clone());
+                    if is_ok {
+                        toml_pretty_deser::TomlValue::new_ok(visitor, helper.span())
+                    } else {
+                        toml_pretty_deser::TomlValue::new_nested(Some(visitor))
                     }
                 }
             })
@@ -1165,19 +1153,25 @@ fn derive_tagged_enum(
         .map(|v| {
             let ident = &v.ident;
             quote! {
-                #partial_name::#ident(toml_value) => toml_value.is_ok()
+                #partial_name::#ident(toml_value, _) => toml_value.is_ok()
             }
         })
         .collect();
 
-    // v_register_errors match arms
+    // v_register_errors match arms: push tag_span context so ALL errors from this
+    // variant (missing, wrong type, unknown key, validation failure, ...) get
+    // "Involving this enum variant." appended automatically.
     let register_errors_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
-                #partial_name::#ident(toml_value) => { toml_value.register_error(col); }
+                #partial_name::#ident(toml_value, tag_span) => {
+                    let __ctx = col.push_context(tag_span.clone(), "Involving this enum variant.");
+                    toml_value.register_error(col);
+                    col.pop_context_to(__ctx);
+                }
             }
         })
         .collect();
@@ -1189,7 +1183,7 @@ fn derive_tagged_enum(
         .map(|v| {
             let ident = &v.ident;
             quote! {
-                #partial_name::#ident(toml_value) => #name::#ident(toml_value.value.expect("into_concrete called when can_concrete returned false").into_concrete())
+                #partial_name::#ident(toml_value, _) => #name::#ident(toml_value.value.expect("into_concrete called when can_concrete returned false").into_concrete())
             }
         })
         .collect();
@@ -1201,7 +1195,7 @@ fn derive_tagged_enum(
         .map(|v| {
             let ident = &v.ident;
             quote! {
-                #partial_name::#ident(toml_value) => {
+                #partial_name::#ident(toml_value, _) => {
                     *toml_value = toml_value.take().tpd_validate(parent);
                 }
             }

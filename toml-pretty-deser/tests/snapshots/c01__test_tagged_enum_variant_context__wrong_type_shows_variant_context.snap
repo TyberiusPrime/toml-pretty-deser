@@ -1,0 +1,18 @@
+---
+source: toml-pretty-deser/tests/c01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │ [item]
+2 │ kind = 'VarA'
+  ┆        ───┬──
+  ┆           │
+  ┆           ╰─── Involving this enum variant.
+3 │ value = 'not-a-number'
+  ┆         ───────┬──────
+  ┆                │
+  ┆                ╰─────── Wrong type: expected u8, found string.
+──╯
+Hint: This value has the wrong type.

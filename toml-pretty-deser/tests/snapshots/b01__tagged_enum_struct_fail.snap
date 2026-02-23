@@ -1,5 +1,5 @@
 ---
-source: toml-pretty-deser/tests/a01.rs
+source: toml-pretty-deser/tests/b01.rs
 expression: pretty
 ---
 Error 1/2
@@ -9,6 +9,10 @@ Error 1/2
    ┆         ──────────┬─────────
    ┆                   │
    ┆                   ╰────────── Missing required key: 'a'.
+14 │             kind = 'KindA'
+   ┆                    ───┬───
+   ┆                       │
+   ┆                       ╰──── Involving this enum variant.
 ───╯
 
 Error 2/2

@@ -371,6 +371,186 @@ mod test_option_nested {
     }
 }
 
+mod test_tagged_enum_variant_context {
+    use toml_pretty_deser::prelude::*;
+
+    #[tpd(no_verify)]
+    #[derive(Debug)]
+    struct Inner {
+        value: u8,
+    }
+
+    #[tpd(tag = "kind")]
+    #[derive(Debug)]
+    enum Enum {
+        VarA(Inner),
+        VarB(Inner),
+    }
+
+    #[tpd(root, no_verify)]
+    #[derive(Debug)]
+    struct Root {
+        #[tpd(nested)]
+        item: Enum,
+    }
+
+    /// Missing field in tagged enum inner struct should show "Involving this enum variant."
+    #[test]
+    fn missing_field_shows_variant_context() {
+        let toml = "[item]\nkind = 'VarA'\n# value is missing";
+        let result = Root::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let pretty = e.pretty("test.toml");
+            assert!(
+                pretty.contains("Involving this enum variant."),
+                "Missing field error should show variant context:\n{pretty}"
+            );
+            insta::assert_snapshot!(pretty);
+        }
+    }
+
+    /// Wrong type in tagged enum inner struct should show "Involving this enum variant."
+    #[test]
+    fn wrong_type_shows_variant_context() {
+        let toml = "[item]\nkind = 'VarA'\nvalue = 'not-a-number'";
+        let result = Root::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let pretty = e.pretty("test.toml");
+            assert!(
+                pretty.contains("Involving this enum variant."),
+                "Wrong type error should show variant context:\n{pretty}"
+            );
+            insta::assert_snapshot!(pretty);
+        }
+    }
+
+    /// Unknown key in tagged enum still shows "Involving this enum variant." (regression)
+    #[test]
+    fn unknown_key_still_shows_variant_context() {
+        let toml = "[item]\nkind = 'VarA'\nvalue = 5\nunknown_key = 10";
+        let result = Root::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            let pretty = e.pretty("test.toml");
+            assert!(
+                pretty.contains("Involving this enum variant."),
+                "Unknown key error should show variant context:\n{pretty}"
+            );
+            insta::assert_snapshot!(pretty);
+        }
+    }
+}
+
+mod test_option_vec_nested_verify {
+    use toml_pretty_deser::prelude::*;
+
+    #[tpd]
+    #[derive(Debug)]
+    struct Item {
+        val: u8,
+        /// An extra field so the element can be in Nested state (when 'extra' has a parse error)
+        /// while 'val' still parses correctly.
+        extra: u8,
+    }
+
+    #[tpd(root)]
+    #[derive(Debug)]
+    struct Container {
+        #[tpd(nested)]
+        items: Option<Vec<Item>>,
+    }
+
+    impl VerifyIn<TPDRoot> for PartialContainer {}
+
+    impl VerifyIn<PartialContainer> for PartialItem {
+        fn verify(&mut self, _parent: &PartialContainer) -> Result<(), ValidationFailure> {
+            // Use `return Err` directly (not field-state marking) so the Result from verify()
+            // is the only way the error can propagate.
+            if let Some(v) = self.val.as_ref() {
+                if *v == 0 {
+                    return Err(ValidationFailure::new("val must not be zero", None));
+                }
+            }
+            Ok(())
+        }
+    }
+
+    /// Regression: verify on a nested struct inside Option<Vec<T>> was silently swallowed —
+    /// the field would collapse to None instead of propagating the error.
+    #[test]
+    fn verify_error_in_option_vec_nested_is_not_swallowed() {
+        // Absent: fine, no verify needed.
+        let toml = "";
+        let result = Container::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(result.is_ok(), "absent Option<Vec<nested>> should succeed");
+
+        // Present and valid: should succeed.
+        let toml = "items = [{val = 5, extra = 1}]";
+        let result = Container::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(
+            result.is_ok(),
+            "valid Option<Vec<nested>> should succeed, got: {result:?}"
+        );
+
+        // Present with an invalid element (only verify fails, parse succeeds):
+        // verify must fire and error must propagate.
+        let toml = "items = [{val = 0, extra = 1}]";
+        let result = Container::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(
+            result.is_err(),
+            "verify failure in Option<Vec<nested>> must propagate as error, got Ok: {result:?}"
+        );
+
+        // Multiple elements, one invalid in the middle: error must still propagate.
+        let toml = "items = [{val = 1, extra = 1}, {val = 0, extra = 1}, {val = 2, extra = 1}]";
+        let result = Container::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(
+            result.is_err(),
+            "verify failure on middle element must propagate, got Ok: {result:?}"
+        );
+        if let Err(e) = result {
+            let pretty = e.pretty("test.toml");
+            assert!(
+                pretty.contains("val must not be zero"),
+                "error should mention validation message, got:\n{pretty}"
+            );
+            insta::assert_snapshot!(pretty);
+        }
+    }
+
+    /// When an element has a parse error on one field (putting the element into Nested state)
+    /// AND a verify error on another field, BOTH errors must be reported.
+    ///
+    /// Fix: `tpd_validate`'s Nested branch now captures `verify()` Err instead of discarding
+    /// it with `.ok()`, and `ValidationFailed` traverses its inner value so nested parse errors
+    /// (like `extra: WrongType`) are still reported alongside the verify error.
+    #[test]
+    fn verify_error_and_parse_error_both_reported() {
+        // val=0 (fails verify) + extra='bad' (parse error → element in Nested state).
+        // Both errors must be reported: the WrongType for 'extra' AND "val must not be zero".
+        let toml = "items = [{val = 0, extra = 'bad'}]";
+        let result = Container::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        assert!(
+            result.is_err(),
+            "element with both parse and verify errors must produce an error, got Ok: {result:?}"
+        );
+        if let Err(e) = result {
+            let pretty = e.pretty("test.toml");
+            assert!(
+                pretty.contains("val must not be zero"),
+                "verify error must be reported even when element also has parse errors:\n{pretty}"
+            );
+            assert!(
+                pretty.contains("Wrong type"),
+                "parse error for 'extra' must still be reported:\n{pretty}"
+            );
+            insta::assert_snapshot!(pretty);
+        }
+    }
+}
+
 mod test_opt_vec_string_default {
     use toml_pretty_deser::prelude::*;
     #[tpd(root, no_verify)]

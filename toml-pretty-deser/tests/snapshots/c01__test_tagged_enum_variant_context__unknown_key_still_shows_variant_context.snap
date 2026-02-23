@@ -1,0 +1,18 @@
+---
+source: toml-pretty-deser/tests/c01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │ [item]
+2 │ kind = 'VarA'
+  ┆        ───┬──
+  ┆           │
+  ┆           ╰─── Involving this enum variant.
+4 │ unknown_key = 10
+  ┆ ─────┬─────
+  ┆      │
+  ┆      ╰─────────── Unknown key.
+──╯
+Hint: All known keys have been used.

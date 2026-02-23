@@ -30,6 +30,9 @@ Error 3/3
    ┆
 30 │         [[map_tagged_vec.y]]
 31 │             kind = 'KindA'
+   ┆                    ───┬───
+   ┆                       │
+   ┆                       ╰──── Involving this enum variant.
 32 │             a = 'x' # wrong type
    ┆                 ─┬─
    ┆                  │

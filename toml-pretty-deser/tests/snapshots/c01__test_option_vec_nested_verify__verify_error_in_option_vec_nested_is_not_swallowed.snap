@@ -1,0 +1,12 @@
+---
+source: toml-pretty-deser/tests/c01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │ items = [{val = 1, extra = 1}, {val = 0, extra = 1}, {val = 2, extra = 1}]
+  ┆                                ──────────┬─────────
+  ┆                                          │
+  ┆                                          ╰───────────────────────────────── val must not be zero
+──╯

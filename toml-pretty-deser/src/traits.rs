@@ -114,7 +114,12 @@ where
         } else if visitor.can_concrete() {
             TomlValue::new_ok(visitor, helper.span())
         } else {
-            TomlValue::new_nested(Some(visitor))
+            TomlValue {
+                value: Some(visitor),
+                state: TomlValueState::Nested,
+                span: helper.span(),
+                help: None,
+            }
         }
     }
 
@@ -154,13 +159,34 @@ where
                 }
             }
             TomlValueState::Nested => {
+                let span = self.span.clone();
                 if let Some(value) = self.value {
                     let mut maybe_validated = value.vv_validate(parent);
-                    maybe_validated.verify(parent).ok();
-                    if maybe_validated.can_concrete() {
-                        TomlValue::new_ok(maybe_validated, 0..0)
-                    } else {
-                        TomlValue::new_nested(Some(maybe_validated))
+                    let v = maybe_validated.verify(parent);
+                    match (
+                        v,
+                        maybe_validated.can_concrete(),
+                        maybe_validated.needs_further_validation(),
+                    ) {
+                        (Ok(()), true, _) => TomlValue::new_ok(maybe_validated, span),
+                        (Ok(()), false, false) => TomlValue {
+                            value: Some(maybe_validated),
+                            state: TomlValueState::Nested,
+                            span,
+                            help: None,
+                        },
+                        (Ok(()), false, true) => TomlValue {
+                            value: Some(maybe_validated),
+                            state: TomlValueState::NeedsFurtherValidation,
+                            span,
+                            help: None,
+                        },
+                        (Err(ValidationFailure { message, help }), _, _) => TomlValue {
+                            state: TomlValueState::ValidationFailed { message },
+                            value: Some(maybe_validated),
+                            span,
+                            help,
+                        },
                     }
                 } else {
                     self
@@ -218,11 +244,18 @@ where
                     .as_ref()
                     .map_or("This value has the wrong type.", String::as_str),
             )],
-            TomlValueState::ValidationFailed { message } => vec![AnnotatedError::placed(
-                self.span.clone(),
-                message,
-                self.help.as_ref().map_or("", String::as_str),
-            )],
+            TomlValueState::ValidationFailed { message } => {
+                // Also traverse inner value: the struct may have nested parse errors
+                // (e.g. when the element was in Nested state before verify fired).
+                if let Some(value) = self.value.as_ref() {
+                    value.v_register_errors(col);
+                }
+                vec![AnnotatedError::placed(
+                    self.span.clone(),
+                    message,
+                    self.help.as_ref().map_or("", String::as_str),
+                )]
+            }
             TomlValueState::UnknownKeys(unknown_keys) => {
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);

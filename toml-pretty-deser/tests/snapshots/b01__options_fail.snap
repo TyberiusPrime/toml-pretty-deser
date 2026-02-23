@@ -1,5 +1,5 @@
 ---
-source: toml-pretty-deser/tests/a01.rs
+source: toml-pretty-deser/tests/b01.rs
 expression: pretty
 ---
 Error 1/5
@@ -18,6 +18,9 @@ Error 2/5
    ┆
 14 │         [tag]
 15 │             kind = 'KindA'
+   ┆                    ───┬───
+   ┆                       │
+   ┆                       ╰──── Involving this enum variant.
 16 │             a = 1500
    ┆                 ──┬─
    ┆                   │
@@ -41,6 +44,9 @@ Error 4/5
    ┆
 17 │         [[tagged]]
 18 │             kind = 'KindA'
+   ┆                    ───┬───
+   ┆                       │
+   ┆                       ╰──── Involving this enum variant.
 19 │             a = 1600
    ┆                 ──┬─
    ┆                   │
@@ -53,6 +59,9 @@ Error 5/5
    ┆
 21 │         [[tagged]]
 22 │             kind = 'KindB'
+   ┆                    ───┬───
+   ┆                       │
+   ┆                       ╰──── Involving this enum variant.
 23 │             b = 1700
    ┆                 ──┬─
    ┆                   │

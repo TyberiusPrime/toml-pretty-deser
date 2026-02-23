@@ -1,0 +1,16 @@
+---
+source: toml-pretty-deser/tests/c01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │ [item]
+  ┆ ───┬──
+  ┆    │
+  ┆    ╰─── Missing required key: 'value'.
+2 │ kind = 'VarA'
+  ┆        ───┬──
+  ┆           │
+  ┆           ╰─── Involving this enum variant.
+──╯
