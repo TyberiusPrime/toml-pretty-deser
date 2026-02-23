@@ -1,5 +1,5 @@
 
-use toml_pretty_deser::{TomlCollector, Visitor, prelude::*};
+use toml_pretty_deser::{TomlSettings, Visitor, prelude::*};
 #[tpd(root)]
 #[derive(Debug)]
 struct NestedAndAdapt {
@@ -22,7 +22,7 @@ fn adapt_inner(mut input: TomlValue<toml_edit::Item>) -> TomlValue<PartialInner>
                 a_u8: TomlValue::new_ok(i, value.span().unwrap_or(0..0)),
             }),
             None => {
-                let mut helper = TomlHelper::from_item(value, TomlCollector::default());
+                let mut helper = TomlHelper::from_item(value, TomlSettings::default());
                 let tv = PartialInner::fill_from_toml(&mut helper);
                 if let Some(tv) = tv.into_inner() {
                     Ok(tv)

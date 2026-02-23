@@ -4,7 +4,7 @@ use indexmap::{IndexMap, IndexSet};
 
 use crate::MapAndKeys;
 use crate::case::{FieldMatchMode, suggest_alternatives};
-use crate::collector::TomlCollector;
+use crate::collector::{TomlCollector, TomlSettings};
 use crate::error::HydratedAnnotatedError;
 use crate::tablelike::{AsTableLikePlus, TableLikePlus};
 use crate::traits::Visitor;
@@ -52,13 +52,13 @@ pub struct TomlHelper<'a> {
     /// Normalized names that were actually observed (matched against table keys)
     observed: Vec<String>,
     /// Original field names that were allowed to the keys observed
-    pub col: TomlCollector,
+    pub col: TomlSettings,
 }
 
 impl<'a> TomlHelper<'a> {
     /// Create a `TomlHelper` from a `toml_edit::Item` (either Table or `InlineTable`)
     #[must_use]
-    pub fn from_item(item: &'a toml_edit::Item, col: TomlCollector) -> Self {
+    pub fn from_item(item: &'a toml_edit::Item, col: TomlSettings) -> Self {
         Self {
             item,
             expected: vec![],
@@ -73,16 +73,16 @@ impl<'a> TomlHelper<'a> {
             toml_edit::Item::Table(table) => {
                 let table_heading = table.span().unwrap_or(0..0);
                 if table_heading.start != 0 {
-                //now find the last item is the table...
-                let mut last_end = table_heading.end;
-                for item in table.iter() {
-                    if let Some(item_span) = item.1.span() {
-                        if item_span.end > last_end {
-                            last_end = item_span.end;
+                    //now find the last item is the table...
+                    let mut last_end = table_heading.end;
+                    for item in table.iter() {
+                        if let Some(item_span) = item.1.span() {
+                            if item_span.end > last_end {
+                                last_end = item_span.end;
+                            }
                         }
                     }
-                }
-                return last_end..last_end;
+                    return last_end..last_end;
                 } else {
                     table_heading // if it's the whole file (or not definied), report just at the
                     // start. Otherwise missing keys look like they belong at the end..
@@ -92,9 +92,12 @@ impl<'a> TomlHelper<'a> {
         }
     }
 
-    pub fn into_inner(self, source: &Rc<RefCell<String>>) -> Vec<HydratedAnnotatedError> {
-        self.col
-            .errors
+    pub fn into_inner(
+        self,
+        source: &Rc<RefCell<String>>,
+        col: &TomlCollector,
+    ) -> Vec<HydratedAnnotatedError> {
+        col.errors
             .borrow_mut()
             .drain(..)
             .map(|error| HydratedAnnotatedError {

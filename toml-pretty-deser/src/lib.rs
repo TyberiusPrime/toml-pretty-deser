@@ -16,7 +16,7 @@ mod visitors;
 
 pub use adapt::{MustAdapt, MustAdaptHelper, MustAdaptNested};
 pub use case::{FieldMatchMode, format_quoted_list, suggest_alternatives};
-pub use collector::TomlCollector;
+pub use collector::{TomlSettings,TomlCollector};
 pub use deser::deserialize_toml;
 pub use error::{AnnotatedError, DeserError, HydratedAnnotatedError, SpannedMessage};
 pub use map_and_keys::{FailableKeys, MapAndKeys};

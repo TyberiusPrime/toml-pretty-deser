@@ -8,10 +8,15 @@ use crate::value::VecMode;
 /// the deser functions
 #[doc(hidden)]
 #[derive(Clone, Debug, Default)]
-pub struct TomlCollector {
-    pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
+pub struct TomlSettings {
     pub match_mode: FieldMatchMode,
     pub vec_mode: VecMode,
+}
+
+#[doc(hidden)]
+#[derive(Clone, Debug, Default)]
+pub struct TomlCollector {
+    pub errors: Rc<RefCell<Vec<AnnotatedError>>>,
     /// Context spans that will be added to errors (e.g., "Involving this variant")
     /// These are stored as (span, message) pairs and are added to all errors registered
     /// while the context is active.

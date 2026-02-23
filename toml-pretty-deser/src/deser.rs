@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use toml_edit::Document;
 
 use crate::case::FieldMatchMode;
-use crate::collector::TomlCollector;
+use crate::collector::{TomlCollector, TomlSettings};
 use crate::error::DeserError;
 use crate::table_helper::TomlHelper;
 use crate::traits::{TPDRoot, VerifyIn, VerifyVisitor, Visitor};
@@ -34,11 +34,9 @@ where
         .map_err(|toml_err| DeserError::ParsingFailure(toml_err, toml_str.to_string()))?;
     let source = Rc::new(RefCell::new(toml_str.to_string()));
 
-    let col = TomlCollector {
-        errors: Rc::new(RefCell::new(Vec::new())),
+    let col = TomlSettings {
         match_mode: field_match_mode,
         vec_mode,
-        context_spans: Rc::new(RefCell::new(Vec::new())),
     };
     let top_level = parsed_toml.into_item();
     let mut helper = TomlHelper::from_item(&top_level, col.clone());
@@ -52,9 +50,13 @@ where
     if root.is_ok() {
         Ok(root.value.unwrap().into_concrete())
     } else {
-        root.register_error(&col);
+        let collector = TomlCollector {
+            errors: Rc::new(RefCell::new(vec![])),
+            context_spans: Rc::new(RefCell::new(vec![])),
+        };
+        root.register_error(&collector);
         Err(DeserError::DeserFailure(
-            helper.into_inner(&source),
+            helper.into_inner(&source, &collector),
             root.value.map(Box::new).unwrap_or_default(),
         ))
     }
