@@ -208,8 +208,13 @@ where
         context_spans: &[SpannedMessage],
     ) {
         let errs: Vec<AnnotatedError> = match &self.state {
-            TomlValueState::NotSet | TomlValueState::Ok => {
+            TomlValueState::Ok => {
                 return;
+            }
+            TomlValueState::NotSet => {
+                vec![AnnotatedError::unplaced(
+                    "A required field was not set by the deser code. This is a bug",
+                )]
             }
             TomlValueState::Nested => {
                 if let Some(value) = self.value.as_ref() {
@@ -316,7 +321,12 @@ impl<T> TomlValue<T> {
     pub fn register_error_leaf(&self, col: &TomlCollector) {
         let context = col.get_context_spans();
         let errs: Vec<AnnotatedError> = match &self.state {
-            TomlValueState::NotSet | TomlValueState::Ok | TomlValueState::Nested => return,
+            TomlValueState::Ok | TomlValueState::Nested => return,
+            TomlValueState::NotSet { .. } => {
+                vec![AnnotatedError::unplaced(
+                    "A required field was not set by the deser code. This is a bug",
+                )]
+            }
             TomlValueState::Missing { key } => vec![AnnotatedError::placed(
                 self.span.clone(),
                 &format!("Missing required key: '{key}'."),

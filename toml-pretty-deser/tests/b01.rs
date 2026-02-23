@@ -1921,3 +1921,56 @@ fn test_map_erroron_key() {
         panic!("Parsing succeeded?");
     }
 }
+
+// Reproduce: take() on a field inside Option<Vec<Inner>> leaves NotSet — no error surfaced.
+// Also: a #[tpd(skip)] field not set in verify — no error surfaced.
+#[tpd]
+#[derive(Debug)]
+pub struct InnerWithSkip {
+    opt_strs: Option<Vec<String>>,
+    #[tpd(skip)]
+    computed: String,
+}
+
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+pub struct OuterWithTakeAndSkip {
+    #[tpd(nested)]
+    items: Option<Vec<InnerWithSkip>>,
+}
+
+impl VerifyIn<PartialOuterWithTakeAndSkip> for PartialInnerWithSkip {
+    fn verify(
+        &mut self,
+        _parent: &PartialOuterWithTakeAndSkip,
+    ) -> Result<(), ValidationFailure> {
+        // take() leaves opt_strs in NotSet state — should this produce an error?
+        let _taken = self.opt_strs.take();
+        // Intentionally NOT setting self.computed — should this produce an error?
+        Ok(())
+    }
+}
+
+#[test]
+fn test_take_and_skip_errors() {
+    let toml_str = r#"
+[[items]]
+opt_strs = ["hello", "world"]
+
+[[items]]
+opt_strs = ["foo"]
+"#;
+    let result: Result<_, _> =
+        OuterWithTakeAndSkip::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    dbg!(&result);
+    // Expected: Err with diagnostics for the NotSet field and the unset skip field.
+    // Current behavior: Err with no useful diagnostics (NotSet is silenced,
+    // skip fields are excluded from error reporting).
+    if let Err(ref e) = result {
+        eprintln!("Error (pretty):\n{}", e.pretty("test.toml"));
+        if let toml_pretty_deser::DeserError::DeserFailure(ref errs, _) = *e {
+            eprintln!("Number of errors in DeserFailure: {}", errs.len());
+        }
+    }
+    assert!(result.is_err(), "should fail — both NotSet and unset skip field are bugs");
+}

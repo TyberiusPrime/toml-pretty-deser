@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/c01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+2 │             [inner]
+3 │                 no_such_key=5
+  ┆                 ─────┬─────
+  ┆                      │
+  ┆                      ╰──────── Unknown key.
+──╯
+Hint: Did you mean: 'a'?
