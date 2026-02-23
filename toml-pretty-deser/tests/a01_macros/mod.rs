@@ -775,10 +775,8 @@ pub struct PartialMapTest {
     opt_map_nested: TomlValue<Option<MapAndKeys<String, PartialNestedStruct>>>,
     opt_map_tagged: TomlValue<Option<MapAndKeys<String, PartialTaggedEnum>>>,
 
-    map_nested_vec:
-        TomlValue<MapAndKeys<String, Vec<TomlValue<PartialNestedStruct>>>>,
-    map_tagged_vec:
-        TomlValue<MapAndKeys<String, Vec<TomlValue<PartialTaggedEnum>>>>,
+    map_nested_vec: TomlValue<MapAndKeys<String, Vec<TomlValue<PartialNestedStruct>>>>,
+    map_tagged_vec: TomlValue<MapAndKeys<String, Vec<TomlValue<PartialTaggedEnum>>>>,
 }
 
 impl PartialMapTest {
@@ -817,8 +815,7 @@ impl PartialMapTest {
     fn tpd_get_map_nested_vec(
         &self,
         helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<MapAndKeys<String, Vec<TomlValue<PartialNestedStruct>>>>
-    {
+    ) -> TomlValue<MapAndKeys<String, Vec<TomlValue<PartialNestedStruct>>>> {
         helper.get_with_aliases("map_nested_vec", &[])
     }
 
@@ -1528,10 +1525,7 @@ pub struct PartialMapKeyNotStartsWithA {
 }
 
 impl PartialMapKeyNotStartsWithA {
-    pub fn tpd_get_inner(
-        &self,
-        helper: &mut TomlHelper<'_>,
-    ) -> TomlValue<MapAndKeys<String, u8>> {
+    pub fn tpd_get_inner(&self, helper: &mut TomlHelper<'_>) -> TomlValue<MapAndKeys<String, u8>> {
         helper.get_with_aliases("inner", &[])
     }
 }
@@ -1548,7 +1542,7 @@ impl Visitor for PartialMapKeyNotStartsWithA {
     }
 
     fn can_concrete(&self) -> bool {
-        self.inner.is_ok() 
+        self.inner.is_ok()
     }
 
     fn into_concrete(self) -> Self::Concrete {

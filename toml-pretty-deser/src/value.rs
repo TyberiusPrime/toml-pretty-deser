@@ -316,7 +316,7 @@ impl<T> TomlValue<T> {
     pub fn is_needs_further_validation(&self) -> bool {
         matches!(self.state, TomlValueState::NeedsFurtherValidation)
     }
-    
+
     pub fn into_inner(self) -> Option<T> {
         if self.is_ok() {
             Some(self.value.expect("None value on TomlValueState::Ok"))

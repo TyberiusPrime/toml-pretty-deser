@@ -47,15 +47,27 @@ macro_rules! impl_visitor_for_int {
                         return $crate::TomlValue::new_ok(v, helper.span());
                     }
                     Err(_) => {
-                        return $crate::TomlValue::new_validation_failed(
-                            helper.span(),
-                            format!("integer ({}), range exceeded", stringify!($ty)),
-                            Some(format!(
-                                "Use a number between {} and {} inclusive.",
-                                <$ty>::MIN,
-                                (<$ty>::MAX as u128).min(i64::MAX as u128)
-                            )),
-                        );
+                        if v < 0 {
+                            return $crate::TomlValue::new_validation_failed(
+                                helper.span(),
+                                format!("integer ({}), must be positive", stringify!($ty)),
+                                Some(format!(
+                                    "Use a number between {} and {} inclusive.",
+                                    <$ty>::MIN,
+                                    (<$ty>::MAX as u128).min(i64::MAX as u128)
+                                )),
+                            );
+                        } else {
+                            return $crate::TomlValue::new_validation_failed(
+                                helper.span(),
+                                format!("integer ({}), range exceeded", stringify!($ty)),
+                                Some(format!(
+                                    "Use a number between {} and {} inclusive.",
+                                    <$ty>::MIN,
+                                    (<$ty>::MAX as u128).min(i64::MAX as u128)
+                                )),
+                            );
+                        }
                     }
                 },
                 None => {

@@ -39,9 +39,18 @@ name = "my-service"
 
     match Config::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict) {
         Ok(config) => {
-            println!("environment:    {} (was 'production', uppercased by adapter)", config.environment);
-            println!("version_string: {} (was integer 42, converted to string)", config.version_string);
-            println!("name:           {} (no adapter, passed through)", config.name);
+            println!(
+                "environment:    {} (was 'production', uppercased by adapter)",
+                config.environment
+            );
+            println!(
+                "version_string: {} (was integer 42, converted to string)",
+                config.version_string
+            );
+            println!(
+                "name:           {} (no adapter, passed through)",
+                config.name
+            );
         }
         Err(e) => eprintln!("{}", e.pretty("config.toml")),
     }

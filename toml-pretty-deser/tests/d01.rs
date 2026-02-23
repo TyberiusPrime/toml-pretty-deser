@@ -53,8 +53,8 @@ fn tagged_enum_with_specific_verify_in() {
         kind = "Alpha"
         x = 42
     "#;
-    let parsed = Root::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict)
-        .expect("should parse");
+    let parsed =
+        Root::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict).expect("should parse");
     assert_eq!(parsed.item, MyTagged::Alpha(Alpha { x: 42 }));
 }
 
@@ -65,8 +65,8 @@ fn tagged_enum_with_specific_verify_in_beta() {
         kind = "Beta"
         y = "hello"
     "#;
-    let parsed = Root::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict)
-        .expect("should parse");
+    let parsed =
+        Root::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict).expect("should parse");
     assert_eq!(
         parsed.item,
         MyTagged::Beta(Beta {

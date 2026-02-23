@@ -4,7 +4,6 @@
 //! `FieldMatchMode::AnyCase` for case-insensitive matching, and
 //! `VecMode::SingleOk` to allow single values where arrays are expected.
 
-
 #![allow(dead_code)]
 use toml_pretty_deser::prelude::*;
 

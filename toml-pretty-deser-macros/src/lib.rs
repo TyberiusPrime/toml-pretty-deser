@@ -229,13 +229,13 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
         })?;
     }
 
-    //yeah that's a pile of worms, because the adapted values 
+    //yeah that's a pile of worms, because the adapted values
     //are not necessarily Visitor.
     if attrs.has_partial() && attrs.with_fn.is_some() {
-    return Err(syn::Error::new_spanned(
-        &field.ty,
-        "field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]",
-    ));
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "field cannot have both #[tpd(nested)] and #[tpd(with = \"...\")]",
+        ));
     }
 
     if let Some(AdaptInVerify::Explicit(_)) = &attrs.adapt_in_verify {

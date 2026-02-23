@@ -35,7 +35,10 @@ name = "mydb"
     match AppConfig::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict) {
         Ok(config) => {
             println!("App: {}", config.app_name);
-            println!("DB:  {}:{}/{}", config.database.host, config.database.port, config.database.name);
+            println!(
+                "DB:  {}:{}/{}",
+                config.database.host, config.database.port, config.database.name
+            );
         }
         Err(e) => {
             eprintln!("{}", e.pretty("config.toml"));

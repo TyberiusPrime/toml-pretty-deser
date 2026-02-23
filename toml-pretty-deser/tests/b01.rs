@@ -1828,7 +1828,13 @@ impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
             let found = value.type_name();
             match value.as_str() {
                 Some(v) => (v.len(), TomlValueState::Ok),
-                None => (0, TomlValueState::WrongType { expected: "string-to-convert", found }),
+                None => (
+                    0,
+                    TomlValueState::WrongType {
+                        expected: "string-to-convert",
+                        found,
+                    },
+                ),
             }
         });
 

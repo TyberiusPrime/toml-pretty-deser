@@ -14,6 +14,20 @@ struct Outer {
 impl VerifyIn<TPDRoot> for PartialOuter {}
 
 #[test]
+fn test_negative_for_unsigned() {
+let result: Result<Outer, _> = Outer::tpd_from_toml(
+        "value = -123",
+        FieldMatchMode::Exact,
+        VecMode::Strict,
+    );
+    assert!(result.is_err());
+    if let Err(e) = result {
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+
+}
+
+#[test]
 fn test_deser_error_std_error_impl() {
     use std::error::Error;
 
@@ -376,12 +390,14 @@ mod test_tagged_enum_variant_context {
 
     #[tpd(no_verify)]
     #[derive(Debug)]
+    #[allow(dead_code)]
     struct Inner {
         value: u8,
     }
 
     #[tpd(tag = "kind")]
     #[derive(Debug)]
+    #[allow(dead_code)]
     enum Enum {
         VarA(Inner),
         VarB(Inner),
@@ -389,6 +405,7 @@ mod test_tagged_enum_variant_context {
 
     #[tpd(root, no_verify)]
     #[derive(Debug)]
+    #[allow(dead_code)]
     struct Root {
         #[tpd(nested)]
         item: Enum,
@@ -448,6 +465,7 @@ mod test_option_vec_nested_verify {
 
     #[tpd]
     #[derive(Debug)]
+    #[allow(dead_code)]
     struct Item {
         val: u8,
         /// An extra field so the element can be in Nested state (when 'extra' has a parse error)
@@ -457,6 +475,7 @@ mod test_option_vec_nested_verify {
 
     #[tpd(root)]
     #[derive(Debug)]
+    #[allow(dead_code)]
     struct Container {
         #[tpd(nested)]
         items: Option<Vec<Item>>,

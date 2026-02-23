@@ -9,7 +9,8 @@
 use indexmap::IndexMap;
 use toml_pretty_deser::prelude::MustAdaptHelper;
 use toml_pretty_deser::{
-    DeserError, FailableKeys, FieldMatchMode, TomlOr, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str
+    DeserError, FailableKeys, FieldMatchMode, TomlOr, TomlValue, TomlValueState, ValidationFailure,
+    VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str,
 };
 //library code
 //
@@ -1515,7 +1516,12 @@ impl VerifyIn<TPDRoot> for PartialUnitField {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        let len = self.remainder.value.as_ref().map(|x| x.map.len()).unwrap_or(0);
+        let len = self
+            .remainder
+            .value
+            .as_ref()
+            .map(|x| x.map.len())
+            .unwrap_or(0);
         if !len.is_multiple_of(2) {
             //this is barely useful since we could just return the Err()
             //and end up with pretty much the same error message.
@@ -1595,7 +1601,12 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        let len = self.remainder.value.as_ref().map(|x| x.map.len()).unwrap_or(0);
+        let len = self
+            .remainder
+            .value
+            .as_ref()
+            .map(|x| x.map.len())
+            .unwrap_or(0);
         if !len.is_multiple_of(2) {
             return Err(ValidationFailure::new(
                 "there must be an even number of fields".to_string(),
@@ -1626,7 +1637,13 @@ impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
             let found = value.type_name();
             match value.as_str() {
                 Some(v) => (v.len(), TomlValueState::Ok),
-                None => (0, TomlValueState::WrongType { expected: "string-to-convert", found }),
+                None => (
+                    0,
+                    TomlValueState::WrongType {
+                        expected: "string-to-convert",
+                        found,
+                    },
+                ),
             }
         });
 

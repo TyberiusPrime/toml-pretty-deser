@@ -352,8 +352,7 @@ impl<T> TomlValue<T> {
             TomlValueState::UnknownKeys(unknown_keys) => unknown_keys
                 .iter()
                 .map(|uk| {
-                    let mut err =
-                        AnnotatedError::placed(uk.span.clone(), "Unknown key.", &uk.help);
+                    let mut err = AnnotatedError::placed(uk.span.clone(), "Unknown key.", &uk.help);
                     for (span, msg) in &uk.additional_spans {
                         err.add_span(span.clone(), msg);
                     }

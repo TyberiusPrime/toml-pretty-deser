@@ -1,7 +1,7 @@
 use std::{cell::RefCell, ops::Range, rc::Rc};
 
-use crate::error::{AnnotatedError, SpannedMessage};
 use crate::case::FieldMatchMode;
+use crate::error::{AnnotatedError, SpannedMessage};
 use crate::value::VecMode;
 
 /// Container that collects the errors and provides parameterisation to

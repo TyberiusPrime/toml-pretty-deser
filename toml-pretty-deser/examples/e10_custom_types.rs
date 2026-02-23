@@ -87,7 +87,10 @@ background = "#1a2b3c"
         Ok(config) => {
             println!("Email: {}", config.admin_email.0);
             println!("Port:  {}", config.api_port.0);
-            println!("Color: rgb({}, {}, {})", config.background.0, config.background.1, config.background.2);
+            println!(
+                "Color: rgb({}, {}, {})",
+                config.background.0, config.background.1, config.background.2
+            );
         }
         Err(e) => eprintln!("{}", e.pretty("theme.toml")),
     }

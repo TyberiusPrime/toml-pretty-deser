@@ -7,7 +7,6 @@
 //! `TomlValue` field. Since `TomlValue.help` lives on the struct (not per-variant),
 //! you can set help text on any error state without changing the error kind.
 
-
 #![allow(dead_code)]
 use toml_pretty_deser::prelude::*;
 
@@ -47,7 +46,8 @@ impl VerifyIn<TPDRoot> for PartialConfig {
                 // unknown keys (the error lives on plugin_tv, not the inner fields)
                 if let TomlValueState::UnknownKeys(keys) = &mut plugin_tv.state {
                     let doc_link = format!(
-                        "See https://docs.example.com/plugins for allowed keys (plugin #{})", i
+                        "See https://docs.example.com/plugins for allowed keys (plugin #{})",
+                        i
                     );
                     for key in keys {
                         key.help = format!("{}\n{doc_link}", key.help);

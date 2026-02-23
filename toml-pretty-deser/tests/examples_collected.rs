@@ -14,10 +14,8 @@ fn manifest_matches_actual_examples() {
             manifest_path.display()
         )
     });
-    let mut manifest_entries: Vec<&str> = manifest_content
-        .lines()
-        .filter(|l| !l.is_empty())
-        .collect();
+    let mut manifest_entries: Vec<&str> =
+        manifest_content.lines().filter(|l| !l.is_empty()).collect();
     manifest_entries.sort();
 
     // Read actual files

@@ -26,7 +26,10 @@ impl VerifyIn<TPDRoot> for PartialServiceConfig {
                     Some("Use [a-z][a-z0-9_-]* format, e.g. 'my-label'"),
                 ));
             }
-            if !key.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-') {
+            if !key
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
+            {
                 return Err(ValidationFailure::new(
                     "Label key contains invalid characters",
                     Some("Only lowercase letters, digits, hyphens, and underscores are allowed"),

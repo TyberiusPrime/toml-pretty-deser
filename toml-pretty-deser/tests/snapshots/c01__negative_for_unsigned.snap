@@ -1,0 +1,13 @@
+---
+source: toml-pretty-deser/tests/c01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │ value = -123
+  ┆         ──┬─
+  ┆           │
+  ┆           ╰── integer (u8), must be positive
+──╯
+Hint: Use a number between 0 and 255 inclusive.

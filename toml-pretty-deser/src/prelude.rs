@@ -6,6 +6,6 @@ pub use toml_pretty_deser_macros::tpd;
 
 pub use crate::{
     DeserError, FailableKeys, FieldMatchMode, MustAdapt, MustAdaptHelper, MustAdaptNested, TPDRoot,
-    TomlHelper, TomlOr, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn, impl_visitor,
-    impl_visitor_for_from_str, impl_visitor_for_try_from_str,
+    TomlHelper, TomlOr, TomlValue, TomlValueState, ValidationFailure, VecMode, VerifyIn,
+    impl_visitor, impl_visitor_for_from_str, impl_visitor_for_try_from_str,
 };

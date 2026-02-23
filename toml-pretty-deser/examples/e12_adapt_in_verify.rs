@@ -32,18 +32,25 @@ impl VerifyIn<TPDRoot> for PartialConfig {
             let found = item.type_name();
             match item.as_str() {
                 Some(s) => (s.len(), TomlValueState::Ok),
-                None => (0, TomlValueState::WrongType { expected: "string", found }),
+                None => (
+                    0,
+                    TomlValueState::WrongType {
+                        expected: "string",
+                        found,
+                    },
+                ),
             }
         });
 
         // adapt_in_verify(String): receives String
-        self.count.adapt(|s| {
-            match s.parse::<usize>() {
-                Ok(n) => (n, TomlValueState::Ok),
-                Err(_) => (0, TomlValueState::ValidationFailed {
+        self.count.adapt(|s| match s.parse::<usize>() {
+            Ok(n) => (n, TomlValueState::Ok),
+            Err(_) => (
+                0,
+                TomlValueState::ValidationFailed {
                     message: "Not a valid number".to_string(),
-                }),
-            }
+                },
+            ),
         });
 
         Ok(())
@@ -70,7 +77,8 @@ struct SharedConfig {
 impl VerifyIn<TPDRoot> for PartialSharedConfig {
     fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure> {
         // Nested adapt: receives the concrete InnerData (already converted from partial)
-        self.shared_data.adapt(|inner| (Rc::new(RefCell::new(inner)), TomlValueState::Ok));
+        self.shared_data
+            .adapt(|inner| (Rc::new(RefCell::new(inner)), TomlValueState::Ok));
         Ok(())
     }
 }
