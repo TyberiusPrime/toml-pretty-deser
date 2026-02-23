@@ -5,9 +5,16 @@ expression: "e.pretty(\"test.toml\")"
 Error 1/1
   ╭─test.toml
   ┆
-2 │         [inner]
-  ┆         ───┬───
-  ┆            │
-  ┆            ╰──── there must be an even number of fields
+2 │           [inner]
+  ┆           ▲
+  ┆ ╭─────────╯
+3 │ │         cheesecake = 'yes'
+  ┆ │
+4 │ │         brownies = 'no'
+  ┆ │
+5 │ │         cookies = 'very much'
+  ┆ │                             ▲
+  ┆ │                             │
+  ┆ ╰─────────────────────────────┴─ there must be an even number of fields
 ──╯
 Hint: There were 3 fields

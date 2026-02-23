@@ -69,7 +69,22 @@ impl<'a> TomlHelper<'a> {
 
     #[must_use]
     pub fn span(&self) -> Range<usize> {
-        self.item.span().unwrap_or(0..0)
+        match self.item {
+            toml_edit::Item::Table(table) => {
+                let table_heading = table.span().unwrap_or(0..0);
+                //now find the last item is the table...
+                let mut last_end = table_heading.end;
+                for item in table.iter(){
+                    if let Some(item_span) = item.1.span() {
+                        if item_span.end > last_end {
+                            last_end = item_span.end;
+                        }
+                    }
+                }
+                return table_heading.start..last_end;
+            }
+            _ => self.item.span().unwrap_or(0..0),
+        }
     }
 
     pub fn into_inner(self, source: &Rc<RefCell<String>>) -> Vec<HydratedAnnotatedError> {

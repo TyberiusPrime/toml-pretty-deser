@@ -1168,9 +1168,9 @@ fn derive_tagged_enum(
             let ident = &v.ident;
             quote! {
                 #partial_name::#ident(toml_value, tag_span) => {
-                    let __ctx = col.push_context(tag_span.clone(), "Involving this enum variant.");
+                    //let __ctx = col.push_context(tag_span.clone(), "Involving this enum variant.");
                     toml_value.register_error(col);
-                    col.pop_context_to(__ctx);
+                    //col.pop_context_to(__ctx);
                 }
             }
         })
