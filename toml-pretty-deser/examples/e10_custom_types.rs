@@ -37,7 +37,7 @@ impl TryFrom<&str> for Port {
     }
 }
 
-impl_visitor_for_try_from_str!(Port, "Provide a port number as a string, e.g. '8080'");
+impl_visitor_for_try_from_str!(Port, "Invalid port");
 
 // --- Full impl_visitor! example ---
 

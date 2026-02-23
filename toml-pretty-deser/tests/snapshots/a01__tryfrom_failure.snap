@@ -24,9 +24,9 @@ Error 1/2
 17 │         a_try_from_string = 'shrt'
    ┆                             ───┬──
    ┆                                │
-   ┆                                ╰─── Unconvertible string
+   ┆                                ╰─── Invalid string
 ───╯
-Hint: Longer than 5 letters please
+Hint: String too short
 
 Error 2/2
    ╭─test.toml

@@ -1303,7 +1303,7 @@ impl_visitor_for_from_str!(MyFromString);
 #[derive(Debug)]
 struct MyTryFromString(String);
 
-impl_visitor_for_try_from_str!(MyTryFromString, "Longer than 5 letters please");
+impl_visitor_for_try_from_str!(MyTryFromString, "Invalid string");
 
 impl TryFrom<&str> for MyTryFromString {
     type Error = String;

@@ -136,18 +136,19 @@ macro_rules! impl_visitor_for_from_str {
     };
 }
 
-/// implement a Visitor on a value that implements `TryFrom<String>`
+/// implement a Visitor on a value that implements `TryFrom<&str>`
+/// The `TryFrom::Error` type must implement `Display`.
 #[macro_export]
 macro_rules! impl_visitor_for_try_from_str {
-    ($ty:ty, $help:expr) => {
+    ($ty:ty, $msg:expr) => {
         $crate::impl_visitor!($ty, |helper| {
             match helper.item.as_str() {
-                Some(v) => match v.try_into() {
-                    Ok(v) => $crate::TomlValue::new_ok(v, helper.span()),
-                    Err(_) => $crate::TomlValue::new_validation_failed(
+                Some(v) => match <$ty>::try_from(v) {
+                    Ok(val) => $crate::TomlValue::new_ok(val, helper.span()),
+                    Err(e) => $crate::TomlValue::new_validation_failed(
                         helper.span(),
-                        "Unconvertible string".to_string(),
-                        Some($help.to_string()),
+                        $msg.to_string(),
+                        Some(e.to_string()),
                     ),
                 },
                 None => $crate::TomlValue::new_wrong_type(&helper.item, helper.span(), "string"),

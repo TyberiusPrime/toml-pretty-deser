@@ -1,5 +1,5 @@
 ---
-source: toml-pretty-deser/tests/a01.rs
+source: toml-pretty-deser/tests/b01.rs
 expression: "e.pretty(\"test.toml\")"
 ---
 Error 1/2
@@ -24,9 +24,9 @@ Error 1/2
 17 │         a_try_from_string = 'shrt'
    ┆                             ───┬──
    ┆                                │
-   ┆                                ╰─── Unconvertible string
+   ┆                                ╰─── Invalid string
 ───╯
-Hint: Longer than 5 letters please
+Hint: String too short
 
 Error 2/2
    ╭─test.toml
