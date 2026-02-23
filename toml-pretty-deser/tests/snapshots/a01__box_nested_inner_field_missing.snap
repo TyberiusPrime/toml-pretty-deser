@@ -6,7 +6,8 @@ Error 1/1
   ╭─test.toml
   ┆
 3 │         [boxed]
-  ┆         ───┬───
-  ┆            │
-  ┆            ╰──── Missing required key: 'value'.
+4 │             name = 'only_name'
+  ┆                               ┬
+  ┆                               │
+  ┆                               ╰─ Missing required key: 'value'.
 ──╯

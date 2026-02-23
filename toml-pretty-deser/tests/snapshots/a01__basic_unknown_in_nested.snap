@@ -6,9 +6,10 @@ Error 1/3
    ╭─test.toml
    ┆
 11 │         [nested_struct.double]
-   ┆         ───────────┬──────────
-   ┆                    │
-   ┆                    ╰─────────── Missing required key: 'double_u8'.
+12 │             sha = 23
+   ┆                     ┬
+   ┆                     │
+   ┆                     ╰─ Missing required key: 'double_u8'.
 ───╯
 
 Error 2/3

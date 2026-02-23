@@ -6,9 +6,11 @@ Error 1/2
    ╭─test.toml
    ┆
 12 │         [nested_tagged_enum]
-   ┆         ──────────┬─────────
-   ┆                   │
-   ┆                   ╰────────── Missing required key: 'a'.
+13 │             b = 10
+14 │             kind = 'KindA'
+   ┆                           ┬
+   ┆                           │
+   ┆                           ╰─ Missing required key: 'a'.
 ───╯
 
 Error 2/2

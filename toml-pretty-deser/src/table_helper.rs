@@ -72,16 +72,21 @@ impl<'a> TomlHelper<'a> {
         match self.item {
             toml_edit::Item::Table(table) => {
                 let table_heading = table.span().unwrap_or(0..0);
+                if table_heading.start != 0 {
                 //now find the last item is the table...
                 let mut last_end = table_heading.end;
-                for item in table.iter(){
+                for item in table.iter() {
                     if let Some(item_span) = item.1.span() {
                         if item_span.end > last_end {
                             last_end = item_span.end;
                         }
                     }
                 }
-                return table_heading.start..last_end;
+                return last_end..last_end;
+                } else {
+                    table_heading // if it's the whole file (or not definied), report just at the
+                    // start. Otherwise missing keys look like they belong at the end..
+                }
             }
             _ => self.item.span().unwrap_or(0..0),
         }
@@ -159,7 +164,7 @@ impl<'a> TomlHelper<'a> {
     where
         T: Visitor + std::fmt::Debug,
     {
-        let parent_span = self.item.span().unwrap_or(0..0);
+        let parent_span = self.span();
 
         // Register this field as expected
         self.expect_field(query_key, aliases);

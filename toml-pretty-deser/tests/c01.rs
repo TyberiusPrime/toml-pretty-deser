@@ -15,16 +15,12 @@ impl VerifyIn<TPDRoot> for PartialOuter {}
 
 #[test]
 fn test_negative_for_unsigned() {
-let result: Result<Outer, _> = Outer::tpd_from_toml(
-        "value = -123",
-        FieldMatchMode::Exact,
-        VecMode::Strict,
-    );
+    let result: Result<Outer, _> =
+        Outer::tpd_from_toml("value = -123", FieldMatchMode::Exact, VecMode::Strict);
     assert!(result.is_err());
     if let Err(e) = result {
         insta::assert_snapshot!(e.pretty("test.toml"));
     }
-
 }
 
 #[test]
@@ -381,6 +377,21 @@ mod test_option_nested {
         assert!(result.is_err(), "should fail with invalid inner");
         if let Err(e) = result {
             insta::assert_snapshot!(e.pretty("test.toml"));
+        }
+    }
+
+    #[test]
+    fn test_inner_whole_struct_shown() {
+        // valid case: inner is present and valid
+        let toml = "
+            [inner]
+                no_such_key=5
+        ";
+        let result = Outer::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+        if let Err(e) = result {
+            insta::assert_snapshot!(e.pretty("test.toml"));
+        } else {
+            panic!("Should have errored");
         }
     }
 }
