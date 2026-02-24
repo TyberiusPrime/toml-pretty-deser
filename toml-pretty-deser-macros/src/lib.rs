@@ -746,21 +746,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             if f.attrs.with_fn.is_some() {
                 quote! { self.#ident.register_error_leaf(col); }
             } else {
-                // Push this field's help (if any) into the collector's help context so
-                // that all descendant errors inherit it as a hint — but only when the
-                // field is in Nested state (a container delegating to children).
-                // Non-Nested fields show their own help directly; pushing it would
-                // cause it to appear twice.
-                // The count returned by push_help_context_opt acts as a restore-point.
-                quote! {
-                    {
-                        let __ctx = col.push_help_context_opt(
-                            if self.#ident.is_nested() { self.#ident.help.as_deref() } else { None }
-                        );
-                        self.#ident.register_error(col);
-                        col.pop_help_context_to(__ctx);
-                    }
-                }
+                quote! { self.#ident.register_error(col); }
             }
         })
         .collect();

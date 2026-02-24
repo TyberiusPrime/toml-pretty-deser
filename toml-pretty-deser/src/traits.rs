@@ -217,9 +217,11 @@ where
                 )]
             }
             TomlValueState::Nested => {
+                let __ctx = col.push_help_context_opt(self.help.as_deref());
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
                 }
+                col.pop_help_context_to(__ctx);
                 return;
             }
             TomlValueState::Missing { key } => vec![AnnotatedError::placed(

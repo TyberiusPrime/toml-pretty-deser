@@ -1,0 +1,20 @@
+---
+source: toml-pretty-deser/tests/e01.rs
+assertion_line: 234
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+2 │         [[items]]
+3 │         kind = 'Item'
+  ┆                ───┬──
+  ┆                   │
+  ┆                   ╰─── Involving this enum variant.
+4 │         value = 'not-a-number'
+  ┆                 ───────┬──────
+  ┆                        │
+  ┆                        ╰─────── Wrong type: expected u8, found string.
+──╯
+Hint: This value has the wrong type.
+      See: https://docs.example.com/items
