@@ -1,0 +1,28 @@
+---
+source: toml-pretty-deser/tests/b01.rs
+expression: pretty
+---
+Error 1/2
+  ╭─test.toml
+  ┆
+3 │         [section.subsection]
+4 │             xnner_value = 23
+  ┆                             ┬
+  ┆                             │
+  ┆                             ╰─ Missing required key: 'inner_value'.
+──╯
+Hint: See: https://docs.example.com/subsection
+      See: https://docs.example.com/section
+
+Error 2/2
+  ╭─test.toml
+  ┆
+3 │         [section.subsection]
+4 │             xnner_value = 23
+  ┆             ─────┬─────
+  ┆                  │
+  ┆                  ╰─────────── Unknown key.
+──╯
+Hint: Did you mean: 'inner_value'?
+      See: https://docs.example.com/subsection
+      See: https://docs.example.com/section

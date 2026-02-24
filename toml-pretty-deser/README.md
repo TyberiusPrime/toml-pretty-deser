@@ -244,13 +244,17 @@ struct InnerB {
     t: u32,
 }
 
-#[tpd(tag="kind")]
+#[tpd(tag="kind", alias="type")]
 #[derive(Debug)]
 enum EitherOne {
     KindA(InnerA),
     KindB(Box<InnerB>), // using a Box is supported.
 }
 ```
+
+
+`PatrialEither` exposes a method `get_tpd_tag()` to receive the canonical 
+string name.
 
 
 ### Aliases

@@ -21,6 +21,9 @@ pub struct TomlCollector {
     /// These are stored as (span, message) pairs and are added to all errors registered
     /// while the context is active.
     pub context_spans: Rc<RefCell<Vec<SpannedMessage>>>,
+    /// Help lines that will be appended to every error's hint text while active.
+    /// Nested `TomlValue`s push their `help` here so all descendant errors inherit it.
+    pub context_help: Rc<RefCell<Vec<String>>>,
 }
 
 impl TomlCollector {
@@ -47,5 +50,30 @@ impl TomlCollector {
     #[must_use]
     pub fn get_context_spans(&self) -> Vec<SpannedMessage> {
         self.context_spans.borrow().clone()
+    }
+
+    /// Push a help line into the help context stack so that all descendant errors
+    /// inherit it as an additional hint.  If `help` is `None` nothing is pushed.
+    /// Always returns the count of help lines **before** this call so that
+    /// `pop_help_context_to` can restore the previous state safely.
+    #[must_use]
+    pub fn push_help_context_opt(&self, help: Option<&str>) -> usize {
+        let mut ctx = self.context_help.borrow_mut();
+        let count = ctx.len();
+        if let Some(h) = help {
+            ctx.push(h.to_string());
+        }
+        count
+    }
+
+    /// Remove help lines back to `count` (as returned by `push_help_context_opt`).
+    pub fn pop_help_context_to(&self, count: usize) {
+        self.context_help.borrow_mut().truncate(count);
+    }
+
+    /// Get a copy of the current help context lines.
+    #[must_use]
+    pub fn get_context_help(&self) -> Vec<String> {
+        self.context_help.borrow().clone()
     }
 }

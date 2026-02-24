@@ -753,6 +753,62 @@ fn test_enum_aliases() {
         assert_eq!(res.nested_tagged_enum, TaggedEnum::KindB(InnerB { b: 10 }));
     }
 }
+#[test]
+fn test_tpd_get_tag() {
+    use toml_pretty_deser::TomlValue;
+
+    // Direct construction of PartialTaggedEnum variants: returns canonical name
+    let kind_a = PartialTaggedEnum::KindA(
+        TomlValue::new_ok(
+            PartialInnerA {
+                a: TomlValue::new_ok(1u8, 0..1),
+            },
+            0..10,
+        ),
+        0..5,
+    );
+    assert_eq!(kind_a.tpd_get_tag(), "KindA");
+
+    // KindB is the canonical name regardless of which alias ("B", "D") was used to dispatch
+    let kind_b = PartialTaggedEnum::KindB(
+        TomlValue::new_ok(
+            PartialInnerB {
+                b: TomlValue::new_ok(2u8, 0..1),
+            },
+            0..10,
+        ),
+        0..5,
+    );
+    assert_eq!(kind_b.tpd_get_tag(), "KindB");
+
+    let toml = "
+        a_u8 = 999
+        opt_u8 =2
+        vec_u8 = [3]
+        simple_enum = 'ccc' # which gives us a TypeC
+        [map_u8]
+            a = 4
+        [nested_struct]
+            other_u8 = 5
+        [nested_struct.double]
+            double_u8 = 6
+        [nested_tagged_enum]
+            kind = 'D' # which gives us a KindB
+            b = 1
+";
+    let parsed = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::AnyCase,
+        toml_pretty_deser::VecMode::Strict,
+    );
+    if let Err(DeserError::DeserFailure(_source, partial)) = &parsed {
+        let tagged_enum_partial = &partial.value.as_ref().unwrap().nested_tagged_enum;
+        assert_eq!(tagged_enum_partial.as_ref().unwrap().tpd_get_tag(), "KindB");
+    } else {
+        panic!("Expected parsing to fail due to a_u8 being out of range, but it succeeded");
+    }
+}
+
 #[tpd(root, no_verify)]
 pub struct WithVecOfTaggedEnums {
     #[tpd(nested)]
@@ -1995,4 +2051,183 @@ opt_strs = ["foo"]
         result.is_err(),
         "should fail — both NotSet and unset skip field are bugs"
     );
+}
+
+// ============================================================================
+// Help context propagation
+// ============================================================================
+
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct HelpCtxRoot {
+    top_value: u8,
+    #[tpd(nested)]
+    section: HelpCtxSection,
+}
+
+#[tpd(no_verify)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct HelpCtxSection {
+    #[tpd(nested)]
+    subsection: HelpCtxSubSection,
+}
+
+#[tpd(no_verify)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct HelpCtxSubSection {
+    inner_value: u8,
+}
+
+/// A Nested `TomlValue`'s `help` field should propagate into the error context so that
+/// all descendant errors carry the hint text.  Two nesting levels are used to verify
+/// that the ordering is outermost-first (the order in which context was pushed).
+///
+/// Intended usage pattern:
+/// 1. Deserialise (fails because `inner_value` is missing).
+/// 2. Post-fail: call `set_help` on each Nested `TomlValue` inside the partial.
+/// 3. Render errors — both help strings must appear in the child error's hint,
+///    outer level first.
+#[test]
+fn test_help_context_propagates_to_nested_children() {
+    let toml = "
+        top_value = 1
+        [section.subsection]
+            # inner_value is intentionally missing
+    ";
+
+    let result = HelpCtxRoot::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+
+    assert!(result.is_err(), "should fail: inner_value is missing");
+
+    if let Err(mut e) = result {
+        // Post-fail modification: attach documentation URLs to both nesting levels.
+        if let DeserError::DeserFailure(_, ref mut partial) = e {
+            if let Some(root_inner) = partial.value.as_mut() {
+                root_inner
+                    .section
+                    .set_help("See: https://docs.example.com/section");
+                if let Some(section_inner) = root_inner.section.value.as_mut() {
+                    section_inner
+                        .subsection
+                        .set_help("See: https://docs.example.com/subsection");
+                }
+            }
+        }
+        // Both help texts must appear; inner (subsection) comes before outer (section)
+        // because the context stack is reversed on output (innermost-first).
+        let pretty = e.pretty("test.toml");
+        let section_pos = pretty
+            .find("docs.example.com/section")
+            .expect("outer help not found");
+        let subsection_pos = pretty
+            .find("docs.example.com/subsection")
+            .expect("inner help not found");
+        assert!(
+            subsection_pos < section_pos,
+            "expected inner help before outer help, got:\n{pretty}"
+        );
+        insta::assert_snapshot!(pretty);
+    }
+}
+
+#[test]
+fn test_help_context_propagates_to_nested_children_other_error() {
+    let toml = "
+        top_value = 1
+        [section.subsection]
+            inner_value = 'no'
+    ";
+
+    let result = HelpCtxRoot::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+
+    assert!(result.is_err(), "should fail: inner_value is missing");
+
+    if let Err(mut e) = result {
+        // Post-fail modification: attach documentation URLs to both nesting levels.
+        if let DeserError::DeserFailure(_, ref mut partial) = e {
+            if let Some(root_inner) = partial.value.as_mut() {
+                root_inner
+                    .section
+                    .set_help("See: https://docs.example.com/section");
+                if let Some(section_inner) = root_inner.section.value.as_mut() {
+                    section_inner
+                        .subsection
+                        .set_help("See: https://docs.example.com/subsection");
+                }
+            }
+        }
+        // Both help texts must appear; inner (subsection) comes before outer (section)
+        // because the context stack is reversed on output (innermost-first).
+        let pretty = e.pretty("test.toml");
+        insta::assert_snapshot!(pretty);
+        let section_pos = pretty
+            .find("docs.example.com/section")
+            .expect("outer help not found");
+        let subsection_pos = pretty
+            .find("docs.example.com/subsection")
+            .expect("inner help not found");
+        assert!(
+            subsection_pos < section_pos,
+            "expected inner help before outer help, got:\n{pretty}"
+        );
+    }
+}
+
+#[test]
+fn test_help_context_propagates_to_nested_children_other_error2() {
+    let toml = "
+        top_value = 1
+        [section.subsection]
+            xnner_value = 23
+    ";
+
+    let result = HelpCtxRoot::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+
+    assert!(result.is_err(), "should fail: inner_value is missing");
+
+    if let Err(mut e) = result {
+        // Post-fail modification: attach documentation URLs to both nesting levels.
+        if let DeserError::DeserFailure(_, ref mut partial) = e {
+            if let Some(root_inner) = partial.value.as_mut() {
+                root_inner
+                    .section
+                    .set_help("See: https://docs.example.com/section");
+                if let Some(section_inner) = root_inner.section.value.as_mut() {
+                    section_inner
+                        .subsection
+                        .set_help("See: https://docs.example.com/subsection");
+                }
+            }
+        }
+        // Both help texts must appear; inner (subsection) comes before outer (section)
+        // because the context stack is reversed on output (innermost-first).
+        dbg!(&e);
+        let pretty = e.pretty("test.toml");
+        insta::assert_snapshot!(pretty);
+        let section_pos = pretty
+            .find("docs.example.com/section")
+            .expect("outer help not found");
+        let subsection_pos = pretty
+            .find("docs.example.com/subsection")
+            .expect("inner help not found");
+        assert!(
+            subsection_pos < section_pos,
+            "expected inner help before outer help, got:\n{pretty}"
+        );
+    }
 }

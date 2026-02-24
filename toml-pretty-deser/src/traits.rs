@@ -252,8 +252,12 @@ where
             TomlValueState::ValidationFailed { message } => {
                 // Also traverse inner value: the struct may have nested parse errors
                 // (e.g. when the element was in Nested state before verify fired).
+                // Push self.help so those child errors inherit it too; pop before
+                // building our own error (which already carries self.help directly).
                 if let Some(value) = self.value.as_ref() {
+                    let __ctx = col.push_help_context_opt(self.help.as_deref());
                     value.v_register_errors(col);
+                    col.pop_help_context_to(__ctx);
                 }
                 vec![AnnotatedError::placed(
                     self.span.clone(),
@@ -262,9 +266,15 @@ where
                 )]
             }
             TomlValueState::UnknownKeys(unknown_keys) => {
+                // Push self.help so that children (from v_register_errors) inherit it.
+                let __ctx = col.push_help_context_opt(self.help.as_deref());
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
                 }
+                col.pop_help_context_to(__ctx);
+                // Build the own unknown-key errors. These use uk.help (not self.help)
+                // so we manually prepend self.help here — the outer loop will then
+                // append the ancestor context on top.
                 unknown_keys
                     .iter()
                     .map(|uk| {
@@ -273,13 +283,26 @@ where
                         for (span, msg) in &uk.additional_spans {
                             err.add_span(span.clone(), msg);
                         }
+                        if let Some(h) = &self.help {
+                            match &mut err.help {
+                                Some(existing) if !existing.is_empty() => {
+                                    existing.push('\n');
+                                    existing.push_str(h);
+                                }
+                                _ => err.help = Some(h.clone()),
+                            }
+                        }
                         err
                     })
                     .collect()
             }
             TomlValueState::Custom { spans } => {
+                // Push self.help for child errors; pop before building our own error
+                // (which already carries self.help directly).
                 if let Some(value) = self.value.as_ref() {
+                    let __ctx = col.push_help_context_opt(self.help.as_deref());
                     value.v_register_errors(col);
+                    col.pop_help_context_to(__ctx);
                 }
                 let mut err = AnnotatedError::placed(
                     spans.iter().next().map_or(&(0..0), |x| &x.0).clone(),
@@ -308,6 +331,19 @@ where
             // Add context spans to the error
             for context in context_spans {
                 err.add_span(context.span.clone(), &context.msg);
+            }
+            // Append help lines pushed by ancestor Nested values.
+            // Reversed so that the innermost (most-specific) help appears first.
+            let help_ctx = col.get_context_help();
+            if !help_ctx.is_empty() {
+                let addon = help_ctx.into_iter().rev().collect::<Vec<_>>().join("\n");
+                match &mut err.help {
+                    Some(existing) if !existing.is_empty() => {
+                        existing.push('\n');
+                        existing.push_str(&addon);
+                    }
+                    _ => err.help = Some(addon),
+                }
             }
             col.errors.borrow_mut().push(err);
         }
@@ -396,6 +432,19 @@ impl<T> TomlValue<T> {
         for mut err in errs {
             for context_span in &context {
                 err.add_span(context_span.span.clone(), &context_span.msg);
+            }
+            // Append help lines pushed by ancestor Nested values.
+            // Reversed so that the innermost (most-specific) help appears first.
+            let help_ctx = col.get_context_help();
+            if !help_ctx.is_empty() {
+                let addon = help_ctx.into_iter().rev().collect::<Vec<_>>().join("\n");
+                match &mut err.help {
+                    Some(existing) if !existing.is_empty() => {
+                        existing.push('\n');
+                        existing.push_str(&addon);
+                    }
+                    _ => err.help = Some(addon),
+                }
             }
             col.errors.borrow_mut().push(err);
         }

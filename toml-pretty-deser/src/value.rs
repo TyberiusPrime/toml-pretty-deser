@@ -308,11 +308,20 @@ impl<T> TomlValue<T> {
         matches!(self.state, TomlValueState::Ok)
     }
 
-    /// Is this `TomlValue` in the Ok state?
+    /// Is this `TomlValue` in the Missing state?
+    ///
+    /// Note that optional values (Option<T>) are not 
+    /// missing in this sense!. They're ok, just their value is Some(None)
     pub fn is_missing(&self) -> bool {
         matches!(self.state, TomlValueState::Missing { .. })
     }
 
+    /// Is this `TomlValue` in the Nested state
+    pub fn is_nested(&self) -> bool {
+        matches!(self.state, TomlValueState::Nested)
+    }
+
+    /// Is this `TomlValue` in the NeedsFurtherValidation state
     pub fn is_needs_further_validation(&self) -> bool {
         matches!(self.state, TomlValueState::NeedsFurtherValidation)
     }

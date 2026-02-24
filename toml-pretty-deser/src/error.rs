@@ -66,6 +66,7 @@ where
                 let collector = TomlCollector {
                     errors: Rc::new(RefCell::new(vec![])),
                     context_spans: Rc::new(RefCell::new(vec![])),
+                    context_help: Rc::new(RefCell::new(vec![])),
                 };
                 partial.register_error(&collector);
                 collector

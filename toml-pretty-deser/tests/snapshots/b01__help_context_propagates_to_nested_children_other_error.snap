@@ -1,0 +1,16 @@
+---
+source: toml-pretty-deser/tests/b01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+3 │         [section.subsection]
+4 │             inner_value = 'no'
+  ┆                           ──┬─
+  ┆                             │
+  ┆                             ╰── Wrong type: expected u8, found string.
+──╯
+Hint: This value has the wrong type.
+      See: https://docs.example.com/subsection
+      See: https://docs.example.com/section

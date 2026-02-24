@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/b01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+3 │         [section.subsection]
+  ┆                             ┬
+  ┆                             │
+  ┆                             ╰─ Missing required key: 'inner_value'.
+──╯
+Hint: See: https://docs.example.com/subsection
+      See: https://docs.example.com/section

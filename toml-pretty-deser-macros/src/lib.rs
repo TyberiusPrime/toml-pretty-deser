@@ -746,7 +746,21 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             if f.attrs.with_fn.is_some() {
                 quote! { self.#ident.register_error_leaf(col); }
             } else {
-                quote! { self.#ident.register_error(col); }
+                // Push this field's help (if any) into the collector's help context so
+                // that all descendant errors inherit it as a hint — but only when the
+                // field is in Nested state (a container delegating to children).
+                // Non-Nested fields show their own help directly; pushing it would
+                // cause it to appear twice.
+                // The count returned by push_help_context_opt acts as a restore-point.
+                quote! {
+                    {
+                        let __ctx = col.push_help_context_opt(
+                            if self.#ident.is_nested() { self.#ident.help.as_deref() } else { None }
+                        );
+                        self.#ident.register_error(col);
+                        col.pop_help_context_to(__ctx);
+                    }
+                }
             }
         })
         .collect();
@@ -1212,6 +1226,19 @@ fn derive_tagged_enum(
         })
         .collect::<syn::Result<Vec<_>>>()?;
 
+    // tpd_get_tag match arms: non-skipped variants only (partial doesn't have skipped variants)
+    let get_tag_arms: Vec<TokenStream2> = variant_infos
+        .iter()
+        .filter(|v| !v.attrs.skip)
+        .map(|v| {
+            let ident = &v.ident;
+            let ident_str = ident.to_string();
+            quote! {
+                #partial_name::#ident(_, _) => #ident_str
+            }
+        })
+        .collect();
+
     Ok(quote! {
         #original_item
 
@@ -1284,5 +1311,13 @@ fn derive_tagged_enum(
         }
 
         impl<__TpdR> toml_pretty_deser::VerifyIn<__TpdR> for #partial_name {}
+
+        impl #partial_name {
+            pub fn tpd_get_tag(&self) -> &'static str {
+                match self {
+                    #(#get_tag_arms,)*
+                }
+            }
+        }
     })
 }
