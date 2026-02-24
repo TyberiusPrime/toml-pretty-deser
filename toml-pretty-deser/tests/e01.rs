@@ -183,6 +183,68 @@ fn test_help_context_propagates_to_nested_children_other_error2() {
 }
 
 // ============================================================================
+// Help context propagation — Custom state inside Option<Vec<T>> (Nested Vec)
+// ============================================================================
+
+/// A leaf visitor type whose `fill_from_toml` can produce a `Custom`-state
+/// `TomlValue` (multi-span error) when the string value doesn't start with "ok:".
+/// This lets us test that `context_help` propagates through a `Nested` Vec
+/// all the way to a leaf `Custom` error.
+#[derive(Debug)]
+struct PrefixedVal(String);
+
+toml_pretty_deser::impl_visitor!(PrefixedVal, true, |helper| {
+    let span = helper.span();
+    match helper.item.as_str() {
+        Some(v) if v.starts_with("ok:") => {
+            TomlValue::new_ok(PrefixedVal(v.to_string()), span)
+        }
+        Some(v) => TomlValue::new_custom(
+            None,
+            vec![(span, format!("Value '{}' must start with 'ok:'", v))],
+            None,
+        ),
+        None => TomlValue::new_wrong_type(&helper.item, span, "string"),
+    }
+});
+
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct CustomStateInOptVec {
+    items: Option<Vec<PrefixedVal>>,
+}
+
+/// When a Vec element is in `Custom` state and the outer `Option<Vec<...>>`
+/// is in `Nested` state, `context_help` set on the outer field must appear
+/// in the rendered error for the inner `Custom` error.
+#[test]
+fn test_custom_state_in_opt_vec_context_propagated() {
+    let toml_str = r#"items = ["ok:first", "bad_value", "ok:third"]"#;
+
+    let result =
+        CustomStateInOptVec::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    assert!(result.is_err(), "should fail: 'bad_value' lacks required 'ok:' prefix");
+
+    if let Err(mut e) = result {
+        if let DeserError::DeserFailure(_, ref mut partial) = e {
+            if let Some(root) = partial.value.as_mut() {
+                // items is Nested (one element has Custom state); set help on it.
+                root.items
+                    .set_help("See: https://docs.example.com/items");
+            }
+        }
+
+        let pretty = e.pretty("test.toml");
+        insta::assert_snapshot!(pretty);
+        assert!(
+            pretty.contains("docs.example.com/items"),
+            "context help must propagate through Nested Vec to Custom error, got:\n{pretty}"
+        );
+    }
+}
+
+// ============================================================================
 // Help context propagation — Option<Vec<TaggedEnum>>
 // ============================================================================
 

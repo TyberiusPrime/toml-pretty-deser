@@ -1754,6 +1754,37 @@ impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
     }
 }
 
+// Reproduce: Option<Vec<TaggedEnum>> container span is 0..0 instead of the TOML source span.
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct RootWithOptVecTagged {
+    #[tpd(nested)]
+    items: Option<Vec<TaggedEnum>>,
+}
+
+#[test]
+fn test_opt_vec_tagged_span_is_not_zero() {
+    // The `items` key appears at a non-zero offset in the source.
+    // When an error occurs inside `items`, the outer TomlValue for `items`
+    // should carry the span of the `[[items]]` array, not 0..0.
+    let toml_str = "
+[[items]]
+kind = 'InvalidKind'
+a = 1
+";
+    let parsed =
+        RootWithOptVecTagged::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
+    assert!(parsed.is_err());
+    if let Err(ref e @ DeserError::DeserFailure(..)) = parsed {
+        let partial = e.partial().unwrap();
+        let items_tv = &partial.value.as_ref().unwrap().items;
+        // The span should now point at the [[items]] array, not 0..0.
+        assert_ne!(items_tv.span, 0..0, "span must not be 0..0 after the fix");
+        insta::assert_snapshot!(e.pretty("test.toml"));
+    }
+}
+
 // ===== Module-qualified tagged enum test =====
 mod inner_types {
     use toml_pretty_deser_macros::tpd;

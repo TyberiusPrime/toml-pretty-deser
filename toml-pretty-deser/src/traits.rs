@@ -143,7 +143,7 @@ where
                     maybe_validated.needs_further_validation(),
                 ) {
                     (Ok(()), true, _) => TomlValue::new_ok(maybe_validated, span),
-                    (Ok(()), false, false) => TomlValue::new_nested(Some(maybe_validated)),
+                    (Ok(()), false, false) => TomlValue::new_nested(Some(maybe_validated), span),
                     (Ok(()), false, true) => TomlValue {
                         value: Some(maybe_validated),
                         state: TomlValueState::NeedsFurtherValidation,

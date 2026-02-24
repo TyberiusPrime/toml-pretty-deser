@@ -67,6 +67,11 @@ pub enum TomlValueState {
     NeedsFurtherValidation,
 }
 
+impl TomlValueState {
+    pub fn new_validation_failed(message: impl ToString) -> Self {
+        TomlValueState::ValidationFailed { message: message.to_string() }
+    }
+}
 /// The Result+Option representation of a TOML value that we will have
 /// attempted to deserialize. Eventually.
 ///
@@ -168,11 +173,11 @@ impl<T> TomlValue<T> {
 
     /// Create a new `TomlValue` in nested error state.
     #[must_use]
-    pub fn new_nested(value: Option<T>) -> Self {
+    pub fn new_nested(value: Option<T>, span: Range<usize>) -> Self {
         Self {
             value,
             state: TomlValueState::Nested,
-            span: 0..0,
+            span,
             help: None,
         }
     }
@@ -310,7 +315,7 @@ impl<T> TomlValue<T> {
 
     /// Is this `TomlValue` in the Missing state?
     ///
-    /// Note that optional values (Option<T>) are not 
+    /// Note that optional values (Option<T>) are not
     /// missing in this sense!. They're ok, just their value is Some(None)
     pub fn is_missing(&self) -> bool {
         matches!(self.state, TomlValueState::Missing { .. })
@@ -347,6 +352,27 @@ impl<T> TomlValue<T> {
         match self.state {
             TomlValueState::Ok => self.value.as_mut(),
             _ => None,
+        }
+    }
+    /// Get a reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
+    pub fn unwrap_ref(&self) -> &T {
+        match self.state {
+            TomlValueState::Ok => self
+                .value
+                .as_ref()
+                .expect("No value on ok tomlvalue - this should never happen"),
+            _ => panic!("unwrap_ref called on a non-ok value"),
+        }
+    }
+
+    /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
+    pub fn unwrap_mut(&mut self) -> &mut T {
+        match self.state {
+            TomlValueState::Ok => self
+                .value
+                .as_mut()
+                .expect("No value on ok tomlvalue - this should never happen"),
+            _ => panic!("unwrap_mut called on a non-ok value"),
         }
     }
 

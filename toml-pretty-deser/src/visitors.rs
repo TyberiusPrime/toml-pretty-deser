@@ -263,7 +263,7 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
                     if res.can_concrete() {
                         TomlValue::new_ok(res, helper.span())
                     } else {
-                        TomlValue::new_nested(Some(res))
+                        TomlValue::new_nested(Some(res), helper.span())
                     }
                 }
             }
@@ -281,7 +281,7 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
                 if res.can_concrete() {
                     TomlValue::new_ok(res, helper.span())
                 } else {
-                    TomlValue::new_nested(Some(res))
+                    TomlValue::new_nested(Some(res), helper.span())
                 }
             }
             toml_edit::Item::Value(v) if helper.col.vec_mode.single_ok() => {
@@ -292,7 +292,7 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
                 if res.can_concrete() {
                     TomlValue::new_ok(res, helper.span())
                 } else {
-                    TomlValue::new_nested(Some(res))
+                    TomlValue::new_nested(Some(res), helper.span())
                 }
             }
             _ => TomlValue::new_wrong_type(helper.item, helper.span(), "array"),
@@ -361,7 +361,7 @@ where
                 if all_ok {
                     TomlValue::new_ok(result, helper.span())
                 } else {
-                    TomlValue::new_nested(Some(result))
+                    TomlValue::new_nested(Some(result), helper.span())
                 }
             }
             None => TomlValue::new_wrong_type(helper.item, helper.span(), "table"),

@@ -1,0 +1,13 @@
+---
+source: toml-pretty-deser/tests/e01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+1 │ items = ["ok:first", "bad_value", "ok:third"]
+  ┆                      ─────┬─────
+  ┆                           │
+  ┆                           ╰─────────────────── Value 'bad_value' must start with 'ok:'
+──╯
+Hint: See: https://docs.example.com/items

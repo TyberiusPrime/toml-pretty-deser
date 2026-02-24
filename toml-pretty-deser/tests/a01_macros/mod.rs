@@ -381,11 +381,11 @@ impl Visitor for PartialTaggedEnum {
                             ));
                         }
                         let visitor = PartialTaggedEnum::KindA(partial_inner);
-                        TomlValue::new_nested(Some(visitor))
+                        TomlValue::new_nested(Some(visitor), helper.span())
                     }
                     _ => {
                         let visitor = PartialTaggedEnum::KindA(partial_inner);
-                        TomlValue::new_nested(Some(visitor))
+                        TomlValue::new_nested(Some(visitor), helper.span())
                     }
                 }
             }
@@ -405,11 +405,11 @@ impl Visitor for PartialTaggedEnum {
                             ));
                         }
                         let visitor = PartialTaggedEnum::KindB(partial_inner);
-                        TomlValue::new_nested(Some(visitor))
+                        TomlValue::new_nested(Some(visitor), helper.span())
                     }
                     _ => {
                         let visitor = PartialTaggedEnum::KindB(partial_inner);
-                        TomlValue::new_nested(Some(visitor))
+                        TomlValue::new_nested(Some(visitor), helper.span())
                     }
                 }
             }

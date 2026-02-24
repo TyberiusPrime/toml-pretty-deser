@@ -1139,7 +1139,7 @@ fn derive_tagged_enum(
                     if is_ok {
                         toml_pretty_deser::TomlValue::new_ok(visitor, helper.span())
                     } else {
-                        toml_pretty_deser::TomlValue::new_nested(Some(visitor))
+                        toml_pretty_deser::TomlValue::new_nested(Some(visitor), helper.span())
                     }
                 }
             })
