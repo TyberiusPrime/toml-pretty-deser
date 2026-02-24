@@ -222,7 +222,14 @@ impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Box<T> {
         Box::new((*self).vv_validate(parent))
     }
 }
-impl<R, T: Visitor + VerifyVisitor<R>> VerifyIn<R> for Box<T> {}
+impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R> for Box<T> {
+    fn verify(&mut self, parent: &R) -> Result<(), crate::ValidationFailure>
+    where
+        Self: Sized + Visitor,
+    {
+        self.as_mut().verify(parent)
+    }
+}
 
 impl<R, T: VerifyIn<R> + Visitor> VerifyIn<R> for Option<T> {
     fn verify(&mut self, parent: &R) -> Result<(), crate::ValidationFailure>

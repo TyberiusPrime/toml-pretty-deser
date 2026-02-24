@@ -1468,6 +1468,8 @@ pub struct BoxedInner {
     value: i32,
 }
 
+impl VerifyIn<PartialOuterWithBox> for PartialBoxedInner {}
+
 #[tpd(root, no_verify)]
 #[derive(Debug)]
 pub struct OuterWithBox {

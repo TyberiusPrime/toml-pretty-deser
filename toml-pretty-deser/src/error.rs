@@ -21,7 +21,7 @@ where
     /// Parsing succeeded, but deserialization failed. `PartialT` available with whatever could be
     /// understood.
     /// Stores the source TOML and the partial result.
-    DeserFailure(String, TomlValue<P>),
+    DeserFailure(String, Box<TomlValue<P>>),
 }
 
 impl<P> DeserError<P>
