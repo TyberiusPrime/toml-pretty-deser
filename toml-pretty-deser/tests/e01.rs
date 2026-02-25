@@ -335,9 +335,7 @@ impl VerifyIn<TPDRoot> for PartialOuter {
                 };
                 item.help = Some("help here".to_string());
             }
-            self.inner.state = TomlValueState::Nested;
         }
-        // self.inner
         Ok(())
     }
 }

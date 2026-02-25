@@ -183,6 +183,12 @@ impl<T: Visitor> Visitor for Option<T> {
         }
     }
 
+    fn v_sync_nested_states(&mut self) {
+        if let Some(v) = self {
+            v.v_sync_nested_states();
+        }
+    }
+
     fn into_concrete(self) -> Option<T::Concrete> {
         self.map(<T as Visitor>::into_concrete)
     }
@@ -211,6 +217,10 @@ impl<T: Visitor> Visitor for Box<T> {
 
     fn v_register_errors(&self, col: &TomlCollector) {
         self.as_ref().v_register_errors(col);
+    }
+
+    fn v_sync_nested_states(&mut self) {
+        self.as_mut().v_sync_nested_states();
     }
 
     fn into_concrete(self) -> Box<T::Concrete> {
@@ -309,6 +319,12 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
         }
     }
 
+    fn v_sync_nested_states(&mut self) {
+        for item in self.iter_mut() {
+            item.sync_nested_state();
+        }
+    }
+
     fn into_concrete(self) -> Self::Concrete {
         self.into_iter()
             .map(|item| item.value.unwrap().into_concrete())
@@ -378,6 +394,12 @@ where
         }
         for key in self.keys.iter() {
             key.register_error(col);
+        }
+    }
+
+    fn v_sync_nested_states(&mut self) {
+        for (_, v) in self.map.iter_mut() {
+            v.sync_nested_state();
         }
     }
 

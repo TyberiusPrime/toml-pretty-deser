@@ -782,6 +782,18 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
         })
         .collect();
 
+    // --- v_sync_nested_states statements ---
+    // Skip fields use Option<T> directly (no TomlValue wrapper) and
+    // with_fn fields use TomlValue<ConcreteType> (T is not Visitor).
+    let sync_stmts: Vec<TokenStream2> = field_infos
+        .iter()
+        .filter(|f| !f.attrs.skip && f.attrs.with_fn.is_none())
+        .map(|f| {
+            let ident = &f.ident;
+            quote! { self.#ident.sync_nested_state(); }
+        })
+        .collect();
+
     // --- vv_validate statements ---
     let vv_validate_stmts: Vec<TokenStream2> = field_infos
         .iter()
@@ -859,6 +871,10 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
 
             fn v_register_errors(&self, col: &toml_pretty_deser::TomlCollector) {
                 #(#register_errors_calls)*
+            }
+
+            fn v_sync_nested_states(&mut self) {
+                #(#sync_stmts)*
             }
 
             fn into_concrete(self) -> #name {
@@ -1158,6 +1174,18 @@ fn derive_tagged_enum(
         })
         .collect();
 
+    // v_sync_nested_states match arms: sync each variant's inner TomlValue
+    let sync_arms: Vec<TokenStream2> = variant_infos
+        .iter()
+        .filter(|v| !v.attrs.skip)
+        .map(|v| {
+            let ident = &v.ident;
+            quote! {
+                #partial_name::#ident(tv, _) => tv.sync_nested_state(),
+            }
+        })
+        .collect();
+
     // v_context_spans match arms: return the tag span for the current variant so
     // that Custom/ValidationFailed errors placed directly on TomlValue<Self> also
     // include the "Involving this enum variant." annotation.
@@ -1287,6 +1315,12 @@ fn derive_tagged_enum(
             fn v_context_spans(&self) -> Vec<(std::ops::Range<usize>, String)> {
                 match self {
                     #(#context_spans_arms)*
+                }
+            }
+
+            fn v_sync_nested_states(&mut self) {
+                match self {
+                    #(#sync_arms)*
                 }
             }
 

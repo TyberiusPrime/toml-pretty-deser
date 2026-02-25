@@ -36,6 +36,22 @@ error[E0599]: the method `register_error` exists for struct `TomlValue<MapAndKey
           which is required by `MapAndKeys<i32, String>: Visitor`
   = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)
 
+error[E0599]: the method `sync_nested_state` exists for struct `TomlValue<MapAndKeys<i32, String>>`, but its trait bounds were not satisfied
+ --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
+  |
+5 | #[tpd]
+  | ^^^^^^ method cannot be called on `TomlValue<MapAndKeys<i32, String>>` due to unsatisfied trait bounds
+  |
+ ::: src/map_and_keys.rs
+  |
+  | pub struct MapAndKeys<K, V> {
+  | --------------------------- doesn't satisfy `MapAndKeys<i32, String>: Visitor`
+  |
+  = note: the following trait bounds were not satisfied:
+          `i32: From<String>`
+          which is required by `MapAndKeys<i32, String>: Visitor`
+  = note: this error originates in the attribute macro `tpd` (in Nightly builds, run with -Z macro-backtrace for more info)
+
 error[E0599]: the method `into_concrete` exists for struct `MapAndKeys<i32, String>`, but its trait bounds were not satisfied
  --> compilation_failure_tests/absorb_remaining_wrong_key_type.rs:5:1
   |

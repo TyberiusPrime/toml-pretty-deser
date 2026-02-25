@@ -82,6 +82,12 @@ pub trait Visitor: Sized {
         vec![]
     }
 
+    /// Recursively propagate state changes made during `verify()` upward
+    /// through the container hierarchy.  The default is a no-op; container
+    /// types (structs, tagged enums, Vec, Option, Box, Map) override this to
+    /// call [`TomlValue::sync_nested_state`] on each child `TomlValue` field.
+    fn v_sync_nested_states(&mut self) {}
+
     /// Consume into the concrete `T`.
     ///
     ///
@@ -111,6 +117,24 @@ impl<T> TomlValue<T>
 where
     T: Visitor,
 {
+    /// Propagate any state changes made by `verify()` upward through the
+    /// container hierarchy.
+    ///
+    /// First calls `v_sync_nested_states()` on the inner value so that
+    /// child containers update their own state, then transitions this
+    /// `TomlValue` from `Ok` to `Nested` if the inner value can no longer
+    /// be concretised (i.e., some descendant is now in an error state).
+    pub fn sync_nested_state(&mut self) {
+        if let Some(value) = self.value.as_mut() {
+            value.v_sync_nested_states();
+        }
+        if matches!(self.state, TomlValueState::Ok) {
+            if !self.value.as_ref().is_some_and(|v| v.can_concrete()) {
+                self.state = TomlValueState::Nested;
+            }
+        }
+    }
+
     /// called by the toml-pretty-deser-macros `fill_from_toml` implementation.
     pub fn from_visitor(visitor: T, helper: &TomlHelper<'_>) -> Self {
         if helper.has_unknown() {
@@ -146,6 +170,7 @@ where
                 let mut maybe_validated =
                     self.value.expect("ok, but no value?").vv_validate(parent);
                 let v = maybe_validated.verify(parent);
+                maybe_validated.v_sync_nested_states();
                 match (
                     v,
                     maybe_validated.can_concrete(),
@@ -172,6 +197,7 @@ where
                 if let Some(value) = self.value {
                     let mut maybe_validated = value.vv_validate(parent);
                     let v = maybe_validated.verify(parent);
+                    maybe_validated.v_sync_nested_states();
                     match (
                         v,
                         maybe_validated.can_concrete(),

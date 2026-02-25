@@ -207,6 +207,7 @@ pub(crate) fn pretty_error_message(
 ) -> String {
     use codesnake::{Block, CodeWidth, Label, LineIndex};
     use std::fmt::Write;
+    dbg!(&spans);
 
     if spans.is_empty() {
         format!(
@@ -226,7 +227,11 @@ pub(crate) fn pretty_error_message(
         let mut labels = Vec::new();
 
         for span in spans.clone() {
-            labels.push(Label::new(span.span).with_text(span.msg));
+            if span.msg.is_empty() {
+                labels.push(Label::new(span.span));
+            } else {
+                labels.push(Label::new(span.span).with_text(span.msg));
+            }
         }
 
         let block = Block::new(&idx, labels).unwrap_or_else(|| {
