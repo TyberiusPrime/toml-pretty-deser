@@ -73,6 +73,15 @@ pub trait Visitor: Sized {
     /// Macro-derived, recursively turn `TomlValues` into `AnnotatedError`
     fn v_register_errors(&self, col: &TomlCollector);
 
+    /// Returns (span, label) pairs that should be attached to a non-Nested
+    /// error placed directly on `TomlValue<Self>`.  Tagged-enum partial types
+    /// override this to return their tag span with "Involving this enum
+    /// variant." so that user-set `Custom` or `ValidationFailed` states on the
+    /// tagged-enum wrapper still include the variant context.
+    fn v_context_spans(&self) -> Vec<(std::ops::Range<usize>, String)> {
+        vec![]
+    }
+
     /// Consume into the concrete `T`.
     ///
     ///
@@ -316,6 +325,15 @@ where
                 );
                 for (span, msg) in spans.iter().skip(1) {
                     err.add_span(span.clone(), msg);
+                }
+                // Include variant context from the inner value (e.g. tagged enum's
+                // "Involving this enum variant." span) that v_register_errors would
+                // push as a child-error context but is lost when the error sits on
+                // the TomlValue<TaggedEnum> itself rather than on its inner fields.
+                if let Some(value) = self.value.as_ref() {
+                    for (span, msg) in value.v_context_spans() {
+                        err.add_span(span, &msg);
+                    }
                 }
                 vec![err]
             }

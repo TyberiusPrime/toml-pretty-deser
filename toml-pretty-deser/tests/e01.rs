@@ -191,14 +191,13 @@ fn test_help_context_propagates_to_nested_children_other_error2() {
 /// This lets us test that `context_help` propagates through a `Nested` Vec
 /// all the way to a leaf `Custom` error.
 #[derive(Debug)]
+#[allow(dead_code)]
 struct PrefixedVal(String);
 
 toml_pretty_deser::impl_visitor!(PrefixedVal, true, |helper| {
     let span = helper.span();
     match helper.item.as_str() {
-        Some(v) if v.starts_with("ok:") => {
-            TomlValue::new_ok(PrefixedVal(v.to_string()), span)
-        }
+        Some(v) if v.starts_with("ok:") => TomlValue::new_ok(PrefixedVal(v.to_string()), span),
         Some(v) => TomlValue::new_custom(
             None,
             vec![(span, format!("Value '{}' must start with 'ok:'", v))],
@@ -224,14 +223,16 @@ fn test_custom_state_in_opt_vec_context_propagated() {
 
     let result =
         CustomStateInOptVec::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict);
-    assert!(result.is_err(), "should fail: 'bad_value' lacks required 'ok:' prefix");
+    assert!(
+        result.is_err(),
+        "should fail: 'bad_value' lacks required 'ok:' prefix"
+    );
 
     if let Err(mut e) = result {
         if let DeserError::DeserFailure(_, ref mut partial) = e {
             if let Some(root) = partial.value.as_mut() {
                 // items is Nested (one element has Custom state); set help on it.
-                root.items
-                    .set_help("See: https://docs.example.com/items");
+                root.items.set_help("See: https://docs.example.com/items");
             }
         }
 
@@ -299,5 +300,68 @@ fn test_help_context_option_vec_tagged_enum() {
             pretty.contains("docs.example.com/items"),
             "expected items help to propagate to child errors, but got:\n{pretty}"
         );
+    }
+}
+
+//try to expose acontext bug
+//
+//
+#[tpd(no_verify)]
+#[allow(dead_code)]
+pub struct Inner {
+    a: u8,
+}
+#[tpd(tag = "kind")]
+pub enum InnerTagged {
+    A(Inner),
+    B(Inner),
+}
+#[tpd(root)]
+#[allow(dead_code)]
+pub struct Outer {
+    #[tpd(nested)]
+    inner: Option<Vec<InnerTagged>>,
+}
+
+impl VerifyIn<TPDRoot> for PartialOuter {
+    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        if let Some(Some(inner)) = self.inner.as_mut() {
+            for item in inner.iter_mut() {
+                item.state = TomlValueState::Custom {
+                    spans: vec![(item.span(), "Forced custom error".to_string())],
+                };
+                item.help = Some("help here".to_string());
+            }
+            self.inner.state = TomlValueState::Nested;
+        }
+        // self.inner
+        Ok(())
+    }
+}
+
+#[test]
+fn test_context_bug() {
+    let toml = "
+        [[inner]]
+            kind = 'A'
+            a = 23
+    ";
+    let result = Outer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+
+    assert!(result.is_err(), "should fail: value has wrong type");
+
+    if let Err(e) = result {
+        if let DeserError::DeserFailure(_, ref _partial) = e {
+            let pretty = e.pretty("test.toml");
+            assert!(pretty.contains("Involving this enum variant."));
+            insta::assert_snapshot!(pretty);
+        }
     }
 }

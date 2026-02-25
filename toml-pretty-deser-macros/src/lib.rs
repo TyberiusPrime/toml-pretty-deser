@@ -1158,6 +1158,22 @@ fn derive_tagged_enum(
         })
         .collect();
 
+    // v_context_spans match arms: return the tag span for the current variant so
+    // that Custom/ValidationFailed errors placed directly on TomlValue<Self> also
+    // include the "Involving this enum variant." annotation.
+    let context_spans_arms: Vec<TokenStream2> = variant_infos
+        .iter()
+        .filter(|v| !v.attrs.skip)
+        .map(|v| {
+            let ident = &v.ident;
+            quote! {
+                #partial_name::#ident(_, tag_span) => {
+                    vec![(tag_span.clone(), "Involving this enum variant.".to_string())]
+                }
+            }
+        })
+        .collect();
+
     // v_register_errors match arms: push tag_span context so ALL errors from this
     // variant (missing, wrong type, unknown key, validation failure, ...) get
     // "Involving this enum variant." appended automatically.
@@ -1265,6 +1281,12 @@ fn derive_tagged_enum(
             fn can_concrete(&self) -> bool {
                 match self {
                     #(#can_concrete_arms,)*
+                }
+            }
+
+            fn v_context_spans(&self) -> Vec<(std::ops::Range<usize>, String)> {
+                match self {
+                    #(#context_spans_arms)*
                 }
             }
 
