@@ -198,7 +198,52 @@ impl HydratedAnnotatedError {
     }
 }
 
-#[allow(clippy::too_many_lines)]
+/// Detects a code line like "  9 │ action = 'Report'" and returns the source line number.
+fn try_parse_code_line_no(line: &str) -> Option<usize> {
+    let stripped = line.trim_start_matches(' ');
+    if let Some(pos) = stripped.find(" \u{2502}") {
+        let num_str = &stripped[..pos];
+        if !num_str.is_empty() && num_str.chars().all(|c| c.is_ascii_digit()) {
+            return num_str.parse().ok();
+        }
+    }
+    None
+}
+
+/// Splits blockf into segments: each segment starts at a code line and includes
+/// all following annotation lines (up to the next code line).
+fn parse_block_segments(blockf: &str) -> Vec<(usize, String)> {
+    let mut segments: Vec<(usize, String)> = Vec::new();
+    let mut current: Option<(usize, String)> = None;
+    for line in blockf.lines() {
+        if let Some(line_no) = try_parse_code_line_no(line) {
+            if let Some(prev) = current.take() {
+                segments.push(prev);
+            }
+            current = Some((line_no, format!("{line}\n")));
+        } else if let Some((_, ref mut content)) = current {
+            content.push_str(line);
+            content.push('\n');
+        }
+    }
+    if let Some(last) = current {
+        segments.push(last);
+    }
+    segments
+}
+
+/// Returns the 1-indexed line number of the nearest `[section]` header at or
+/// before `code_line_no`. Returns 1 if none found.
+fn find_section_start(source_lines: &[&str], code_line_no: usize) -> usize {
+    let upper = code_line_no.min(source_lines.len());
+    for i in (0..upper).rev() {
+        if source_lines[i].trim_ascii_start().starts_with('[') {
+            return i + 1;
+        }
+    }
+    1
+}
+
 pub(crate) fn pretty_error_message(
     source_name: &str,
     source: &str,
@@ -207,7 +252,6 @@ pub(crate) fn pretty_error_message(
 ) -> String {
     use codesnake::{Block, CodeWidth, Label, LineIndex};
     use std::fmt::Write;
-    dbg!(&spans);
 
     if spans.is_empty() {
         format!(
@@ -218,11 +262,6 @@ pub(crate) fn pretty_error_message(
         let idx = LineIndex::new(source);
         let mut spans = spans.to_vec();
         spans.sort_by_key(|span| span.span.start);
-
-        let previous_newline = source[..spans[0].span.start].rfind('\n');
-        let this_line_is_block_start = source[previous_newline.unwrap_or(0)..]
-            .trim_ascii_start()
-            .starts_with('[');
 
         let mut labels = Vec::new();
 
@@ -256,49 +295,49 @@ pub(crate) fn pretty_error_message(
             .fold(String::new(), |acc, line| acc + line + "\n");
         let digits_needed = blockf.chars().position(|c| c == '│').map_or(1, |x| x - 1);
 
-        let lines_before = match previous_newline {
-            None => String::new(),
-            Some(previous_newline) => {
-                let lines: Vec<&str> = {
-                    let upto_span = &source[..previous_newline];
-                    upto_span.lines().collect()
-                };
-                let mut seen_opening = false;
-                let mut lines_before: Vec<_> = {
-                    if this_line_is_block_start {
-                        vec![]
-                    } else {
-                        lines
-                            .into_iter()
-                            .enumerate()
-                            .rev()
-                            .take_while(move |x| {
-                                if x.1.trim_ascii_start().starts_with('[') {
-                                    seen_opening = true;
-                                    true
-                                } else {
-                                    !seen_opening
-                                }
-                            })
-                            .map(|(line_no, line)| {
-                                format!("{:>digits_needed$} │ {line}", line_no + 1,)
-                            })
-                            .collect()
-                    }
-                };
-                lines_before.reverse();
-                lines_before.join("\n")
-            }
-        };
+        let source_lines: Vec<&str> = source.lines().collect();
+        let segments = parse_block_segments(&blockf);
 
         let mut out = String::new();
         writeln!(&mut out, "{}{}", block.prologue(), source_name).expect("can't fail");
-        write!(&mut out, "{:digits_needed$} ┆\n{}", " ", lines_before).expect("can't fail");
-        if !lines_before.is_empty() {
-            writeln!(&mut out).expect("can't fail");
+
+        // last_shown_line: highest 1-indexed source line already emitted (0 = none yet).
+        // Covers both codesnake code lines and context lines we added.
+        let mut last_shown_line: usize = 0;
+
+        for (code_line_no, segment_text) in &segments {
+            let code_line_no = *code_line_no;
+
+            let section_start = find_section_start(&source_lines, code_line_no);
+
+            // Start context from the line after what we last showed, but never
+            // before the nearest section header.
+            let context_start = if last_shown_line == 0 {
+                section_start
+            } else {
+                (last_shown_line + 1).max(section_start)
+            };
+            let context_end = code_line_no.saturating_sub(1);
+
+            if context_start <= context_end {
+                writeln!(&mut out, "{:digits_needed$} ┆", "").expect("can't fail");
+                for ln in context_start..=context_end {
+                    if ln >= 1 && ln <= source_lines.len() {
+                        writeln!(
+                            &mut out,
+                            "{:>digits_needed$} │ {}",
+                            ln,
+                            source_lines[ln - 1]
+                        )
+                        .expect("can't fail");
+                    }
+                }
+            }
+
+            write!(&mut out, "{segment_text}").expect("can't fail");
+            last_shown_line = code_line_no;
         }
 
-        write!(&mut out, "{blockf}").expect("can't fail");
         writeln!(&mut out, "{}", block.epilogue()).expect("can't fail");
 
         if let Some(help) = help.as_ref()

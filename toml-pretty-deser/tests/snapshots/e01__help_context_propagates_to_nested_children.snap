@@ -4,7 +4,6 @@ expression: pretty
 ---
 Error 1/1
   ╭─test.toml
-  ┆
 3 │         [section.subsection]
   ┆                             ┬
   ┆                             │
@@ -12,4 +11,3 @@ Error 1/1
 ──╯
 Hint: See: https://docs.example.com/subsection
       See: https://docs.example.com/section
-

@@ -4,7 +4,6 @@ expression: pretty
 ---
 Error 1/2
   ╭─test.toml
-  ┆
 1 │ items = [{val = 0, extra = 'bad'}]
   ┆                            ──┬──
   ┆                              │
@@ -14,7 +13,6 @@ Hint: This value has the wrong type.
 
 Error 2/2
   ╭─test.toml
-  ┆
 1 │ items = [{val = 0, extra = 'bad'}]
   ┆          ────────────┬───────────
   ┆                      │

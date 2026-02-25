@@ -1,10 +1,11 @@
 ---
-source: toml-pretty-deser/tests/a01.rs
+source: toml-pretty-deser/tests/b01.rs
 expression: "e.pretty(\"test.toml\")"
 ---
 Error 1/1
   ╭─test.toml
   ┆
+1 │ 
 2 │     c = 13
   ┆         ─┬
   ┆          │

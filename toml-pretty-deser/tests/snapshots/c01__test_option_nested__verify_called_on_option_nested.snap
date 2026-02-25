@@ -4,7 +4,6 @@ expression: "e.pretty(\"test.toml\")"
 ---
 Error 1/1
   ╭─test.toml
-  ┆
 1 │ v_inner = [{a=5}, {a=3}, {a=0}]
   ┆                             ┬
   ┆                             │

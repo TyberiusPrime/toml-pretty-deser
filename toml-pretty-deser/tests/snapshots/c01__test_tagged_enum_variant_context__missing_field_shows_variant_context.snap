@@ -4,7 +4,6 @@ expression: pretty
 ---
 Error 1/1
   ╭─test.toml
-  ┆
 1 │ [item]
   ┆ ───┬──
   ┆    │

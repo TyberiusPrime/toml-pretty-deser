@@ -1692,8 +1692,7 @@ other = 'Europe'
 #[test]
 fn test_adapt_inner_wrong_types() {
     let result: Result<_, _> = AdaptInVerify::tpd_from_toml(
-        "
-inner = 4
+        "inner = 4
 other = 123
 
 ",

@@ -3,7 +3,6 @@ source: toml-pretty-deser/tests/a01.rs
 expression: "errors[0].pretty(\"test.toml\")"
 ---
   ╭─test.toml
-  ┆
 1 │
   ┆ ┬
   ┆ │

@@ -5,6 +5,7 @@ expression: "e.pretty(\"test.toml\")"
 Error 1/2
   ╭─test.toml
   ┆
+1 │ 
 2 │ inner = 4
   ┆         ┬
   ┆         │

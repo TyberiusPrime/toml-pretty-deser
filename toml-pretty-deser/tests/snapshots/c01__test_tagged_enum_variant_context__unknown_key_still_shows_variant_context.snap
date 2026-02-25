@@ -10,6 +10,8 @@ Error 1/1
   ┆        ───┬──
   ┆           │
   ┆           ╰─── Involving this enum variant.
+  ┆
+3 │ value = 5
 4 │ unknown_key = 10
   ┆ ─────┬─────
   ┆      │
