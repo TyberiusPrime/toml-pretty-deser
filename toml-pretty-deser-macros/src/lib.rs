@@ -848,6 +848,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
         #[derive(Default, Debug)]
         #vis struct #partial_name {
             #(#partial_fields,)*
+            pub tpd_field_match_mode: toml_pretty_deser::FieldMatchMode,
         }
 
         impl #partial_name {
@@ -860,6 +861,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             fn fill_from_toml(helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Self> {
                 #is_table_check
                 let mut partial = Self::default();
+                partial.tpd_field_match_mode = helper.col.match_mode;
                 #(#regular_fill_stmts)*
                 #(#absorb_fill_stmts)*
                 toml_pretty_deser::TomlValue::from_visitor(partial, helper)

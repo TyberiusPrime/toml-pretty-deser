@@ -42,7 +42,7 @@ where
     let mut helper = TomlHelper::from_item(&top_level, col.clone());
 
     let root = P::fill_from_toml(&mut helper);
-    let mut root = root.tpd_validate(&TPDRoot);
+    let mut root = root.tpd_validate(&TPDRoot { tpd_field_match_mode: field_match_mode });
     if helper.has_unknown() {
         root.state = TomlValueState::UnknownKeys(helper.unknown_spans());
     }

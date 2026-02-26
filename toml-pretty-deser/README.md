@@ -275,6 +275,40 @@ By default, field names and enum variants are matched strictly.
 `tpd_from_toml`'s `FieldMatchMode` argument allows you to change this to case-insensitive (upper/lower only) or
 code-case-insensitive (allowing '`snake_case`', 'camelCase', 'kebab-case', etc. to match each other).
 
+### Accessing the field match mode in verify
+
+Every generated `PartialT` struct includes a `pub tpd_field_match_mode: FieldMatchMode` field
+that is automatically set to the match mode used during deserialization.
+`TPDRoot` (the parent type for top-level structs) likewise exposes `field_match_mode`.
+
+You can read either of these in your [`VerifyIn`] implementation to make mode-aware validation decisions:
+
+```rust, ignore
+// For a nested struct: read from self
+impl VerifyIn<PartialOuter> for PartialMyStruct {
+    fn verify(&mut self, _parent: &PartialOuter) -> Result<(), ValidationFailure>
+    where Self: Sized + Visitor
+    {
+        if self.tpd_field_match_mode == FieldMatchMode::Exact {
+            // stricter checks when exact matching is required
+        }
+        Ok(())
+    }
+}
+
+// For a root struct: read from parent (TPDRoot)
+impl VerifyIn<TPDRoot> for PartialMyRoot {
+    fn verify(&mut self, parent: &TPDRoot) -> Result<(), ValidationFailure>
+    where Self: Sized + Visitor
+    {
+        if parent.tpd_field_match_mode == FieldMatchMode::AnyCase {
+            // relaxed checks when case-insensitive matching is in use
+        }
+        Ok(())
+    }
+}
+```
+
 
 ### Single elements to Vecs
 

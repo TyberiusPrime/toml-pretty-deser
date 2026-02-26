@@ -11,13 +11,13 @@ error[E0412]: cannot find type `PartialNestedAndAdapt` in this scope
    |                            ^^^^^^^^^^^^^^^^^^^^^ not found in this scope
 
 error[E0433]: failed to resolve: use of undeclared type `NestedAndAdapt`
-  --> compilation_failure_tests/nested_and_with.rs:45:9
+  --> compilation_failure_tests/nested_and_with.rs:46:9
    |
-45 |         NestedAndAdapt::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
+46 |         NestedAndAdapt::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
    |         ^^^^^^^^^^^^^^ use of undeclared type `NestedAndAdapt`
 
 error[E0433]: failed to resolve: use of undeclared type `NestedAndAdapt`
-  --> compilation_failure_tests/nested_and_with.rs:55:9
+  --> compilation_failure_tests/nested_and_with.rs:56:9
    |
-55 |         NestedAndAdapt::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
+56 |         NestedAndAdapt::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::SingleOk);
    |         ^^^^^^^^^^^^^^ use of undeclared type `NestedAndAdapt`

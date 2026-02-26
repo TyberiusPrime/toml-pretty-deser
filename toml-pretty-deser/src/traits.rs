@@ -108,9 +108,14 @@ pub trait VerifyVisitor<Parent> {
     }
 }
 
-/// The empty struct passed to top level [`VerifyIn`] calls.
-#[derive(Default)]
-pub struct TPDRoot;
+/// The struct passed to top-level [`VerifyIn`] calls (i.e. when the struct is
+/// the root of the deserialization, decorated with `#[tpd(root)]`).
+///
+/// Access `parent.field_match_mode` in your `verify` implementation to inspect
+/// which [`crate::FieldMatchMode`] was used for this deserialization pass.
+pub struct TPDRoot {
+    pub tpd_field_match_mode: crate::case::FieldMatchMode,
+}
 
 /// methods powering the `toml-pretty-deser-macros` crate's `#[tpd]` struct implementations.
 impl<T> TomlValue<T>

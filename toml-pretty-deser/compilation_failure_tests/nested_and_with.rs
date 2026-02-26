@@ -20,6 +20,7 @@ fn adapt_inner(mut input: TomlValue<toml_edit::Item>) -> TomlValue<PartialInner>
         match value.as_integer() {
             Some(i) => Ok(PartialInner {
                 a_u8: TomlValue::new_ok(i, value.span().unwrap_or(0..0)),
+                ..Default::default()
             }),
             None => {
                 let mut helper = TomlHelper::from_item(value, TomlSettings::default());

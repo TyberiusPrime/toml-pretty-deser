@@ -762,6 +762,7 @@ fn test_tpd_get_tag() {
         TomlValue::new_ok(
             PartialInnerA {
                 a: TomlValue::new_ok(1u8, 0..1),
+                ..Default::default()
             },
             0..10,
         ),
@@ -774,6 +775,7 @@ fn test_tpd_get_tag() {
         TomlValue::new_ok(
             PartialInnerB {
                 b: TomlValue::new_ok(2u8, 0..1),
+                ..Default::default()
             },
             0..10,
         ),
