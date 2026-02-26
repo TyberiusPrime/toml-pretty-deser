@@ -185,6 +185,7 @@ impl<'a> TomlHelper<'a> {
                     },
                     span: parent_span,
                     help: None,
+                    context: None,
                 }
             }
             1 => {
@@ -213,6 +214,7 @@ impl<'a> TomlHelper<'a> {
                     },
                     span: primary_span,
                     help: None,
+                    context: None,
                 }
             }
         }

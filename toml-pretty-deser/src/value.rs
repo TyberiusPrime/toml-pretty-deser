@@ -89,17 +89,25 @@ pub struct TomlValue<T> {
     /// Optional help text for error reporting.
     /// Applies to any non-Ok state.
     pub help: Option<String>,
+    /// Optional context annotation attached to every descendant error while this
+    /// value is in `Nested` state.  Stored as `(span, label)` so the annotation
+    /// can point at a specific source location (e.g. the tag key for tagged enums).
+    /// Tagged enums set this to `(tag_span, "Involving this enum variant.")` by
+    /// default; users can set it on any `TomlValue` via [`TomlValue::set_context`]
+    /// (which uses this value's own span) or [`TomlValue::set_context_at`].
+    pub context: Option<(Range<usize>, String)>,
 }
 
 impl<T> TomlValue<T> {
     /// Create a new `TomlValue` in the Ok state with the given value and span.
     #[must_use]
-    pub const fn new_ok(value: T, span: Range<usize>) -> Self {
+    pub fn new_ok(value: T, span: Range<usize>) -> Self {
         Self {
             value: Some(value),
             state: TomlValueState::Ok,
             span,
             help: None,
+            context: None,
         }
     }
 
@@ -125,22 +133,24 @@ impl<T> TomlValue<T> {
             state: TomlValueState::Custom { spans },
             span: primary_span,
             help: help.map(ToString::to_string),
+            context: None,
         }
     }
 
     /// Create a new `TomlValue` in the Missing state with the given parent span.
     #[must_use]
-    pub const fn new_empty_missing(parent_span: Range<usize>) -> Self {
+    pub fn new_empty_missing(parent_span: Range<usize>) -> Self {
         Self {
             value: None,
             state: TomlValueState::Missing { key: String::new() },
             span: parent_span,
             help: None,
+            context: None,
         }
     }
     /// Create a new `TomlValue` with a `ValidationFailed` state.
     #[must_use]
-    pub const fn new_validation_failed(
+    pub fn new_validation_failed(
         span: Range<usize>,
         message: String,
         help: Option<String>,
@@ -150,6 +160,7 @@ impl<T> TomlValue<T> {
             state: TomlValueState::ValidationFailed { message },
             span,
             help,
+            context: None,
         }
     }
 
@@ -168,6 +179,7 @@ impl<T> TomlValue<T> {
             },
             span: item.span().unwrap_or(parent_span),
             help: None,
+            context: None,
         }
     }
 
@@ -179,7 +191,51 @@ impl<T> TomlValue<T> {
             state: TomlValueState::Nested,
             span,
             help: None,
+            context: None,
         }
+    }
+
+    /// Set a context annotation on this `TomlValue` and return `self` (builder style).
+    ///
+    /// When this value is in `Nested` state, the annotation is attached to every
+    /// descendant error, pointing at the given `span` with the given `label`.
+    ///
+    /// Use [`TomlValue::with_context`] when you want the annotation to point at
+    /// this value's own span.
+    #[must_use]
+    pub fn with_context_at(mut self, span: Range<usize>, label: impl Into<String>) -> Self {
+        self.context = Some((span, label.into()));
+        self
+    }
+
+    /// Set a context annotation on this `TomlValue` and return `self` (builder style),
+    /// using this value's own span as the annotation location.
+    ///
+    /// When this value is in `Nested` state, the annotation is attached to every
+    /// descendant error, pointing at `self.span`.
+    #[must_use]
+    pub fn with_context(mut self, label: impl Into<String>) -> Self {
+        let span = self.span.clone();
+        self.context = Some((span, label.into()));
+        self
+    }
+
+    /// Set a context annotation on this `TomlValue` in place, using this value's
+    /// own span as the annotation location.
+    ///
+    /// When this value is in `Nested` state, the annotation is attached to every
+    /// descendant error, pointing at `self.span`.
+    pub fn set_context(&mut self, label: impl Into<String>) {
+        let span = self.span.clone();
+        self.context = Some((span, label.into()));
+    }
+
+    /// Set a context annotation on this `TomlValue` in place with an explicit span.
+    ///
+    /// When this value is in `Nested` state, the annotation is attached to every
+    /// descendant error, pointing at `span`.
+    pub fn set_context_at(&mut self, span: Range<usize>, label: impl Into<String>) {
+        self.context = Some((span, label.into()));
     }
 
     /// Convert a `TomlValue<T>` into a `TomlValue<Option<T>`,
@@ -191,24 +247,28 @@ impl<T> TomlValue<T> {
                 state: TomlValueState::Ok,
                 span: self.span,
                 help: self.help,
+                context: self.context,
             },
             TomlValueState::Missing { key: _ } => TomlValue {
                 value: Some(None),
                 state: TomlValueState::Ok,
                 span: self.span,
                 help: None,
+                context: None,
             },
             TomlValueState::Nested => TomlValue {
                 value: Some(self.value),
                 state: TomlValueState::Nested,
                 span: self.span,
                 help: self.help,
+                context: self.context,
             },
             _ => TomlValue {
                 value: None,
                 state: self.state,
                 span: self.span,
                 help: self.help,
+                context: self.context,
             },
         }
     }
@@ -228,6 +288,7 @@ impl<T> TomlValue<T> {
                 state,
                 span: self.span,
                 help: self.help,
+                context: self.context,
             },
         }
     }
@@ -242,6 +303,7 @@ impl<T> TomlValue<T> {
             span: self.span,
             value: self.value.map(map_function),
             help: self.help,
+            context: self.context,
         }
     }
 
@@ -285,6 +347,7 @@ impl<T> TomlValue<T> {
                 state: self.state.clone(),
                 span: self.span.clone(),
                 help: self.help.clone(),
+                context: self.context.clone(),
             },
         }
     }
@@ -299,6 +362,7 @@ impl<T> TomlValue<T> {
                 state: TomlValueState::NotSet,
                 span: 0..0,
                 help: None,
+                context: None,
             },
         )
     }
@@ -479,6 +543,7 @@ impl<T> TomlOr<T> for TomlValue<T> {
                 state: TomlValueState::Ok,
                 span: old.span,
                 help: None,
+                context: None,
             };
         }
     }
@@ -494,6 +559,7 @@ impl<T> TomlOr<T> for TomlValue<T> {
                 state: TomlValueState::Ok,
                 span: old.span,
                 help: None,
+                context: None,
             };
         }
     }
@@ -507,6 +573,7 @@ impl<T> Default for TomlValue<T> {
             state: TomlValueState::NotSet,
             span: 0..0,
             help: None,
+            context: None,
         }
     }
 }

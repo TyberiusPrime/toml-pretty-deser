@@ -143,6 +143,7 @@ where
                 state: TomlValueState::UnknownKeys(helper.unknown_spans()),
                 span: helper.span(),
                 help: None,
+                context: None,
             }
         } else if visitor.can_concrete() {
             TomlValue::new_ok(visitor, helper.span())
@@ -152,6 +153,7 @@ where
                 state: TomlValueState::Nested,
                 span: helper.span(),
                 help: None,
+                context: None,
             }
         }
     }
@@ -167,6 +169,7 @@ where
         match self.state {
             TomlValueState::Ok => {
                 let span = self.span;
+                let context = self.context;
                 let mut maybe_validated =
                     self.value.expect("ok, but no value?").vv_validate(parent);
                 let v = maybe_validated.verify(parent);
@@ -177,24 +180,32 @@ where
                     maybe_validated.needs_further_validation(),
                 ) {
                     (Ok(()), true, _) => TomlValue::new_ok(maybe_validated, span),
-                    (Ok(()), false, false) => TomlValue::new_nested(Some(maybe_validated), span),
+                    (Ok(()), false, false) => TomlValue {
+                        value: Some(maybe_validated),
+                        state: TomlValueState::Nested,
+                        span,
+                        help: None,
+                        context,
+                    },
                     (Ok(()), false, true) => TomlValue {
                         value: Some(maybe_validated),
                         state: TomlValueState::NeedsFurtherValidation,
                         span,
                         help: None,
+                        context,
                     },
                     (Err(ValidationFailure { message, help }), _, _) => TomlValue {
                         state: TomlValueState::ValidationFailed { message },
                         value: Some(maybe_validated),
                         span,
                         help,
+                        context,
                     },
                 }
             }
             TomlValueState::Nested => {
-                let span = self.span.clone();
-                if let Some(value) = self.value {
+                let TomlValue { span, value, context, .. } = self;
+                if let Some(value) = value {
                     let mut maybe_validated = value.vv_validate(parent);
                     let v = maybe_validated.verify(parent);
                     maybe_validated.v_sync_nested_states();
@@ -209,22 +220,31 @@ where
                             state: TomlValueState::Nested,
                             span,
                             help: None,
+                            context,
                         },
                         (Ok(()), false, true) => TomlValue {
                             value: Some(maybe_validated),
                             state: TomlValueState::NeedsFurtherValidation,
                             span,
                             help: None,
+                            context,
                         },
                         (Err(ValidationFailure { message, help }), _, _) => TomlValue {
                             state: TomlValueState::ValidationFailed { message },
                             value: Some(maybe_validated),
                             span,
                             help,
+                            context,
                         },
                     }
                 } else {
-                    self
+                    TomlValue {
+                        value: None,
+                        state: TomlValueState::Nested,
+                        span,
+                        help: None,
+                        context,
+                    }
                 }
             }
             _ => self,
@@ -252,11 +272,13 @@ where
                 )]
             }
             TomlValueState::Nested => {
-                let __ctx = col.push_help_context_opt(self.help.as_deref());
+                let __ctx_help = col.push_help_context_opt(self.help.as_deref());
+                let __ctx_span = col.push_context_opt(self.context.as_ref());
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
                 }
-                col.pop_help_context_to(__ctx);
+                col.pop_context_to(__ctx_span);
+                col.pop_help_context_to(__ctx_help);
                 return;
             }
             TomlValueState::Missing { key } => vec![AnnotatedError::placed(
@@ -289,12 +311,15 @@ where
             TomlValueState::ValidationFailed { message } => {
                 // Also traverse inner value: the struct may have nested parse errors
                 // (e.g. when the element was in Nested state before verify fired).
-                // Push self.help so those child errors inherit it too; pop before
+                // Push self.help/context so those child errors inherit it too; pop before
                 // building our own error (which already carries self.help directly).
                 if let Some(value) = self.value.as_ref() {
-                    let __ctx = col.push_help_context_opt(self.help.as_deref());
+                    let __ctx_help = col.push_help_context_opt(self.help.as_deref());
+                    let __ctx_span =
+                        col.push_context_opt(self.context.as_ref());
                     value.v_register_errors(col);
-                    col.pop_help_context_to(__ctx);
+                    col.pop_context_to(__ctx_span);
+                    col.pop_help_context_to(__ctx_help);
                 }
                 vec![AnnotatedError::placed(
                     self.span.clone(),
@@ -303,12 +328,14 @@ where
                 )]
             }
             TomlValueState::UnknownKeys(unknown_keys) => {
-                // Push self.help so that children (from v_register_errors) inherit it.
-                let __ctx = col.push_help_context_opt(self.help.as_deref());
+                // Push self.help/context so that children (from v_register_errors) inherit them.
+                let __ctx_help = col.push_help_context_opt(self.help.as_deref());
+                let __ctx_span = col.push_context_opt(self.context.as_ref());
                 if let Some(value) = self.value.as_ref() {
                     value.v_register_errors(col);
                 }
-                col.pop_help_context_to(__ctx);
+                col.pop_context_to(__ctx_span);
+                col.pop_help_context_to(__ctx_help);
                 // Build the own unknown-key errors. These use uk.help (not self.help)
                 // so we manually prepend self.help here — the outer loop will then
                 // append the ancestor context on top.
@@ -334,12 +361,15 @@ where
                     .collect()
             }
             TomlValueState::Custom { spans } => {
-                // Push self.help for child errors; pop before building our own error
+                // Push self.help/context for child errors; pop before building our own error
                 // (which already carries self.help directly).
                 if let Some(value) = self.value.as_ref() {
-                    let __ctx = col.push_help_context_opt(self.help.as_deref());
+                    let __ctx_help = col.push_help_context_opt(self.help.as_deref());
+                    let __ctx_span =
+                        col.push_context_opt(self.context.as_ref());
                     value.v_register_errors(col);
-                    col.pop_help_context_to(__ctx);
+                    col.pop_context_to(__ctx_span);
+                    col.pop_help_context_to(__ctx_help);
                 }
                 let mut err = AnnotatedError::placed(
                     spans.iter().next().map_or(&(0..0), |x| &x.0).clone(),

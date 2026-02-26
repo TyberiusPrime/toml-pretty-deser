@@ -40,6 +40,20 @@ impl TomlCollector {
         count
     }
 
+    /// Like `push_context`, but only pushes if `ctx` is `Some`.
+    /// Always returns the count before the call, so `pop_context_to` can restore state safely.
+    #[must_use]
+    pub fn push_context_opt(&self, ctx: Option<&(Range<usize>, String)>) -> usize {
+        let count = self.context_spans.borrow().len();
+        if let Some((span, msg)) = ctx {
+            self.context_spans.borrow_mut().push(SpannedMessage {
+                span: span.clone(),
+                msg: msg.clone(),
+            });
+        }
+        count
+    }
+
     /// Remove context spans back to a specific count (returned by `push_context`).
     pub fn pop_context_to(&self, count: usize) {
         let mut contexts = self.context_spans.borrow_mut();

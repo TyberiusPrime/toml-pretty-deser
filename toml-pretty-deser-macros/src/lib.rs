@@ -1156,6 +1156,7 @@ fn derive_tagged_enum(
                         toml_pretty_deser::TomlValue::new_ok(visitor, helper.span())
                     } else {
                         toml_pretty_deser::TomlValue::new_nested(Some(visitor), helper.span())
+                            .with_context_at(tag_span.clone(), "Involving this enum variant.")
                     }
                 }
             })
@@ -1202,19 +1203,16 @@ fn derive_tagged_enum(
         })
         .collect();
 
-    // v_register_errors match arms: push tag_span context so ALL errors from this
-    // variant (missing, wrong type, unknown key, validation failure, ...) get
-    // "Involving this enum variant." appended automatically.
+    // v_register_errors match arms: context annotation is now carried on the outer
+    // TomlValue (set via .with_context in fill_from_toml), so we just delegate.
     let register_errors_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
-                #partial_name::#ident(toml_value, tag_span) => {
-                    let __ctx = col.push_context(tag_span.clone(), "Involving this enum variant.");
+                #partial_name::#ident(toml_value, _) => {
                     toml_value.register_error(col);
-                    col.pop_context_to(__ctx);
                 }
             }
         })
@@ -1291,6 +1289,7 @@ fn derive_tagged_enum(
                         state: tag_value.state,
                         span: tag_value.span,
                         help: tag_value.help,
+                        context: None,
                     };
                 }
                 let tag = tag_value.value.as_ref().expect("tag value missing after is_ok check");

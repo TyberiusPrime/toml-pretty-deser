@@ -359,6 +359,7 @@ impl Visitor for PartialTaggedEnum {
                 state: tag_value.state,
                 span: tag_value.span,
                 help: tag_value.help,
+                context: None,
             };
         }
         let tag = tag_value.value.as_ref().unwrap();

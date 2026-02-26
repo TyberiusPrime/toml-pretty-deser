@@ -60,6 +60,7 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B>
     {
         let t = self.take();
         let span = t.span;
+        let context = t.context;
         *self = match (t.state, t.value, t.help) {
             (TomlValueState::NeedsFurtherValidation, Some(MustAdapt::PreVerify(v)), _) => {
                 let (b, state) = map_func(v);
@@ -68,6 +69,7 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B>
                     span,
                     value: Some(MustAdapt::PostVerify(b)),
                     help: None,
+                    context,
                 }
             }
             (state, value, help) => TomlValue {
@@ -75,6 +77,7 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> MustAdaptHelper<A, B>
                 span,
                 value,
                 help,
+                context,
             },
         }
     }
@@ -111,6 +114,7 @@ impl<A: std::fmt::Debug, B: std::fmt::Debug> TomlOr<B> for TomlValue<MustAdapt<A
                 state: TomlValueState::Ok,
                 span: old.span,
                 help: None,
+                context: None,
             };
         }
     }
@@ -126,6 +130,7 @@ impl<A: std::fmt::Debug, B: std::fmt::Debug> TomlOr<B> for TomlValue<MustAdapt<A
                 state: TomlValueState::Ok,
                 span: old.span,
                 help: None,
+                context: None,
             };
         }
     }
@@ -140,6 +145,7 @@ impl<A: Visitor, B> TomlOr<B> for TomlValue<MustAdaptNested<A, B>> {
                 state: TomlValueState::Ok,
                 span: old.span,
                 help: None,
+                context: None,
             };
         }
     }
@@ -155,6 +161,7 @@ impl<A: Visitor, B> TomlOr<B> for TomlValue<MustAdaptNested<A, B>> {
                 state: TomlValueState::Ok,
                 span: old.span,
                 help: None,
+                context: None,
             };
         }
     }
@@ -172,6 +179,7 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
             state: t_state,
             value: t_value,
             help: t_help,
+            context: t_context,
         } = t;
         *self = match (t_state, t_value, t_help) {
             (
@@ -187,6 +195,7 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
                         span,
                         value: Some(MustAdaptNested(MustAdapt::PostVerify(b))),
                         help: None,
+                        context: t_context,
                     }
                 } else {
                     // Inner has errors; preserve state so errors propagate via v_register_errors
@@ -195,6 +204,7 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
                         value: Some(MustAdaptNested(MustAdapt::PreVerify(v))),
                         span,
                         help: None,
+                        context: t_context,
                     }
                 }
             }
@@ -203,6 +213,7 @@ impl<A: Visitor, B> MustAdaptHelper<A::Concrete, B> for TomlValue<MustAdaptNeste
                 span,
                 value,
                 help,
+                context: t_context,
             },
         }
     }
