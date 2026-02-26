@@ -247,6 +247,42 @@ where
                     }
                 }
             }
+            TomlValueState::UnknownKeys(unknown_keys) => {
+                // Run verify even when there are unknown keys so that defaults set
+                // in verify (e.g. `.or_with()`, skip fields, adapt_in_verify) are
+                // applied.  The UnknownKeys state is preserved because those errors
+                // are still real; only if verify itself fails do we switch state.
+                let TomlValue { span, value, context, .. } = self;
+                if let Some(value) = value {
+                    let mut maybe_validated = value.vv_validate(parent);
+                    let v = maybe_validated.verify(parent);
+                    maybe_validated.v_sync_nested_states();
+                    match v {
+                        Ok(()) => TomlValue {
+                            value: Some(maybe_validated),
+                            state: TomlValueState::UnknownKeys(unknown_keys),
+                            span,
+                            help: None,
+                            context,
+                        },
+                        Err(ValidationFailure { message, help }) => TomlValue {
+                            state: TomlValueState::ValidationFailed { message },
+                            value: Some(maybe_validated),
+                            span,
+                            help,
+                            context,
+                        },
+                    }
+                } else {
+                    TomlValue {
+                        value: None,
+                        state: TomlValueState::UnknownKeys(unknown_keys),
+                        span,
+                        help: None,
+                        context,
+                    }
+                }
+            }
             _ => self,
         }
     }
