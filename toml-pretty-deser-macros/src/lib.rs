@@ -1152,12 +1152,12 @@ fn derive_tagged_enum(
                     let partial_inner = <#partial_inner as toml_pretty_deser::Visitor>::fill_from_toml(helper);
                     let is_ok = partial_inner.is_ok();
                     let visitor = #partial_name::#ident(partial_inner, tag_span.clone());
-                    if is_ok {
+                    let tv = if is_ok {
                         toml_pretty_deser::TomlValue::new_ok(visitor, helper.span())
                     } else {
                         toml_pretty_deser::TomlValue::new_nested(Some(visitor), helper.span())
-                            .with_context_at(tag_span.clone(), "Involving this enum variant.")
-                    }
+                    };
+                    tv.with_context_at(tag_span.clone(), "Involving this enum variant.")
                 }
             })
         })

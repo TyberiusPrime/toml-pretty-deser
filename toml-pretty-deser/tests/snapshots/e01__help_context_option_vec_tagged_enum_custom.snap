@@ -1,0 +1,18 @@
+---
+source: toml-pretty-deser/tests/e01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+2 │         [[items]]
+3 │         kind = 'Item'
+  ┆                ───┬──
+  ┆                   │
+  ┆                   ╰─── Involving this enum variant.
+4 │         value = 99
+  ┆                 ─┬
+  ┆                  │
+  ┆                  ╰─ Value cannot be 99
+──╯
+Hint: See: https://docs.example.com/items

@@ -1,0 +1,39 @@
+---
+source: toml-pretty-deser/tests/e01.rs
+assertion_line: 417
+expression: pretty
+---
+Error 1/2
+  ╭─test.toml
+1 │
+  ┆ ┬
+  ┆ │
+  ┆ ╰─ Error spans were overlapping so we were unable to process a pretty code block. Spans & messages:
+9..81: In the 'items' list
+35..38: integer (u8), range exceeded
+──╯
+Hint: Use a number between 0 and 255 inclusive.
+
+Error 2/2
+  ╭─test.toml
+2 │           [[items]]
+  ┆           ▲
+  ┆ ╭─────────╯
+3 │ │         value = 999
+  ┆ │
+4 │ │         label = 'first'
+  ┆ │
+5 │ │
+  ┆ │
+6 │ │         [[items]]
+  ┆ │                 ▲
+  ┆ │                 │
+  ┆ ╰─────────────────┴─ In the 'items' list
+  ┆
+7 │         value = 12
+8 │           label = 300
+  ┆                   ─┬─
+  ┆                    │
+  ┆                    ╰── Wrong type: expected string, found integer.
+──╯
+Hint: This value has the wrong type.

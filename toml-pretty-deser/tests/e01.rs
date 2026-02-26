@@ -249,10 +249,30 @@ fn test_custom_state_in_opt_vec_context_propagated() {
 // Help context propagation — Option<Vec<TaggedEnum>>
 // ============================================================================
 
-#[tpd(no_verify)]
+#[tpd]
 #[derive(Debug, PartialEq, Eq)]
 pub struct HcItem {
     value: u8,
+}
+
+impl VerifyIn<PartialHcContainer> for PartialHcItem {
+    fn verify(&mut self, _parent: &PartialHcContainer) -> Result<(), ValidationFailure>
+    where
+        Self: Sized + toml_pretty_deser::Visitor,
+    {
+        if let Some(99) = self.value.as_ref() {
+            self.value.state = TomlValueState::Custom {
+                spans: vec![(self.value.span(), "Value cannot be 99".to_string())],
+            };
+        }
+        if let Some(88) = self.value.as_ref() {
+            return Err(ValidationFailure::new(
+                "Value 88 is forbidden",
+                Some("Use a different number"),
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[tpd(tag = "kind")]
@@ -302,6 +322,76 @@ fn test_help_context_option_vec_tagged_enum() {
         );
     }
 }
+#[test]
+fn test_help_context_option_vec_tagged_enum_custom() {
+    let toml = r#"
+        [[items]]
+        kind = 'Item'
+        value = 99
+    "#;
+
+    let result = HcContainer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+
+    assert!(result.is_err(), "should fail: value has wrong type");
+
+    if let Err(mut e) = result {
+        if let DeserError::DeserFailure(_, ref mut partial) = e {
+            if let Some(root) = partial.value.as_mut() {
+                root.items.set_help("See: https://docs.example.com/items");
+            }
+        }
+
+        let pretty = e.pretty("test.toml");
+        insta::assert_snapshot!(pretty);
+        assert!(
+            pretty.contains("docs.example.com/items"),
+            "expected items help to propagate to child errors, but got:\n{pretty}"
+        );
+    }
+}
+
+/// When `verify()` returns `Err(ValidationFailure)` (ValidationFailed path),
+/// the "Involving this enum variant." context annotation must still appear.
+#[test]
+fn test_help_context_option_vec_tagged_enum_validation_failed() {
+    let toml = r#"
+        [[items]]
+        kind = 'Item'
+        value = 88
+    "#;
+
+    let result = HcContainer::tpd_from_toml(
+        toml,
+        toml_pretty_deser::FieldMatchMode::Exact,
+        toml_pretty_deser::VecMode::Strict,
+    );
+
+    assert!(result.is_err(), "should fail: value 88 is forbidden");
+
+    if let Err(mut e) = result {
+        if let DeserError::DeserFailure(_, ref mut partial) = e {
+            if let Some(root) = partial.value.as_mut() {
+                root.items.set_help("See: https://docs.example.com/items");
+            }
+        }
+
+        let pretty = e.pretty("test.toml");
+        insta::assert_snapshot!(pretty);
+        assert!(
+            pretty.contains("docs.example.com/items"),
+            "expected items help to propagate to child errors, but got:\n{pretty}"
+        );
+        assert!(
+            pretty.contains("Involving this enum variant."),
+            "expected enum context annotation, but got:\n{pretty}"
+        );
+    }
+}
+
 
 //try to expose acontext bug
 //
@@ -361,5 +451,59 @@ fn test_context_bug() {
             assert!(pretty.contains("Involving this enum variant."));
             insta::assert_snapshot!(pretty);
         }
+    }
+}
+
+// ============================================================================
+// Context annotation on Vec<Nested>
+// ============================================================================
+
+#[tpd(no_verify)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct CtxVecItem {
+    value: u8,
+    label: String,
+}
+
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct CtxVecRoot {
+    #[tpd(nested)]
+    items: Vec<CtxVecItem>,
+}
+
+/// `set_context` on a `Vec<Nested>` field attaches a secondary source-span
+/// annotation to every descendant error, pointing at the array.
+/// This demonstrates the generalised context mechanism: any `TomlValue` at any
+/// nesting level can carry a context label — not just tagged enums.
+#[test]
+fn test_context_on_vec_nested() {
+    let toml = r#"
+        [[items]]
+        value = 999
+        label = 'first'
+
+        [[items]]
+        value = 12
+        label = 300
+    "#;
+
+    let result = CtxVecRoot::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    assert!(result.is_err());
+
+    if let Err(mut e) = result {
+        if let DeserError::DeserFailure(_, ref mut partial) = e {
+            if let Some(root) = partial.value.as_mut() {
+                root.items.set_context("In the 'items' list");
+            }
+        }
+        let pretty = e.pretty("test.toml");
+        assert!(
+            pretty.contains("In the 'items' list"),
+            "context annotation must appear as a source span, got:\n{pretty}"
+        );
+        insta::assert_snapshot!(pretty);
     }
 }
