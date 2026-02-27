@@ -98,7 +98,7 @@ impl VerifyIn<TPDRoot> for PartialShowOffTwoValueErrors {
         }
 
         //in place verification, no assignment required
-        self.d.verify(|value| { //the take is necessary
+        self.d.verify(|value| {
             if *value < 50 {
                 Ok(())
             } else {
@@ -130,9 +130,10 @@ let toml = "
 ## Supported types
 
 - 'simple' types: integers, strings, booleans, `std::path::PathBufs`, toml_edit::Items
+- `Option<T>` for optional fields
 - Nested structs (tag struct definition with `#[tpd]` and use with `#[tpd(nested)]`
 - String->simple Enums  (tag enum definition with `#[tpd]`
-- Table->tagged enums with one struct each (`#[tpd(tag="toml-key")]` on enum, `#[tpd]` on inner structs, `#[tpd(nested)]` on fields
+- Table->tagged enums with one struct each (`#[tpd(tag="toml-key")]` on enum, `#[tpd]` on inner structs, `#[tpd(nested)]` on fields; variant inner types may be `Box<T>`)
 - Vectors of the above
 - `IndexMaps<FromString, One-of-the-above>`
 
@@ -171,8 +172,6 @@ This offers:
 
 ## Usage Variations
 
-### 
-
 ### No custom validation
 
 Use `#[tpd(no_verify)]` on your struct, and skip writing a [`VerifyIn`] implementation.
@@ -183,7 +182,7 @@ At times, you want fields that are not present in your TOML
 on your structs. For example, file handles derived from the filenames supplied
 by your user.
 
-You can do this by setting the field to `#[tdp(skip)]`.
+You can do this by setting the field to `#[tpd(skip)]`.
 
 These fields get placed as Option<F> instead of TomlValue<F>
 inside the partial. You can set them in your VerifyIn implementation
@@ -202,10 +201,12 @@ impl VerifyIn<TPDRoot> for PartialWithDefaults {
     fn verify(
         &mut self,
         _parent: &TPDRoot,
-    ) -> Result<(), (String, Option<String>)>
-    self.field = self.field.take().or_default() // equivalent to #[tpd(default)]
-    self.field = self.field.take().or(435) // const value
-    self.field = self.field.take().or_with(|| 435) // closure evaluated
+    ) -> Result<(), ValidationFailure> {
+        self.field = self.field.take().or_default(); // equivalent to #[tpd(default)]
+        self.field = self.field.take().or(435);      // const value
+        self.field = self.field.take().or_with(|| 435); // closure evaluated
+        Ok(())
+    }
 ```
 
 
@@ -253,7 +254,7 @@ enum EitherOne {
 ```
 
 
-`PatrialEither` exposes a method `get_tpd_tag()` to receive the canonical 
+`PartialEitherOne` exposes a method `get_tpd_tag()` to receive the canonical
 string name.
 
 
@@ -262,8 +263,8 @@ string name.
 You can supply alias names on any field using `#[tpd(alias="another-name", alias="yet-another-name")]`.
 This can be repeated.
 
-To allow aliases on a tagged enum's tag field, 
-use `#[tdp(tag="kind", alias="type", alias="tag")]`
+To allow aliases on a tagged enum's tag field,
+use `#[tpd(tag="kind", alias="type", alias="tag")]`
 
 Note the section below on casing for the common case of case- or code-case-insensitivity
 
@@ -343,7 +344,7 @@ pub fn adapt_to_upper_case(input: TomlValue<String>) -> TomlValue<String> {
 
 To enable the deserialization of custom types, implement [`Visitor`] for them.
 
-If they have no inner fields to descend into, 
+If they have no inner fields to descend into,
 you can use the [`impl_visitor`] macro (see below).
 If they do, plesae read the other Visitor implementation.
 
@@ -375,7 +376,7 @@ impl_visitor!(DNA, |helper| {
 
 ### Adapt in VerifyIn
 
-On occasion, you need the parent to really to perform final validation, 
+On occasion, you need the parent to really to perform final validation,
 for example if you wanted to store a lookup into a vec on the parent.
 
 Or you need to adapt into a Wrapped type, like Rc::RefCell
@@ -385,13 +386,13 @@ These field get first deserialized into a `MustAdapt::PreVerify(type)`,
 and you must turn them into `MustAdapt::PostVerify(field_type)` in your VerifyIn
 implementation (or you will receive a `DeserError`).
 
-There is a convenient wrapper fn adapt(|pre_value, span|) for this which only 
+There is a convenient wrapper fn adapt(|pre_value, span|) for this which only
 requires you to return a TomlValue(post_value), not a MustAdapt.
 
 Combining adapt_in_verify and nested is special cased. You do not need (or should)
 specify the pre-verification type, it autodetects the inner most type.
 Since `adapt()` will only call it's callback if the partialT was ok,
-it will be called with a T already, and you only need turn it into 
+it will be called with a T already, and you only need turn it into
 your final output type.
 
 
@@ -444,7 +445,7 @@ impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
 
 ### Verifying Map keys
 
-To enable the verification of map keys, `IndexMaps` get stored into 
+To enable the verification of map keys, `IndexMaps` get stored into
 `MapAndKeys` inside `PartialT`s.
 
 This allows you to verify & fail them in VerifyIn:
@@ -486,7 +487,7 @@ impl VerifyIn<TPDRoot> for PartialMapKeyNotStartsWithA {
 
 By default, non-matching keys are errors.
 
-You can absorb all non-matching keys into a field using 
+You can absorb all non-matching keys into a field using
 `#[tpd(absorb_remaining)]`
 
 Example:
@@ -520,10 +521,112 @@ options.decompress = true
 ```
 
 
+### Skipping enum variants
+
+Both simple string enums and tagged enum variants can be hidden from the
+deserializer with `#[tpd(skip)]` on the variant:
+
+```rust, ignore
+#[tpd]
+enum MyEnum {
+    Enabled,
+    #[tpd(skip)]
+    InternalOnly, // never matched by name; excluded from suggestions
+}
+```
+
+Skipped variants are never matched by name, never appear in "did you mean?"
+suggestions, and are excluded from the generated `PartialTaggedEnum`.  They
+remain in the concrete enum and can be constructed by your own code.
+
+
+### Context annotations
+
+Errors that come from nested containers (structs, Vecs, Maps) are automatically
+propagated, but it can be useful to attach an extra source-location annotation
+so readers know *which* containing element is involved.
+
+`TomlValue` supports this via:
+
+- `set_context(&mut self, label)` — annotates with this value's own span
+- `set_context_at(&mut self, span, label)` — annotates with an explicit span
+- Builder variants: `.with_context(label)` / `.with_context_at(span, label)`
+
+Tagged enums automatically set a context annotation pointing at the tag key
+(`"Involving this enum variant."`) for all descendant errors.
+
+You can use these in your own `VerifyIn` impl to add a breadcrumb whenever a
+value is in `Nested` state:
+
+```rust, ignore
+// In VerifyIn::verify:
+if !self.section.is_ok() {
+    self.section.set_context("Error in this section");
+}
+```
+
+Help text propagates from nested `TomlValue`s: set `tv.help = Some(...)` on
+any `TomlValue` in a non-Ok state and the text appears as a `Hint:` line in
+the error output.
+
+
+### Handling errors and accessing partial results
+
+`T::tpd_from_toml` returns `Result<T, DeserError>`.  On failure, the error is
+one of:
+
+- `DeserError::ParsingFailure` — the TOML source was syntactically invalid;
+  no partial is available.
+- `DeserError::DeserFailure` — deserialization succeeded but validation failed.
+  The partial result (with successfully-parsed fields intact) is available.
+
+```rust, ignore
+match Config::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict) {
+    Ok(cfg) => { /* use cfg */ }
+    Err(ref e @ DeserError::DeserFailure(..)) => {
+        // Pretty-print all errors
+        println!("{}", e.pretty("config.toml"));
+
+        // Iterate individual errors
+        for err in e.get_errors() {
+            println!("{}", err.pretty("config.toml"));
+        }
+
+        // Access the partial — fields that parsed correctly are Some(value)
+        let partial = e.partial().unwrap().value.as_ref().unwrap();
+        println!("name was: {:?}", partial.name.as_ref());
+    }
+    Err(DeserError::ParsingFailure(toml_err, _)) => {
+        eprintln!("TOML syntax error: {toml_err}");
+    }
+}
+```
+
+
+### Amending error messages downstream
+
+Inside `VerifyIn::verify` you have mutable access to every `TomlValue` in the
+partial.  You can add or amend `help` text on any field that is already in an
+error state — for example to add per-plugin documentation links:
+
+```rust, ignore
+fn amend_help<T>(field: &mut TomlValue<T>, extra: &str) {
+    if field.is_ok() { return; }
+    let combined = match field.help.take() {
+        Some(existing) => format!("{existing}\n{extra}"),
+        None => extra.to_string(),
+    };
+    field.help = Some(combined);
+}
+```
+
+(Setting help on non-error-state fields isn't harmful, just superfluous)
+
+
 ### "the trait bound `InnerStruct:Visitor` is not satisfied on T"
 
 You're likely missing the `#[tpd(nested)]` on your field definition,
-the Visitor trait is implemented by `#[tpd]` for the `PartialT` 
+the Visitor trait is implemented by `#[tpd]` for the `PartialT`
 not the `T`
 
 
