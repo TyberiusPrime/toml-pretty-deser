@@ -110,7 +110,19 @@ impl<T> TomlValue<T> {
             context: None,
         }
     }
-
+    /// Create a new `TomlValue` in the Ok state with the given value 
+    /// placed at 0..0 - for when you're extending things and don't have a good place 
+    /// to tie them to
+    #[must_use]
+    pub fn new_ok_unplaced(value: T) -> Self {
+        Self {
+            value: Some(value),
+            state: TomlValueState::Ok,
+            span: 0..0,
+            help: None,
+            context: None,
+        }
+    }
     /// Create a new custom `TomlValue` error with one or multiple spans
     /// for errors that don't fit the framework
     ///
