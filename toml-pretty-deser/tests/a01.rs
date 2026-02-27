@@ -10,7 +10,7 @@ use indexmap::IndexMap;
 use toml_pretty_deser::prelude::MustAdaptHelper;
 use toml_pretty_deser::{
     DeserError, FailableKeys, FieldMatchMode, TomlOr, TomlValue, TomlValueState, ValidationFailure,
-    VecMode, VerifyIn, impl_visitor_for_from_str, impl_visitor_for_try_from_str,
+    VecMode, VerifyIn, VerifyOptions, impl_visitor_for_from_str, impl_visitor_for_try_from_str,
 };
 //library code
 //
@@ -66,7 +66,7 @@ pub struct NestedStruct {
 }
 
 impl VerifyIn<PartialOuter> for PartialNestedStruct {
-    fn verify(&mut self, parent: &PartialOuter) -> Result<(), ValidationFailure> {
+    fn verify(&mut self, parent: &PartialOuter, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
         if let Some(value) = self.other_u8.as_mut()
             && let Some(parent_value) = parent.a_u8.value
         {
@@ -160,7 +160,7 @@ pub struct OtherOuter {
     pub nested_struct: NestedStruct,
 }
 impl VerifyIn<PartialOtherOuter> for PartialNestedStruct {
-    fn verify(&mut self, _parent: &PartialOtherOuter) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &PartialOtherOuter, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1092,7 +1092,7 @@ pub struct WithDefaults {
 }
 
 impl VerifyIn<TPDRoot> for PartialWithDefaults {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1485,7 +1485,7 @@ toml_pretty_deser::impl_visitor!(FailString, false, |helper| {
 });
 
 impl VerifyIn<PartialMapTestValidationFailure> for FailString {
-    fn verify(&mut self, _parent: &PartialMapTestValidationFailure) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &PartialMapTestValidationFailure, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1531,7 +1531,7 @@ pub struct UnitField {
 }
 
 impl VerifyIn<TPDRoot> for PartialUnitField {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1616,7 +1616,7 @@ fn test_nested_unit_field() {
 impl VerifyIn<TPDRoot> for PartialNestedUnitField {}
 
 impl VerifyIn<PartialNestedUnitField> for PartialUnitField {
-    fn verify(&mut self, _parent: &PartialNestedUnitField) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &PartialNestedUnitField, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1646,7 +1646,7 @@ pub struct AdaptInVerify {
 }
 
 impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -1715,7 +1715,7 @@ pub struct MapKeyNotStartsWithA {
 }
 
 impl VerifyIn<TPDRoot> for PartialMapKeyNotStartsWithA {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {

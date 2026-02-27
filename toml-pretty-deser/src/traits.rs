@@ -1,7 +1,15 @@
+use crate::case::FieldMatchMode;
 use crate::collector::TomlCollector;
 use crate::error::{AnnotatedError, SpannedMessage};
 use crate::table_helper::TomlHelper;
 use crate::value::{TomlValue, TomlValueState};
+
+/// Options passed to [`VerifyIn::verify`] on every validation call.
+///
+/// Contains deserialization settings that may be useful during verification.
+pub struct VerifyOptions {
+    pub field_match_mode: FieldMatchMode,
+}
 
 /// The error type for `VerifyIn.verify()`
 pub struct ValidationFailure {
@@ -45,7 +53,11 @@ pub trait VerifyIn<Parent> {
     /// # Errors
     /// When the developer wants to replace this value with
     /// a `TomlValue` in failed verification state.
-    fn verify(&mut self, parent: &Parent) -> Result<(), ValidationFailure>
+    fn verify(
+        &mut self,
+        parent: &Parent,
+        options: &VerifyOptions,
+    ) -> Result<(), ValidationFailure>
     where
         Self: Sized + Visitor,
     {
@@ -100,7 +112,7 @@ pub trait Visitor: Sized {
 pub trait VerifyVisitor<Parent> {
     #[allow(unused_variables)]
     #[must_use]
-    fn vv_validate(self, parent: &Parent) -> Self
+    fn vv_validate(self, parent: &Parent, options: &VerifyOptions) -> Self
     where
         Self: Sized + Visitor,
     {
@@ -108,14 +120,12 @@ pub trait VerifyVisitor<Parent> {
     }
 }
 
-/// The struct passed to top-level [`VerifyIn`] calls (i.e. when the struct is
-/// the root of the deserialization, decorated with `#[tpd(root)]`).
+/// The struct passed as `parent` to top-level [`VerifyIn`] calls (i.e. when the
+/// struct is the root of the deserialization, decorated with `#[tpd(root)]`).
 ///
-/// Access `parent.field_match_mode` in your `verify` implementation to inspect
-/// which [`crate::FieldMatchMode`] was used for this deserialization pass.
-pub struct TPDRoot {
-    pub tpd_field_match_mode: crate::case::FieldMatchMode,
-}
+/// To inspect deserialization settings, use the `options` parameter of
+/// [`VerifyIn::verify`] instead.
+pub struct TPDRoot;
 
 /// methods powering the `toml-pretty-deser-macros` crate's `#[tpd]` struct implementations.
 impl<T> TomlValue<T>
@@ -167,7 +177,7 @@ where
     ///
     /// When ok -> value present invariant is violated
     #[must_use]
-    pub fn tpd_validate<R>(self, parent: &R) -> TomlValue<T>
+    pub fn tpd_validate<R>(self, parent: &R, options: &VerifyOptions) -> TomlValue<T>
     where
         T: Visitor + VerifyVisitor<R> + VerifyIn<R>,
     {
@@ -176,8 +186,8 @@ where
                 let span = self.span;
                 let context = self.context;
                 let mut maybe_validated =
-                    self.value.expect("ok, but no value?").vv_validate(parent);
-                let v = maybe_validated.verify(parent);
+                    self.value.expect("ok, but no value?").vv_validate(parent, options);
+                let v = maybe_validated.verify(parent, options);
                 maybe_validated.v_sync_nested_states();
                 match (
                     v,
@@ -211,8 +221,8 @@ where
             TomlValueState::Nested => {
                 let TomlValue { span, value, context, .. } = self;
                 if let Some(value) = value {
-                    let mut maybe_validated = value.vv_validate(parent);
-                    let v = maybe_validated.verify(parent);
+                    let mut maybe_validated = value.vv_validate(parent, options);
+                    let v = maybe_validated.verify(parent, options);
                     maybe_validated.v_sync_nested_states();
                     match (
                         v,
@@ -259,8 +269,8 @@ where
                 // are still real; only if verify itself fails do we switch state.
                 let TomlValue { span, value, context, .. } = self;
                 if let Some(value) = value {
-                    let mut maybe_validated = value.vv_validate(parent);
-                    let v = maybe_validated.verify(parent);
+                    let mut maybe_validated = value.vv_validate(parent, options);
+                    let v = maybe_validated.verify(parent, options);
                     maybe_validated.v_sync_nested_states();
                     match v {
                         Ok(()) => TomlValue {

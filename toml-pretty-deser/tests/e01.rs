@@ -256,7 +256,7 @@ pub struct HcItem {
 }
 
 impl VerifyIn<PartialHcContainer> for PartialHcItem {
-    fn verify(&mut self, _parent: &PartialHcContainer) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &PartialHcContainer, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -414,7 +414,7 @@ pub struct Outer {
 }
 
 impl VerifyIn<TPDRoot> for PartialOuter {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {

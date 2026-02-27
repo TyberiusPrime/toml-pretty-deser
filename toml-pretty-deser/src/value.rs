@@ -418,7 +418,7 @@ impl<T> TomlValue<T> {
             _ => None,
         }
     }
-    /// Get a reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
+    /// Get a reference to the inner value iff this `TomlValue` is in the Ok state, otherwise panic.
     pub fn unwrap_ref(&self) -> &T {
         match self.state {
             TomlValueState::Ok => self
@@ -429,7 +429,7 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
+    /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state, otherwise panic.
     pub fn unwrap_mut(&mut self) -> &mut T {
         match self.state {
             TomlValueState::Ok => self

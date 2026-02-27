@@ -26,7 +26,7 @@ struct Config {
 }
 
 impl VerifyIn<TPDRoot> for PartialConfig {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure> {
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
         // adapt_in_verify (bare): receives toml_edit::Item
         self.name_length.adapt(|item| {
             let found = item.type_name();
@@ -75,7 +75,7 @@ struct SharedConfig {
 }
 
 impl VerifyIn<TPDRoot> for PartialSharedConfig {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure> {
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
         // Nested adapt: receives the concrete InnerData (already converted from partial)
         self.shared_data
             .adapt(|inner| (Rc::new(RefCell::new(inner)), TomlValueState::Ok));

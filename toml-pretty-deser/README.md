@@ -73,6 +73,7 @@ impl VerifyIn<TPDRoot> for PartialShowOffTwoValueErrors {
     fn verify(
         &mut self,
         parent: &TPDRoot,
+        _options: &VerifyOptions,
     ) -> Result<(), ValidationFailure>
     where
         Self: Sized,
@@ -201,6 +202,7 @@ impl VerifyIn<TPDRoot> for PartialWithDefaults {
     fn verify(
         &mut self,
         _parent: &TPDRoot,
+        _options: &VerifyOptions,
     ) -> Result<(), ValidationFailure> {
         self.field = self.field.take().or_default(); // equivalent to #[tpd(default)]
         self.field = self.field.take().or(435);      // const value
@@ -278,31 +280,29 @@ code-case-insensitive (allowing '`snake_case`', 'camelCase', 'kebab-case', etc. 
 
 ### Accessing the field match mode in verify
 
-Every generated `PartialT` struct includes a `pub tpd_field_match_mode: FieldMatchMode` field
-that is automatically set to the match mode used during deserialization.
-`TPDRoot` (the parent type for top-level structs) likewise exposes `field_match_mode`.
+The `options` parameter passed to every [`VerifyIn::verify`] call contains a
+`field_match_mode: FieldMatchMode` field reflecting the mode used during
+deserialization.
 
-You can read either of these in your [`VerifyIn`] implementation to make mode-aware validation decisions:
+You can read it in any [`VerifyIn`] implementation to make mode-aware validation decisions:
 
 ```rust, ignore
-// For a nested struct: read from self
 impl VerifyIn<PartialOuter> for PartialMyStruct {
-    fn verify(&mut self, _parent: &PartialOuter) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &PartialOuter, options: &VerifyOptions) -> Result<(), ValidationFailure>
     where Self: Sized + Visitor
     {
-        if self.tpd_field_match_mode == FieldMatchMode::Exact {
+        if options.field_match_mode == FieldMatchMode::Exact {
             // stricter checks when exact matching is required
         }
         Ok(())
     }
 }
 
-// For a root struct: read from parent (TPDRoot)
 impl VerifyIn<TPDRoot> for PartialMyRoot {
-    fn verify(&mut self, parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, options: &VerifyOptions) -> Result<(), ValidationFailure>
     where Self: Sized + Visitor
     {
-        if parent.tpd_field_match_mode == FieldMatchMode::AnyCase {
+        if options.field_match_mode == FieldMatchMode::AnyCase {
             // relaxed checks when case-insensitive matching is in use
         }
         Ok(())
@@ -422,7 +422,7 @@ struct Nested {
 }
 
 impl VerifyIn<TPDRoot> for PartialAdaptInVerify {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -461,7 +461,7 @@ pub struct MapKeyNotStartsWithA {
 }
 
 impl VerifyIn<TPDRoot> for PartialMapKeyNotStartsWithA {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {

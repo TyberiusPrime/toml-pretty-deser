@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 
 use crate::{
     AsTableLikePlus, MapAndKeys, MustAdapt, MustAdaptNested, TomlCollector, TomlHelper, TomlValue,
-    TomlValueState, ValidationFailure, VerifyIn, VerifyVisitor, Visitor,
+    TomlValueState, ValidationFailure, VerifyIn, VerifyOptions, VerifyVisitor, Visitor,
 };
 
 #[macro_export]
@@ -195,9 +195,9 @@ impl<T: Visitor> Visitor for Option<T> {
 }
 
 impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Option<T> {
-    fn vv_validate(self, parent: &R) -> Self {
+    fn vv_validate(self, parent: &R, options: &VerifyOptions) -> Self {
         match self {
-            Some(v) => Some(v.vv_validate(parent)),
+            Some(v) => Some(v.vv_validate(parent, options)),
             None => None,
         }
     }
@@ -228,26 +228,34 @@ impl<T: Visitor> Visitor for Box<T> {
     }
 }
 impl<R, T: Visitor + VerifyVisitor<R>> VerifyVisitor<R> for Box<T> {
-    fn vv_validate(self, parent: &R) -> Self {
-        Box::new((*self).vv_validate(parent))
+    fn vv_validate(self, parent: &R, options: &VerifyOptions) -> Self {
+        Box::new((*self).vv_validate(parent, options))
     }
 }
 impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R> for Box<T> {
-    fn verify(&mut self, parent: &R) -> Result<(), crate::ValidationFailure>
+    fn verify(
+        &mut self,
+        parent: &R,
+        options: &VerifyOptions,
+    ) -> Result<(), crate::ValidationFailure>
     where
         Self: Sized + Visitor,
     {
-        self.as_mut().verify(parent)
+        self.as_mut().verify(parent, options)
     }
 }
 
 impl<R, T: VerifyIn<R> + Visitor> VerifyIn<R> for Option<T> {
-    fn verify(&mut self, parent: &R) -> Result<(), crate::ValidationFailure>
+    fn verify(
+        &mut self,
+        parent: &R,
+        options: &VerifyOptions,
+    ) -> Result<(), crate::ValidationFailure>
     where
         Self: Sized + Visitor,
     {
         if let Some(inner) = self {
-            inner.verify(parent)?;
+            inner.verify(parent, options)?;
         }
         Ok(())
     }
@@ -333,13 +341,13 @@ impl<T: Visitor> Visitor for Vec<TomlValue<T>> {
 }
 
 impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R> for Vec<TomlValue<T>> {
-    fn vv_validate(self, parent: &R) -> Self
+    fn vv_validate(self, parent: &R, options: &VerifyOptions) -> Self
     where
         Self: Sized + Visitor,
     {
         let v: Vec<TomlValue<T>> = self
             .into_iter()
-            .map(|entry| entry.tpd_validate(parent))
+            .map(|entry| entry.tpd_validate(parent, options))
             .collect();
         v
     }
@@ -414,19 +422,19 @@ where
 impl<K: std::hash::Hash + Eq, R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R>
     for MapAndKeys<K, T>
 {
-    fn vv_validate(self, parent: &R) -> Self
+    fn vv_validate(self, parent: &R, options: &VerifyOptions) -> Self
     where
         Self: Sized + Visitor,
     {
         let map: IndexMap<K, TomlValue<T>> = self
             .map
             .into_iter()
-            .map(|(k, v)| (k, v.tpd_validate(parent)))
+            .map(|(k, v)| (k, v.tpd_validate(parent, options)))
             .collect();
         let keys = self
             .keys
             .into_iter()
-            .map(|k| k.tpd_validate(parent))
+            .map(|k| k.tpd_validate(parent, options))
             .collect();
         MapAndKeys { map, keys }
     }
@@ -474,9 +482,9 @@ impl<A: Visitor + std::fmt::Debug, B: std::fmt::Debug> Visitor for MustAdapt<A, 
 impl<R, A: Visitor + std::fmt::Debug + VerifyVisitor<R>, B: std::fmt::Debug> VerifyVisitor<R>
     for MustAdapt<A, B>
 {
-    fn vv_validate(self, parent: &R) -> Self {
+    fn vv_validate(self, parent: &R, options: &VerifyOptions) -> Self {
         let res = match self {
-            MustAdapt::PreVerify(v) => MustAdapt::PreVerify(v.vv_validate(parent)),
+            MustAdapt::PreVerify(v) => MustAdapt::PreVerify(v.vv_validate(parent, options)),
             MustAdapt::PostVerify(_) => unreachable!(),
         };
         res
@@ -486,12 +494,16 @@ impl<R, A: Visitor + std::fmt::Debug + VerifyVisitor<R>, B: std::fmt::Debug> Ver
 impl<R, A: Visitor + std::fmt::Debug + VerifyIn<R>, B: std::fmt::Debug> VerifyIn<R>
     for MustAdapt<A, B>
 {
-    fn verify(&mut self, parent: &R) -> Result<(), ValidationFailure>
+    fn verify(
+        &mut self,
+        parent: &R,
+        options: &VerifyOptions,
+    ) -> Result<(), ValidationFailure>
     where
         Self: Sized + Visitor,
     {
         match self {
-            MustAdapt::PreVerify(v) => v.verify(parent),
+            MustAdapt::PreVerify(v) => v.verify(parent, options),
             MustAdapt::PostVerify(_) => unreachable!(),
         }
     }
@@ -528,9 +540,9 @@ impl<A: Visitor, B> Visitor for MustAdaptNested<A, B> {
 }
 
 impl<R, A: Visitor + VerifyVisitor<R>, B> VerifyVisitor<R> for MustAdaptNested<A, B> {
-    fn vv_validate(self, parent: &R) -> Self {
+    fn vv_validate(self, parent: &R, options: &VerifyOptions) -> Self {
         let inner = match self.0 {
-            MustAdapt::PreVerify(v) => MustAdapt::PreVerify(v.vv_validate(parent)),
+            MustAdapt::PreVerify(v) => MustAdapt::PreVerify(v.vv_validate(parent, options)),
             MustAdapt::PostVerify(_) => unreachable!(),
         };
         MustAdaptNested(inner)
@@ -538,12 +550,16 @@ impl<R, A: Visitor + VerifyVisitor<R>, B> VerifyVisitor<R> for MustAdaptNested<A
 }
 
 impl<R, A: Visitor + VerifyIn<R>, B> VerifyIn<R> for MustAdaptNested<A, B> {
-    fn verify(&mut self, parent: &R) -> Result<(), ValidationFailure>
+    fn verify(
+        &mut self,
+        parent: &R,
+        options: &VerifyOptions,
+    ) -> Result<(), ValidationFailure>
     where
         Self: Sized + Visitor,
     {
         match &mut self.0 {
-            MustAdapt::PreVerify(v) => v.verify(parent),
+            MustAdapt::PreVerify(v) => v.verify(parent, options),
             MustAdapt::PostVerify(_) => unreachable!(),
         }
     }

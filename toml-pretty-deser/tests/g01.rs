@@ -27,7 +27,7 @@ pub struct BarcodeConfig {
 }
 
 impl VerifyIn<TPDRoot> for PartialBarcodeConfig {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {

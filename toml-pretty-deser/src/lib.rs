@@ -22,5 +22,5 @@ pub use error::{AnnotatedError, DeserError, HydratedAnnotatedError, SpannedMessa
 pub use map_and_keys::{FailableKeys, MapAndKeys};
 pub use table_helper::TomlHelper;
 pub use tablelike::{AsTableLikePlus, TableLikePlus};
-pub use traits::{TPDRoot, ValidationFailure, VerifyIn, VerifyVisitor, Visitor};
+pub use traits::{TPDRoot, ValidationFailure, VerifyIn, VerifyOptions, VerifyVisitor, Visitor};
 pub use value::{TomlOr, TomlValue, TomlValueState, UnknownKey, VecMode};

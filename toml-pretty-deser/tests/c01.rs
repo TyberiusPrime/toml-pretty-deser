@@ -98,7 +98,7 @@ struct OuterWithRc {
 impl VerifyIn<PartialOuterWithRc> for PartialOuter {}
 
 impl VerifyIn<TPDRoot> for PartialOuterWithRc {
-    fn verify(&mut self, _parent: &TPDRoot) -> Result<(), ValidationFailure>
+    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
@@ -315,7 +315,7 @@ mod test_option_nested {
     impl VerifyIn<TPDRoot> for PartialOuter {}
 
     impl VerifyIn<PartialOuter> for PartialInner {
-        fn verify(&mut self, _parent: &PartialOuter) -> Result<(), ValidationFailure>
+        fn verify(&mut self, _parent: &PartialOuter, _options: &VerifyOptions) -> Result<(), ValidationFailure>
         where
             Self: Sized + toml_pretty_deser::Visitor,
         {
@@ -495,7 +495,7 @@ mod test_option_vec_nested_verify {
     impl VerifyIn<TPDRoot> for PartialContainer {}
 
     impl VerifyIn<PartialContainer> for PartialItem {
-        fn verify(&mut self, _parent: &PartialContainer) -> Result<(), ValidationFailure> {
+        fn verify(&mut self, _parent: &PartialContainer, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
             // Use `return Err` directly (not field-state marking) so the Result from verify()
             // is the only way the error can propagate.
             if let Some(v) = self.val.as_ref() {

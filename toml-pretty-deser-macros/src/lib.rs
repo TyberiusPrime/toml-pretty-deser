@@ -801,7 +801,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
         .filter(|f| !f.attrs.skip && !is_unit_type(&f.kind) && f.attrs.with_fn.is_none())
         .map(|f| {
             let ident = &f.ident;
-            quote! { self.#ident = self.#ident.take().tpd_validate(&self); }
+            quote! { self.#ident = self.#ident.take().tpd_validate(&self, options); }
         })
         .collect();
 
@@ -848,7 +848,6 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
         #[derive(Default, Debug)]
         #vis struct #partial_name {
             #(#partial_fields,)*
-            pub tpd_field_match_mode: toml_pretty_deser::FieldMatchMode,
         }
 
         impl #partial_name {
@@ -861,7 +860,6 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             fn fill_from_toml(helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Self> {
                 #is_table_check
                 let mut partial = Self::default();
-                partial.tpd_field_match_mode = helper.col.match_mode;
                 #(#regular_fill_stmts)*
                 #(#absorb_fill_stmts)*
                 toml_pretty_deser::TomlValue::from_visitor(partial, helper)
@@ -887,7 +885,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
         }
 
         impl<__TpdR> toml_pretty_deser::VerifyVisitor<__TpdR> for #partial_name {
-            fn vv_validate(mut self, _parent: &__TpdR) -> Self
+            fn vv_validate(mut self, _parent: &__TpdR, options: &toml_pretty_deser::VerifyOptions) -> Self
             where
                 Self: Sized + toml_pretty_deser::Visitor,
             {
@@ -1240,7 +1238,7 @@ fn derive_tagged_enum(
             let ident = &v.ident;
             quote! {
                 #partial_name::#ident(toml_value, _) => {
-                    *toml_value = toml_value.take().tpd_validate(parent);
+                    *toml_value = toml_value.take().tpd_validate(parent, options);
                 }
             }
         })
@@ -1342,7 +1340,7 @@ fn derive_tagged_enum(
         where
             #(#verify_in_where_clauses,)*
         {
-            fn vv_validate(mut self, parent: &__TpdX) -> Self
+            fn vv_validate(mut self, parent: &__TpdX, options: &toml_pretty_deser::VerifyOptions) -> Self
             where
                 Self: Sized + toml_pretty_deser::Visitor,
             {
