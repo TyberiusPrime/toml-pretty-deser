@@ -643,7 +643,25 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                         format!("#[tpd(with)] value `{with_fn}` is not a valid Rust path"),
                     )
                 })?;
-                if is_option {
+                let is_option_vec = matches!(&f.kind, TypeKind::Optional(inner) if matches!(inner.as_ref(), TypeKind::Vector(_)));
+                let is_option_map = matches!(&f.kind, TypeKind::Optional(inner) if matches!(inner.as_ref(), TypeKind::Map(_, _)));
+                if is_option_vec {
+                    // For Option<Vec<T>> fields: the with-func sees T (element type).
+                    // get_vec_with_adapter handles per-element adaptation; into_optional promotes Missing to Ok(None).
+                    Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
+                            helper.get_vec_with_adapter(#field_name_str, #aliases_expr, #with_fn_ident).into_optional()
+                        }
+                    })
+                } else if is_option_map {
+                    // For Option<IndexMap<K, V>> fields: the with-func sees V (map value type).
+                    // get_map_with_adapter handles per-value adaptation; into_optional promotes Missing to Ok(None).
+                    Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<#inner_ty> {
+                            helper.get_map_with_adapter(#field_name_str, #aliases_expr, #with_fn_ident).into_optional()
+                        }
+                    })
+                } else if is_option {
                     // For Option<T> fields: the with-func sees T (not Option<T>).
                     // We call into_optional() on the result so the field stays Option<T>.
                     Ok(quote! {
@@ -765,6 +783,14 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                 quote! { #ident: () }
             } else if f.attrs.adapt_in_verify.is_some() {
                 quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false").into_concrete() }
+            } else if f.attrs.with_fn.is_some() && matches!(&f.kind, TypeKind::Optional(inner) if matches!(inner.as_ref(), TypeKind::Vector(_))) {
+                // with + Option<Vec>: unwrap option, then collect each adapted element.
+                quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false")
+                    .map(|vec| vec.into_iter().map(|v| v.value.expect("inner value missing after with adapter")).collect()) }
+            } else if f.attrs.with_fn.is_some() && matches!(&f.kind, TypeKind::Optional(inner) if matches!(inner.as_ref(), TypeKind::Map(_, _))) {
+                // with + Option<IndexMap>: unwrap option, then collect each adapted value.
+                quote! { #ident: self.#ident.value.expect("into concrete when can_concrete returned false")
+                    .map(|m| m.map.into_iter().map(|(k, v)| (k, v.value.expect("inner value missing after with adapter"))).collect()) }
             } else if f.attrs.with_fn.is_some() && matches!(&f.kind, TypeKind::Vector(_)) {
                 // with + Vec: inner values are already the concrete type (adapter produced them),
                 // so just unwrap each TomlValue without calling into_concrete (which requires Visitor).
