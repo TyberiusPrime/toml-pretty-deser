@@ -1,0 +1,26 @@
+---
+source: toml-pretty-deser/tests/g01.rs
+expression: "e.pretty(\"test.toml\")"
+---
+Error 1/2
+  ╭─test.toml
+  ┆
+2 │ [barcodes]
+3 │ foo = 1
+  ┆ ─┬─
+  ┆  │
+  ┆  ╰────── This key is not allowed
+──╯
+Hint: All keys are forbidden in this test
+
+Error 2/2
+  ╭─test.toml
+  ┆
+2 │ [barcodes]
+3 │ foo = 1
+4 │ bar = 2
+  ┆ ─┬─
+  ┆  │
+  ┆  ╰────── This key is not allowed
+──╯
+Hint: All keys are forbidden in this test
