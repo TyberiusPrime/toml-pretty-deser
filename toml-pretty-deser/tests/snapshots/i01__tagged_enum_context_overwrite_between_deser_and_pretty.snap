@@ -1,0 +1,19 @@
+---
+source: toml-pretty-deser/tests/i01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+6 │         [[transform]]
+7 │         kind = "Resize"
+  ┆                ────┬───
+  ┆                    │
+  ┆                    ╰──── In this step
+8 │         width = "not-a-number"
+  ┆                 ───────┬──────
+  ┆                        │
+  ┆                        ╰─────── Wrong type: expected u32, found string.
+──╯
+Hint: This value has the wrong type.
+      See https://docs.example.com/steps/Resize
