@@ -536,8 +536,8 @@ enum MyEnum {
 ```
 
 Skipped variants are never matched by name, never appear in "did you mean?"
-suggestions, and are excluded from the generated `PartialTaggedEnum`.  They
-remain in the concrete enum and can be constructed by your own code.
+suggestions, but are included in the generated `PartialTaggedEnum`.  They
+therefore can still be constructed in VerifyIn code.
 
 
 ### Context annotations

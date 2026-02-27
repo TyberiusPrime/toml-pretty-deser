@@ -76,7 +76,7 @@ impl TomlValueState {
 /// attempted to deserialize. Eventually.
 ///
 /// The main component of `PartialT`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TomlValue<T> {
     /// Was this value deserialized successfully,
     /// and if not, why not

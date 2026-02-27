@@ -2,7 +2,7 @@ use crate::traits::Visitor;
 use crate::value::{TomlOr, TomlValue, TomlValueState};
 
 /// Wrapper type for #[tdp(adapt_in_verify)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MustAdapt<A, B> {
     PreVerify(A),
     PostVerify(B),

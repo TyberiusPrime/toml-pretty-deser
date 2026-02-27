@@ -760,7 +760,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                 quote! { #ident: self.#ident.unwrap_or_default() }
             }
             else if f.attrs.skip {
-                { let msg = format!("Expected {} to have been set in VerifyIn", ident); quote! { #ident: self.#ident.expect(#msg) } }
+                { let msg = format!("Expected field `{}` to have been set in VerifyIn", ident); quote! { #ident: self.#ident.expect(#msg) } }
             } else if is_unit_type(&f.kind) {
                 quote! { #ident: () }
             } else if f.attrs.adapt_in_verify.is_some() {
@@ -1111,9 +1111,10 @@ fn derive_tagged_enum(
 
     // Generate PartialTaggedEnum variants: Variant(TomlValue<PartialInner>, Range<usize>)
     // The Range<usize> stores the tag value span for use in error reporting.
+    // Skipped variants ARE included in the Partial so they can be set in Verify,
+    // but they are excluded from fill_from_toml so they cannot be derived from TOML.
     let partial_variants: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| -> syn::Result<TokenStream2> {
             let ident = &v.ident;
             let partial_inner = partial_type_path(&v.inner_type)?;
@@ -1166,7 +1167,6 @@ fn derive_tagged_enum(
     // can_concrete match arms
     let can_concrete_arms: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -1178,7 +1178,6 @@ fn derive_tagged_enum(
     // v_sync_nested_states match arms: sync each variant's inner TomlValue
     let sync_arms: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -1192,7 +1191,6 @@ fn derive_tagged_enum(
     // include the "Involving this enum variant." annotation.
     let context_spans_arms: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -1207,7 +1205,6 @@ fn derive_tagged_enum(
     // TomlValue (set via .with_context in fill_from_toml), so we just delegate.
     let register_errors_arms: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -1221,7 +1218,6 @@ fn derive_tagged_enum(
     // into_concrete match arms
     let into_concrete_arms: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -1233,7 +1229,6 @@ fn derive_tagged_enum(
     // vv_validate match arms
     let vv_validate_arms: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             quote! {
@@ -1247,17 +1242,15 @@ fn derive_tagged_enum(
     // where clauses: each variant's partial inner type must implement VerifyIn<__TpdX>
     let verify_in_where_clauses: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| -> syn::Result<TokenStream2> {
             let partial_inner = partial_type_path(&v.inner_type)?;
             Ok(quote! { #partial_inner: toml_pretty_deser::VerifyIn<__TpdX> })
         })
         .collect::<syn::Result<Vec<_>>>()?;
 
-    // tpd_get_tag match arms: non-skipped variants only (partial doesn't have skipped variants)
+    // tpd_get_tag match arms: all variants including skipped (all are in the Partial)
     let get_tag_arms: Vec<TokenStream2> = variant_infos
         .iter()
-        .filter(|v| !v.attrs.skip)
         .map(|v| {
             let ident = &v.ident;
             let ident_str = ident.to_string();
