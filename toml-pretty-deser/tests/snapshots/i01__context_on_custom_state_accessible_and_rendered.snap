@@ -1,0 +1,13 @@
+---
+source: toml-pretty-deser/tests/i01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+1 │
+  ┆ ┬
+  ┆ │
+  ┆ ╰─ Error spans were overlapping so we were unable to process a pretty code block. Spans & messages:
+9..55: items list failed validation
+9..55: Validation triggered at items
+──╯

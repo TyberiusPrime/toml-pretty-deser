@@ -1,6 +1,5 @@
 ---
 source: toml-pretty-deser/tests/i01.rs
-assertion_line: 284
 expression: pretty
 ---
 Error 1/1
@@ -8,8 +7,12 @@ Error 1/1
   ┆
 6 │         [[transform]]
 7 │         kind = "Resize"
+  ┆                ────┬───
+  ┆                    │
+  ┆                    ╰──── In this step!
 8 │         width = 55
   ┆                   ┬
   ┆                   │
   ┆                   ╰─ width cannot be 55
 ──╯
+Hint: See https://docs.example.com/steps/Resize

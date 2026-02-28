@@ -194,7 +194,13 @@ where
                     maybe_validated.can_concrete(),
                     maybe_validated.needs_further_validation(),
                 ) {
-                    (Ok(()), true, _) => TomlValue::new_ok(maybe_validated, span),
+                    (Ok(()), true, _) => TomlValue {
+                        value: Some(maybe_validated),
+                        state: TomlValueState::Ok,
+                        span,
+                        help: None,
+                        context,
+                    },
                     (Ok(()), false, false) => TomlValue {
                         value: Some(maybe_validated),
                         state: TomlValueState::Nested,
@@ -229,7 +235,13 @@ where
                         maybe_validated.can_concrete(),
                         maybe_validated.needs_further_validation(),
                     ) {
-                        (Ok(()), true, _) => TomlValue::new_ok(maybe_validated, span),
+                        (Ok(()), true, _) => TomlValue {
+                            value: Some(maybe_validated),
+                            state: TomlValueState::Ok,
+                            span,
+                            help: None,
+                            context,
+                        },
                         (Ok(()), false, false) => TomlValue {
                             value: Some(maybe_validated),
                             state: TomlValueState::Nested,
@@ -433,11 +445,15 @@ where
                 for (span, msg) in spans.iter().skip(1) {
                     err.add_span(span.clone(), msg);
                 }
-                // Include variant context from the inner value (e.g. tagged enum's
-                // "Involving this enum variant." span) that v_register_errors would
-                // push as a child-error context but is lost when the error sits on
-                // the TomlValue<TaggedEnum> itself rather than on its inner fields.
-                if let Some(value) = self.value.as_ref() {
+                // Add a secondary span annotation from either self.context (caller-set,
+                // takes priority) or the inner value's v_context_spans (canonical
+                // variant context, e.g. "Involving this enum variant." for tagged
+                // enums).  Preferring self.context lets callers replace the default
+                // annotation by simply overwriting context.1 between receiving the
+                // DeserError and calling .pretty().
+                if let Some((ctx_span, ctx_msg)) = &self.context {
+                    err.add_span(ctx_span.clone(), ctx_msg);
+                } else if let Some(value) = self.value.as_ref() {
                     for (span, msg) in value.v_context_spans() {
                         err.add_span(span, &msg);
                     }

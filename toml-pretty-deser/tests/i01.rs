@@ -156,20 +156,37 @@ impl VerifyIn<TPDRoot> for PartialCvPipeline {
     where
         Self: Sized + toml_pretty_deser::Visitor,
     {
-        //set transform to a custom error if width is  55
-        if let Some(transform) = self.transform.value.as_ref() {
-            for tv_step in transform.iter() {
-                if let Some(step) = tv_step.as_ref() {
-                    if let PartialPipelineStep::Resize(resize, _) = step {
-                        if let Some(resize) = resize.as_ref() {
-                            if *resize.width.as_ref().unwrap() == 55 {
-                                self.transform.state = TomlValueState::Custom {
-                                    spans: vec![(tv_step.span(), "width cannot be 55".to_string())],
-                                };
+        // Phase 1: collect (index, span) for elements where width == 55.
+        let bad: Vec<(usize, std::ops::Range<usize>)> = self
+            .transform
+            .value
+            .as_ref()
+            .map(|steps| {
+                steps
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, tv_step)| {
+                        if let Some(step) = tv_step.as_ref() {
+                            if let PartialPipelineStep::Resize(resize, _) = step {
+                                if let Some(resize) = resize.as_ref() {
+                                    if *resize.width.as_ref().unwrap() == 55 {
+                                        return Some((i, tv_step.span()));
+                                    }
+                                }
                             }
                         }
-                    }
-                }
+                        None
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Phase 2: set each bad element's state to Custom directly.
+        if let Some(steps) = self.transform.value.as_mut() {
+            for (i, span) in bad {
+                steps[i].state = TomlValueState::Custom {
+                    spans: vec![(span, "width cannot be 55".to_string())],
+                };
             }
         }
         Ok(())
