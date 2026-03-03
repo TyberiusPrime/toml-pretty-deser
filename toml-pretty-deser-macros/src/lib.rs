@@ -2,6 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::parse::Parser as _;
+use proc_macro2::{Delimiter, Group, Punct, Spacing, TokenTree};
 use syn::{
     Data, DeriveInput, Fields, GenericArgument, Lit, PathArguments, Type, TypePath,
     parse_macro_input,
@@ -53,12 +54,14 @@ pub fn tpd(attr: TokenStream, item: TokenStream) -> TokenStream {
 struct MacroAttrs {
     root: bool,
     no_verify: bool,
+    further_attrs: Vec<TokenStream2>,
 }
 
 fn parse_macro_attrs(attr_ts: TokenStream2) -> syn::Result<MacroAttrs> {
     let mut attrs = MacroAttrs {
         root: false,
         no_verify: false,
+        further_attrs: Vec::new(),
     };
     syn::meta::parser(|meta| {
         if meta.path.is_ident("root") {
@@ -66,6 +69,19 @@ fn parse_macro_attrs(attr_ts: TokenStream2) -> syn::Result<MacroAttrs> {
             Ok(())
         } else if meta.path.is_ident("no_verify") {
             attrs.no_verify = true;
+            Ok(())
+        } else if meta.path.is_ident("further_attr") {
+            let value = meta.value()?;
+            let lit: Lit = value.parse()?;
+            if let Lit::Str(s) = lit {
+                let inner: TokenStream2 = s.value().parse()
+                    .map_err(|_| syn::Error::new(s.span(), "invalid further_attr token string"))?;
+                let group = Group::new(Delimiter::Bracket, inner);
+                let hash = Punct::new('#', Spacing::Alone);
+                let mut attr_tokens = TokenStream2::new();
+                attr_tokens.extend([TokenTree::Punct(hash), TokenTree::Group(group)]);
+                attrs.further_attrs.push(attr_tokens);
+            }
             Ok(())
         } else {
             Err(meta.error(format!(
@@ -80,22 +96,44 @@ fn parse_macro_attrs(attr_ts: TokenStream2) -> syn::Result<MacroAttrs> {
     Ok(attrs)
 }
 
-fn parse_enum_attrs(attr_ts: TokenStream2) -> syn::Result<Option<(String, Vec<String>)>> {
-    let mut tag: Option<String> = None;
-    let mut aliases: Vec<String> = Vec::new();
+struct EnumMacroAttrs {
+    tag: Option<String>,
+    tag_aliases: Vec<String>,
+    further_attrs: Vec<TokenStream2>,
+}
+
+fn parse_enum_attrs(attr_ts: TokenStream2) -> syn::Result<EnumMacroAttrs> {
+    let mut enum_attrs = EnumMacroAttrs {
+        tag: None,
+        tag_aliases: Vec::new(),
+        further_attrs: Vec::new(),
+    };
     syn::meta::parser(|meta| {
         if meta.path.is_ident("tag") {
             let value = meta.value()?;
             let lit: Lit = value.parse()?;
             if let Lit::Str(s) = lit {
-                tag = Some(s.value());
+                enum_attrs.tag = Some(s.value());
             }
             Ok(())
         } else if meta.path.is_ident("alias") {
             let value = meta.value()?;
             let lit: Lit = value.parse()?;
             if let Lit::Str(s) = lit {
-                aliases.push(s.value());
+                enum_attrs.tag_aliases.push(s.value());
+            }
+            Ok(())
+        } else if meta.path.is_ident("further_attr") {
+            let value = meta.value()?;
+            let lit: Lit = value.parse()?;
+            if let Lit::Str(s) = lit {
+                let inner: TokenStream2 = s.value().parse()
+                    .map_err(|_| syn::Error::new(s.span(), "invalid further_attr token string"))?;
+                let group = Group::new(Delimiter::Bracket, inner);
+                let hash = Punct::new('#', Spacing::Alone);
+                let mut attr_tokens = TokenStream2::new();
+                attr_tokens.extend([TokenTree::Punct(hash), TokenTree::Group(group)]);
+                enum_attrs.further_attrs.push(attr_tokens);
             }
             Ok(())
         } else {
@@ -108,7 +146,7 @@ fn parse_enum_attrs(attr_ts: TokenStream2) -> syn::Result<Option<(String, Vec<St
         }
     })
     .parse2(attr_ts)?;
-    Ok(tag.map(|t| (t, aliases)))
+    Ok(enum_attrs)
 }
 
 /// Strip #[tpd(...)] attributes from a `DeriveInput` and return the cleaned item as tokens
@@ -491,6 +529,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
     let macro_attrs = parse_macro_attrs(attr_ts)?;
     let is_root = macro_attrs.root;
     let no_verify = macro_attrs.no_verify;
+    let further_attrs = macro_attrs.further_attrs;
     let name = &input.ident;
     let partial_name = format_ident!("Partial{}", name);
     let vis = &input.vis;
@@ -871,6 +910,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
     Ok(quote! {
         #original_item
 
+        #(#further_attrs)*
         #[derive(Default, Debug)]
         #vis struct #partial_name {
             #(#partial_fields,)*
@@ -968,10 +1008,10 @@ fn parse_variant_attrs(variant: &syn::Variant) -> syn::Result<VariantAttrs> {
 }
 
 fn derive_enum(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<TokenStream2> {
-    let tag = parse_enum_attrs(attr_ts)?;
+    let enum_attrs = parse_enum_attrs(attr_ts)?;
 
-    if let Some((tag, aliases)) = tag {
-        derive_tagged_enum(input, &tag, &aliases)
+    if let Some(tag) = enum_attrs.tag {
+        derive_tagged_enum(input, &tag, &enum_attrs.tag_aliases, &enum_attrs.further_attrs)
     } else {
         derive_simple_enum(input)
     }
@@ -1087,6 +1127,7 @@ fn derive_tagged_enum(
     input: &DeriveInput,
     tag_key: &str,
     tag_aliases: &[String],
+    further_attrs: &[TokenStream2],
 ) -> syn::Result<TokenStream2> {
     struct TaggedVariantInfo {
         ident: syn::Ident,
@@ -1289,6 +1330,7 @@ fn derive_tagged_enum(
     Ok(quote! {
         #original_item
 
+        #(#further_attrs)*
         #[derive(Debug)]
         #vis enum #partial_name {
             #(#partial_variants,)*
