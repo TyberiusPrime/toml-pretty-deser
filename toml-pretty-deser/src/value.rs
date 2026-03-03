@@ -38,7 +38,7 @@ pub enum TomlValueState {
         key: String,
     },
     /// A user defined error with multiple spans
-    /// used in #tdp(adapt_in_verify(..)]
+    /// used in #`tdp(adapt_in_verify`(..)]
     Custom {
         spans: Vec<(Range<usize>, String)>,
     },
@@ -68,6 +68,7 @@ pub enum TomlValueState {
 }
 
 impl TomlValueState {
+    #[allow(clippy::needless_pass_by_value)] // it's not needless!
     pub fn new_validation_failed(message: impl ToString) -> Self {
         TomlValueState::ValidationFailed { message: message.to_string() }
     }
@@ -402,11 +403,16 @@ impl<T> TomlValue<T> {
         matches!(self.state, TomlValueState::Nested)
     }
 
-    /// Is this `TomlValue` in the NeedsFurtherValidation state
+    /// Is this `TomlValue` in the `NeedsFurtherValidation` state
     pub fn is_needs_further_validation(&self) -> bool {
         matches!(self.state, TomlValueState::NeedsFurtherValidation)
     }
 
+    /// Extract the inner value, if we're ok.
+    ///
+    /// # Panics
+    ///
+    /// if the ok > value present invariant is violated
     pub fn into_inner(self) -> Option<T> {
         if self.is_ok() {
             Some(self.value.expect("None value on TomlValueState::Ok"))
@@ -423,14 +429,19 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state, otherwise None.
+    /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state,
+    /// otherwise None.
     pub fn as_mut(&mut self) -> Option<&mut T> {
         match self.state {
             TomlValueState::Ok => self.value.as_mut(),
             _ => None,
         }
     }
-    /// Get a reference to the inner value iff this `TomlValue` is in the Ok state, otherwise panic.
+    /// Get a reference to the inner value iff this `TomlValue` is in the Ok state
+    ///
+    /// # Panics
+    /// - If we're not in an Ok state
+    /// - if the ok -> has value invariant is violated
     pub fn unwrap_ref(&self) -> &T {
         match self.state {
             TomlValueState::Ok => self
@@ -441,7 +452,12 @@ impl<T> TomlValue<T> {
         }
     }
 
-    /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state, otherwise panic.
+    /// Get a mutable reference to the inner value iff this `TomlValue` is in the Ok state
+    ///
+    /// # Panics
+    ///
+    /// - If we're not in an Ok state
+    /// - if the ok -> has value invariant is violated
     pub fn unwrap_mut(&mut self) -> &mut T {
         match self.state {
             TomlValueState::Ok => self
@@ -469,24 +485,21 @@ impl<T> TomlValue<T> {
     where
         F: FnOnce(&T) -> Result<(), ValidationFailure>,
     {
-        match &self.state {
-            TomlValueState::Ok => match verification_func(
-                self.value
-                    .as_ref()
-                    .expect("None value on TomlValueState::Ok"),
-            ) {
-                Ok(()) => {
-                    //unchanged
-                }
-                Err(ValidationFailure { message, help }) => {
-                    self.value = None;
-                    self.state = TomlValueState::ValidationFailed { message };
-                    self.help = help;
-                }
-            },
-            _ => {
+        if let TomlValueState::Ok = &self.state { match verification_func(
+            self.value
+                .as_ref()
+                .expect("None value on TomlValueState::Ok"),
+        ) {
+            Ok(()) => {
                 //unchanged
             }
+            Err(ValidationFailure { message, help }) => {
+                self.value = None;
+                self.state = TomlValueState::ValidationFailed { message };
+                self.help = help;
+            }
+        } } else {
+            //unchanged
         }
     }
     /// Verify this TOML value and potentially modify nested values
@@ -501,24 +514,21 @@ impl<T> TomlValue<T> {
     where
         F: FnOnce(&mut T) -> Result<(), ValidationFailure>,
     {
-        match &self.state {
-            TomlValueState::Ok => match verification_func(
-                self.value
-                    .as_mut()
-                    .expect("None value on TomlValueState::Ok"),
-            ) {
-                Ok(()) => {
-                    //unchanged
-                }
-                Err(ValidationFailure { message, help }) => {
-                    self.value = None;
-                    self.state = TomlValueState::ValidationFailed { message };
-                    self.help = help;
-                }
-            },
-            _ => {
+        if let TomlValueState::Ok = &self.state { match verification_func(
+            self.value
+                .as_mut()
+                .expect("None value on TomlValueState::Ok"),
+        ) {
+            Ok(()) => {
                 //unchanged
             }
+            Err(ValidationFailure { message, help }) => {
+                self.value = None;
+                self.state = TomlValueState::ValidationFailed { message };
+                self.help = help;
+            }
+        } } else {
+            //unchanged
         }
     }
 }

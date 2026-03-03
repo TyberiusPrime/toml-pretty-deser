@@ -72,16 +72,18 @@ pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> St
     }
 }
 
+#[must_use] 
+#[allow(clippy::missing_panics_doc)]
 pub fn format_quoted_list(items: &[&str]) -> String {
     match items {
         [] => String::new(),
-        [single] => format!("{single}"),
+        [single] => single.to_string(),
         [first, second] => format!("{first} or {second}"),
         rest => {
             let (last, init) = rest.split_last().expect("cant fail");
             let start = init
                 .iter()
-                .map(|s| format!("{s}"))
+                .map(ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{start}, or {last}")

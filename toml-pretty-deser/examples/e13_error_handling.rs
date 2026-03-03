@@ -1,4 +1,4 @@
-//! # Example 13: Working with DeserError and partial results
+//! # Example 13: Working with `DeserError` and partial results
 //!
 //! Shows how to handle `DeserError::DeserFailure` to access both error messages
 //! and partial results. This is the library's key differentiator: even when
@@ -28,7 +28,7 @@ workers = 999
 
     match Config::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict) {
         Ok(config) => {
-            println!("Config: {:?}", config);
+            println!("Config: {config:?}");
         }
         Err(ref e @ DeserError::DeserFailure(..)) => {
             let errors = e.get_errors();

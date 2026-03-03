@@ -1,4 +1,4 @@
-//! # Example 08: Field aliases, enum variant aliases, and FieldMatchMode
+//! # Example 08: Field aliases, enum variant aliases, and `FieldMatchMode`
 //!
 //! Shows `#[tpd(alias = "...")]` on fields and enum variants,
 //! `FieldMatchMode::AnyCase` for case-insensitive matching, and
@@ -27,11 +27,11 @@ struct Config {
     #[tpd(alias = "hostname", alias = "server")]
     host: String,
 
-    /// Accepts "port" or "listen_port"
+    /// Accepts "port" or `listen_port`
     #[tpd(alias = "listen_port")]
     port: u16,
 
-    /// Vec field: with SingleOk, `tags = "web"` becomes `vec!["web"]`
+    /// Vec field: with `SingleOk`, `tags = "web"` becomes `vec!["web"]`
     tags: Vec<String>,
 
     /// Enum field with variant aliases
@@ -49,7 +49,7 @@ severity = "Warning"
 
     println!("--- Field aliases + canonical enum variant ---");
     match Config::tpd_from_toml(toml_aliases, FieldMatchMode::Exact, VecMode::Strict) {
-        Ok(config) => println!("{:?}", config),
+        Ok(config) => println!("{config:?}"),
         Err(e) => eprintln!("{}", e.pretty("config.toml")),
     }
 
@@ -63,7 +63,7 @@ severity = "Warn"
 
     println!("\n--- Enum variant alias 'Warn' -> Warning ---");
     match Config::tpd_from_toml(toml_enum_aliases, FieldMatchMode::Exact, VecMode::Strict) {
-        Ok(config) => println!("{:?}", config),
+        Ok(config) => println!("{config:?}"),
         Err(e) => eprintln!("{}", e.pretty("config.toml")),
     }
 
@@ -76,7 +76,7 @@ severity = "Fatal"
 
     println!("\n--- Enum variant alias 'Fatal' -> Critical ---");
     match Config::tpd_from_toml(toml_fatal, FieldMatchMode::Exact, VecMode::Strict) {
-        Ok(config) => println!("{:?}", config),
+        Ok(config) => println!("{config:?}"),
         Err(e) => eprintln!("{}", e.pretty("config.toml")),
     }
 
@@ -90,7 +90,7 @@ SEVERITY = "Caution"
 
     println!("\n--- AnyCase mode + enum alias 'Caution' -> Warning ---");
     match Config::tpd_from_toml(toml_anycase, FieldMatchMode::AnyCase, VecMode::Strict) {
-        Ok(config) => println!("{:?}", config),
+        Ok(config) => println!("{config:?}"),
         Err(e) => eprintln!("{}", e.pretty("config.toml")),
     }
 
@@ -104,7 +104,7 @@ severity = "Info"
 
     println!("\n--- SingleOk vec mode ---");
     match Config::tpd_from_toml(toml_single, FieldMatchMode::Exact, VecMode::SingleOk) {
-        Ok(config) => println!("{:?}", config),
+        Ok(config) => println!("{config:?}"),
         Err(e) => eprintln!("{}", e.pretty("config.toml")),
     }
 }

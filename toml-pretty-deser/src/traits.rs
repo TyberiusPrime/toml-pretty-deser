@@ -143,11 +143,10 @@ where
         if let Some(value) = self.value.as_mut() {
             value.v_sync_nested_states();
         }
-        if matches!(self.state, TomlValueState::Ok) {
-            if !self.value.as_ref().is_some_and(|v| v.can_concrete()) {
+        if matches!(self.state, TomlValueState::Ok)
+            && !self.value.as_ref().is_some_and(Visitor::can_concrete) {
                 self.state = TomlValueState::Nested;
             }
-        }
     }
 
     /// called by the toml-pretty-deser-macros `fill_from_toml` implementation.
@@ -177,6 +176,7 @@ where
     ///
     /// When ok -> value present invariant is violated
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn tpd_validate<R>(self, parent: &R, options: &VerifyOptions) -> TomlValue<T>
     where
         T: Visitor + VerifyVisitor<R> + VerifyIn<R>,
@@ -320,6 +320,7 @@ where
         self.register_error_with_context(col, &context);
     }
     /// Register an error with additional context spans that will be appended to the error.
+    #[allow(clippy::too_many_lines)]
     pub fn register_error_with_context(
         &self,
         col: &TomlCollector,
@@ -501,7 +502,7 @@ impl<T> TomlValue<T> {
         let context = col.get_context_spans();
         let errs: Vec<AnnotatedError> = match &self.state {
             TomlValueState::Ok | TomlValueState::Nested => return,
-            TomlValueState::NotSet { .. } => {
+            TomlValueState::NotSet => {
                 vec![AnnotatedError::unplaced(
                     "A required field was not set by the deser code. This is a bug",
                 )]

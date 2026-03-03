@@ -23,6 +23,7 @@ command = [
 	"--", "-D", "clippy::pedantic"
 ]
 need_stdout = false
+watch = ["toml-pretty-deser/README.md"]
 
 # This job lets you run
 # - all tests: bacon test

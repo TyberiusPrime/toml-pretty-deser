@@ -41,14 +41,15 @@ macro_rules! impl_visitor {
 macro_rules! impl_visitor_for_int {
     ($ty:ty) => {
         impl_visitor!($ty, |helper| {
+            #[allow(clippy::cast_lossless)]
             match helper.item.as_integer() {
                 Some(v) => match TryInto::<$ty>::try_into(v) {
                     Ok(v) => {
                         return $crate::TomlValue::new_ok(v, helper.span());
                     }
                     Err(_) => {
-                        if v < 0 {
-                            return $crate::TomlValue::new_validation_failed(
+                        return if v < 0 {
+                            $crate::TomlValue::new_validation_failed(
                                 helper.span(),
                                 format!("integer ({}), must be positive", stringify!($ty)),
                                 Some(format!(
@@ -56,9 +57,9 @@ macro_rules! impl_visitor_for_int {
                                     <$ty>::MIN,
                                     (<$ty>::MAX as u128).min(i64::MAX as u128)
                                 )),
-                            );
+                            )
                         } else {
-                            return $crate::TomlValue::new_validation_failed(
+                            $crate::TomlValue::new_validation_failed(
                                 helper.span(),
                                 format!("integer ({}), range exceeded", stringify!($ty)),
                                 Some(format!(
@@ -66,8 +67,8 @@ macro_rules! impl_visitor_for_int {
                                     <$ty>::MIN,
                                     (<$ty>::MAX as u128).min(i64::MAX as u128)
                                 )),
-                            );
-                        }
+                            )
+                        };
                     }
                 },
                 None => {
@@ -104,11 +105,21 @@ impl_visitor!(bool, |helper| {
 });
 
 impl_visitor!(f64, |helper| {
+    #[allow(clippy::cast_precision_loss)]
     match helper.item.as_float() {
         Some(v) => TomlValue::new_ok(v, helper.span()),
         None => {
             if let Some(x) = helper.item.as_integer() {
-                TomlValue::new_ok(x as f64, helper.span())
+                const MAX_EXACT: i64 = 1i64 << 53;
+                if (-MAX_EXACT..=MAX_EXACT).contains(&x) {
+                    TomlValue::new_ok(x as f64, helper.span())
+                } else {
+                    TomlValue::new_wrong_type(
+                        helper.item,
+                        helper.span(),
+                        "Exceeding precise range for float. Either type a float (something.0), or use a smaller integer",
+                    )
+                }
             } else {
                 TomlValue::new_wrong_type(helper.item, helper.span(), "float")
             }
@@ -179,7 +190,7 @@ impl<T: Visitor> Visitor for Option<T> {
 
     fn v_register_errors(&self, col: &TomlCollector) {
         if let Some(v) = self {
-            v.v_register_errors(col)
+            v.v_register_errors(col);
         }
     }
 
@@ -400,13 +411,13 @@ where
         for (_key, value) in &self.map {
             value.register_error(col);
         }
-        for key in self.keys.iter() {
+        for key in &self.keys {
             key.register_error(col);
         }
     }
 
     fn v_sync_nested_states(&mut self) {
-        for (_, v) in self.map.iter_mut() {
+        for (_, v) in &mut self.map {
             v.sync_nested_state();
         }
     }
@@ -483,22 +494,17 @@ impl<R, A: Visitor + std::fmt::Debug + VerifyVisitor<R>, B: std::fmt::Debug> Ver
     for MustAdapt<A, B>
 {
     fn vv_validate(self, parent: &R, options: &VerifyOptions) -> Self {
-        let res = match self {
+        match self {
             MustAdapt::PreVerify(v) => MustAdapt::PreVerify(v.vv_validate(parent, options)),
             MustAdapt::PostVerify(_) => unreachable!(),
-        };
-        res
+        }
     }
 }
 
 impl<R, A: Visitor + std::fmt::Debug + VerifyIn<R>, B: std::fmt::Debug> VerifyIn<R>
     for MustAdapt<A, B>
 {
-    fn verify(
-        &mut self,
-        parent: &R,
-        options: &VerifyOptions,
-    ) -> Result<(), ValidationFailure>
+    fn verify(&mut self, parent: &R, options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + Visitor,
     {
@@ -550,11 +556,7 @@ impl<R, A: Visitor + VerifyVisitor<R>, B> VerifyVisitor<R> for MustAdaptNested<A
 }
 
 impl<R, A: Visitor + VerifyIn<R>, B> VerifyIn<R> for MustAdaptNested<A, B> {
-    fn verify(
-        &mut self,
-        parent: &R,
-        options: &VerifyOptions,
-    ) -> Result<(), ValidationFailure>
+    fn verify(&mut self, parent: &R, options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + Visitor,
     {

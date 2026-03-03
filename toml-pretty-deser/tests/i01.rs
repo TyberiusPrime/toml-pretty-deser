@@ -16,7 +16,6 @@
 //   b) `pretty.contains("Validation triggered at items")` — FAILS: the
 //      annotation is silently discarded from the Custom error's own output.
 
-#[allow(clippy::must_use_candidate)]
 use toml_pretty_deser::prelude::*;
 use toml_pretty_deser::{TPDRoot, TomlValueState};
 use toml_pretty_deser_macros::tpd;
@@ -62,30 +61,30 @@ impl VerifyIn<TPDRoot> for PartialCvRoot {
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 
-/// VerifyIn sets the outer `items` TomlValue to Custom state and attaches a
+/// `VerifyIn` sets the outer `items` `TomlValue` to Custom state and attaches a
 /// context annotation via `set_context_at`.  The TOML itself is valid (all
 /// items parse correctly), so the only source of errors is the Custom state
-/// injected by VerifyIn.
+/// injected by `VerifyIn`.
 ///
-/// Assertion (a): context IS accessible on the DeserError before .pretty().
-/// Assertion (b): context annotation appears in .pretty() output on the Custom
+/// Assertion (a): context IS accessible on the `DeserError` before `.pretty()`.
+/// Assertion (b): context annotation appears in `.pretty()` output on the Custom
 ///   error — this currently FAILS, exposing the bug described above.
 #[test]
 fn test_context_on_custom_state_accessible_and_rendered() {
-    let toml = r#"
+    let toml = "
         [[items]]
         value = 1
 
         [[items]]
         value = 2
-    "#;
+    ";
 
     let result = CvRoot::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
     assert!(result.is_err(), "VerifyIn should mark items as invalid");
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut partial) = e {
-            if let Some(root) = partial.value.as_mut() {
+        if let DeserError::DeserFailure(_, ref mut partial) = e &&
+            let Some(root) = partial.value.as_mut() {
                 // (a) The context annotation set during VerifyIn is stored on
                 // `items.context` and is accessible here, before .pretty() is
                 // called — even though it was set "inside" VerifyIn.
@@ -94,7 +93,6 @@ fn test_context_on_custom_state_accessible_and_rendered() {
                     "context set during VerifyIn should be accessible on the DeserError \
                      before .pretty() is called"
                 );
-            }
         }
 
         let pretty = e.pretty("test.toml");
@@ -137,6 +135,7 @@ pub struct StepResize {
 #[derive(Debug)]
 pub enum PipelineStep {
     Resize(StepResize),
+    TwiceResize(StepResize),
 }
 
 #[tpd(root)]
@@ -166,15 +165,13 @@ impl VerifyIn<TPDRoot> for PartialCvPipeline {
                     .iter()
                     .enumerate()
                     .filter_map(|(i, tv_step)| {
-                        if let Some(step) = tv_step.as_ref() {
-                            if let PartialPipelineStep::Resize(e) = step {
+                        if let Some(step) = tv_step.as_ref() &&
+                            let PartialPipelineStep::Resize(e) = step {
                                 let resize = &e.toml_value;
-                                if let Some(resize) = resize.as_ref() {
-                                    if *resize.width.as_ref().unwrap() == 55 {
+                                if let Some(resize) = resize.as_ref() &&
+                                    *resize.width.as_ref().unwrap() == 55 {
                                         return Some((i, tv_step.span()));
                                     }
-                                }
-                            }
                         }
                         None
                     })
@@ -195,11 +192,11 @@ impl VerifyIn<TPDRoot> for PartialCvPipeline {
 }
 
 /// Two pipeline steps: the first is valid, the second has a wrong-type field.
-/// Between the DeserError and .pretty() the caller iterates the vec, overwrites
+/// Between the `DeserError` and `.pretty()` the caller iterates the vec, overwrites
 /// the default "Involving this enum variant." context label with "In this step",
 /// and attaches a doc-URL help string keyed on the variant name.
 ///
-/// Both the overwritten label and the help URL must appear in .pretty() output,
+/// Both the overwritten label and the help URL must appear in `.pretty()` output,
 /// demonstrating that Nested-state tagged-enum contexts are eagerly stored and
 /// fully modifiable before rendering — in contrast to Custom-state contexts
 /// (test above) where the annotation is silently dropped.
@@ -221,8 +218,8 @@ fn test_tagged_enum_context_overwrite_between_deser_and_pretty() {
     let doc_url = "https://docs.example.com/steps/";
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut tv_partial) = e {
-            if let Some(partial) = tv_partial.value.as_mut()
+        if let DeserError::DeserFailure(_, ref mut tv_partial) = e &&
+            let Some(partial) = tv_partial.value.as_mut()
                 && let Some(steps) = partial.transform.value.as_mut()
             {
                 for tv_step in steps.iter_mut() {
@@ -236,7 +233,6 @@ fn test_tagged_enum_context_overwrite_between_deser_and_pretty() {
                         }
                     }
                 }
-            }
         }
 
         let pretty = e.pretty("test.toml");
@@ -280,8 +276,8 @@ fn test_tagged_enum_context_overwrite_between_deser_and_pretty_custom() {
     let doc_url = "https://docs.example.com/steps/";
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut tv_partial) = e {
-            if let Some(partial) = tv_partial.value.as_mut()
+        if let DeserError::DeserFailure(_, ref mut tv_partial) = e &&
+            let Some(partial) = tv_partial.value.as_mut()
                 && let Some(steps) = partial.transform.value.as_mut()
             {
                 for tv_step in steps.iter_mut() {
@@ -295,7 +291,6 @@ fn test_tagged_enum_context_overwrite_between_deser_and_pretty_custom() {
                         }
                     }
                 }
-            }
         }
 
         let pretty = e.pretty("test.toml");

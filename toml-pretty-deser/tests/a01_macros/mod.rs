@@ -371,7 +371,7 @@ impl Visitor for PartialTaggedEnum {
                 let mut partial_inner = PartialInnerA::fill_from_toml(helper);
 
                 match &mut partial_inner.state {
-                    TomlValueState::Ok { .. } => {
+                    TomlValueState::Ok => {
                         let visitor = PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
                         TomlValue::new_ok(visitor, helper.span())
                     }
@@ -395,7 +395,7 @@ impl Visitor for PartialTaggedEnum {
                 let mut partial_inner = PartialInnerB::fill_from_toml(helper);
 
                 match &mut partial_inner.state {
-                    TomlValueState::Ok { .. } => {
+                    TomlValueState::Ok  => {
                         let visitor = PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
                         TomlValue::new_ok(visitor, helper.span())
                     }

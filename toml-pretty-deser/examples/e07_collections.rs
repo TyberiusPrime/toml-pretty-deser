@@ -1,4 +1,4 @@
-//! # Example 07: Vec and IndexMap collections
+//! # Example 07: Vec and `IndexMap` collections
 //!
 //! Demonstrates `Vec<T>`, `Vec<NestedStruct>`, `IndexMap<String, T>`, and
 //! `IndexMap<String, NestedStruct>`. Shows `[[array_of_tables]]` TOML syntax
@@ -24,10 +24,10 @@ struct ApiConfig {
     #[tpd(nested)]
     endpoints: Vec<Endpoint>,
 
-    /// IndexMap of simple values — uses [headers] table in TOML
+    /// `IndexMap` of simple values — uses [headers] table in TOML
     headers: IndexMap<String, String>,
 
-    /// IndexMap of nested structs — uses [routes.name] tables in TOML
+    /// `IndexMap` of nested structs — uses [routes.name] tables in TOML
     #[tpd(nested)]
     routes: IndexMap<String, Endpoint>,
 }

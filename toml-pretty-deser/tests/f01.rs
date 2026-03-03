@@ -61,7 +61,7 @@ impl VerifyIn<PartialBoxTaggedRoot> for PartialBoxedInner {
 
 // --- tests ---
 
-/// Baseline: a Plain (non-Box) variant. VerifyIn::verify() should be called and reject value=0.
+/// Baseline: a Plain (non-Box) variant. `VerifyIn::verify()` should be called and reject value=0.
 #[test]
 fn test_plain_variant_verify_in_is_called() {
     let toml = "
@@ -80,8 +80,8 @@ fn test_plain_variant_verify_in_is_called() {
     );
 }
 
-/// Bug demonstration: the Box variant. VerifyIn::verify() should also be called and reject
-/// value=0, but due to the missing forwarding in Box's VerifyIn impl it is silently skipped
+/// Bug demonstration: the Box variant. `VerifyIn::verify()` should also be called and reject
+/// value=0, but due to the missing forwarding in Box's `VerifyIn` impl it is silently skipped
 /// and the result is Ok instead of an error.
 #[test]
 fn test_box_variant_verify_in_is_called() {

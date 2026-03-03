@@ -17,7 +17,7 @@ use syn::{
 /// - `#[tpd(no_verify)]` on struct - Nested struct with blanket `VerifyIn`
 /// - `#[tpd(tag = "key")]` on enum - Tagged enum
 /// - `#[tpd]` on enum - Simple string enum
-/// - `#[tpd(further_attr="something"]` tag the PartialT with #[something]
+/// - `#[tpd(further_attr="something"]` tag the `PartialT` with #[something]
 ///
 /// # Field-level attributes
 /// - `#[tpd(nested)]` - Type has a Partial variant (nested struct or tagged enum)
@@ -277,15 +277,14 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
         ));
     }
 
-    if let Some(AdaptInVerify::Explicit(_)) = &attrs.adapt_in_verify {
-        if matches!(attrs.nested, NestedState::Nested | NestedState::Tagged) {
+    if let Some(AdaptInVerify::Explicit(_)) = &attrs.adapt_in_verify
+        && matches!(attrs.nested, NestedState::Nested | NestedState::Tagged) {
             return Err(syn::Error::new_spanned(
                 &field.ty,
                 "adapt_in_verify(Type) cannot be combined with nested/tagged; \
                  use adapt_in_verify (no type arg) with nested instead",
             ));
         }
-    }
     if attrs.adapt_in_verify.is_some()
         && (attrs.with_fn.is_some() || attrs.skip || attrs.absorb_remaining || attrs.default)
     {
@@ -389,8 +388,8 @@ fn extract_two_generics(args: &PathArguments, context_ty: &Type) -> syn::Result<
 /// Stops when a type with no generic arguments is found (that's the nested struct type).
 /// Used by the `adapt_in_verify` (Auto) case to find the partial type.
 fn extract_innermost_type(ty: &Type) -> syn::Result<Type> {
-    if let Type::Path(TypePath { path, .. }) = ty {
-        if let Some(last) = path.segments.last() {
+    if let Type::Path(TypePath { path, .. }) = ty
+        && let Some(last) = path.segments.last() {
             if let PathArguments::AngleBracketed(ab) = &last.arguments {
                 if ab.args.len() == 1 {
                     if let GenericArgument::Type(inner) = &ab.args[0] {
@@ -407,7 +406,6 @@ fn extract_innermost_type(ty: &Type) -> syn::Result<Type> {
             // No generic args (or non-angle-bracketed): this is the innermost type
             return Ok(ty.clone());
         }
-    }
     Err(syn::Error::new_spanned(
         ty,
         "adapt_in_verify (without type argument) requires the field type to be a path type",
@@ -422,10 +420,10 @@ fn partial_type_path(ty: &Type) -> syn::Result<TokenStream2> {
         let mut segments = path.segments.clone();
         if let Some(last) = segments.last_mut() {
             // Check if this is a wrapper type (Box, etc.) with a single generic argument
-            if last.ident == "Box" {
-                if let syn::PathArguments::AngleBracketed(args) = &last.arguments {
-                    if args.args.len() == 1 {
-                        if let syn::GenericArgument::Type(inner_ty) = &args.args[0] {
+            if last.ident == "Box"
+                && let syn::PathArguments::AngleBracketed(args) = &last.arguments
+                    && args.args.len() == 1
+                        && let syn::GenericArgument::Type(inner_ty) = &args.args[0] {
                             let partial_inner = partial_type_path(inner_ty)?;
                             let leading_colon = &path.leading_colon;
                             let prefix_segments = segments.iter().take(segments.len() - 1);
@@ -433,9 +431,6 @@ fn partial_type_path(ty: &Type) -> syn::Result<TokenStream2> {
                                 quote! { #leading_colon #(#prefix_segments ::)* Box<#partial_inner> },
                             );
                         }
-                    }
-                }
-            }
             last.ident = format_ident!("Partial{}", last.ident);
         }
         let leading_colon = &path.leading_colon;
@@ -657,22 +652,22 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             }
             if matches!(f.attrs.adapt_in_verify, Some(AdaptInVerify::Auto)) {
                 let concrete_ty = &f.ty;
-                if f.attrs.has_partial() {
+                return if f.attrs.has_partial() {
                     // nested + adapt_in_verify (no type arg): MustAdaptNested with auto partial
                     let inner_ty = extract_innermost_type(concrete_ty)?;
                     let partial_inner_ty = partial_type_path(&inner_ty)?;
-                    return Ok(quote! {
+                    Ok(quote! {
                         fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdaptNested<#partial_inner_ty, #concrete_ty>> {
                             helper.get_with_aliases(#field_name_str, #aliases_expr)
                         }
-                    });
+                    })
                 } else {
                     // adapt_in_verify (no type arg) without nested: toml_edit::Item
-                    return Ok(quote! {
+                    Ok(quote! {
                         fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdapt<toml_edit::Item, #concrete_ty>> {
                             helper.get_with_aliases(#field_name_str, #aliases_expr)
                         }
-                    });
+                    })
                 }
             }
 
@@ -818,7 +813,7 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
                 quote! { #ident: self.#ident.unwrap_or_default() }
             }
             else if f.attrs.skip {
-                { let msg = format!("Expected field `{}` to have been set in VerifyIn", ident); quote! { #ident: self.#ident.expect(#msg) } }
+                { let msg = format!("Expected field `{ident}` to have been set in VerifyIn"); quote! { #ident: self.#ident.expect(#msg) } }
             } else if is_unit_type(&f.kind) {
                 quote! { #ident: () }
             } else if f.attrs.adapt_in_verify.is_some() {

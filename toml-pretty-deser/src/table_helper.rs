@@ -75,14 +75,13 @@ impl<'a> TomlHelper<'a> {
                 if table_heading.start != 0 {
                     //now find the last item is the table...
                     let mut last_end = table_heading.end;
-                    for item in table.iter() {
-                        if let Some(item_span) = item.1.span() {
-                            if item_span.end > last_end {
+                    for item in table {
+                        if let Some(item_span) = item.1.span()
+                            && item_span.end > last_end {
                                 last_end = item_span.end;
                             }
-                        }
                     }
-                    return last_end..last_end;
+                    last_end..last_end
                 } else {
                     table_heading // if it's the whole file (or not definied), report just at the
                     // start. Otherwise missing keys look like they belong at the end..

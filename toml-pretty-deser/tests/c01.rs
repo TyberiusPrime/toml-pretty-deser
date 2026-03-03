@@ -65,6 +65,7 @@ struct TakeFloat {
 }
 
 #[test]
+#[allow(clippy::float_cmp)]
 fn test_float_takes_int() {
     let result: Result<TakeFloat, _> =
         TakeFloat::tpd_from_toml("value = 0", FieldMatchMode::Exact, VecMode::Strict);
@@ -153,6 +154,7 @@ fn test_skip_hashmap_field() {
     }
 }
 
+#[must_use]
 pub fn adapt_to_upper_case(input: TomlValue<String>) -> TomlValue<String> {
     input.map(|s| s.to_uppercase())
 }
@@ -498,10 +500,9 @@ mod test_option_vec_nested_verify {
         fn verify(&mut self, _parent: &PartialContainer, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
             // Use `return Err` directly (not field-state marking) so the Result from verify()
             // is the only way the error can propagate.
-            if let Some(v) = self.val.as_ref() {
-                if *v == 0 {
+            if let Some(v) = self.val.as_ref() &&
+                *v == 0 {
                     return Err(ValidationFailure::new("val must not be zero", None));
-                }
             }
             Ok(())
         }

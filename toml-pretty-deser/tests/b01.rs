@@ -762,7 +762,6 @@ fn test_tpd_get_tag() {
         toml_value: TomlValue::new_ok(
             PartialInnerA {
                 a: TomlValue::new_ok(1u8, 0..1),
-                ..Default::default()
             },
             0..10,
         ),
@@ -775,7 +774,6 @@ fn test_tpd_get_tag() {
         toml_value: TomlValue::new_ok(
             PartialInnerB {
                 b: TomlValue::new_ok(2u8, 0..1),
-                ..Default::default()
             },
             0..10,
         ),
@@ -2003,7 +2001,7 @@ impl VerifyIn<TPDRoot> for PartialMapKeyNotStartsWithA {
         Self: Sized + toml_pretty_deser::Visitor,
     {
         self.inner.verify_keys(|key_string| {
-            if key_string.starts_with("A") || key_string.starts_with("a") {
+            if key_string.starts_with('A') || key_string.starts_with('a') {
                 Err(ValidationFailure::new(
                     "Keys cannot start with 'A'",
                     Some("Help text goes here"),

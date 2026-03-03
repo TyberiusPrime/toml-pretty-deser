@@ -1,7 +1,7 @@
 use crate::traits::Visitor;
 use crate::value::{TomlOr, TomlValue, TomlValueState};
 
-/// Wrapper type for #[tdp(adapt_in_verify)]
+/// Wrapper type for #[`tdp(adapt_in_verify)`]
 #[derive(Debug, Clone)]
 pub enum MustAdapt<A, B> {
     PreVerify(A),
@@ -9,6 +9,10 @@ pub enum MustAdapt<A, B> {
 }
 
 impl<A, B> MustAdapt<A, B> {
+    /// Unwraps if we're in the `PostVerify` state
+    ///
+    /// # Panics
+    /// When called on a `PreVerify` `MustAdapt`
     pub fn unwrap_post(self) -> B {
         match self {
             Self::PreVerify(_) => panic!(
@@ -19,6 +23,11 @@ impl<A, B> MustAdapt<A, B> {
         }
     }
 
+    /// Unwraps if we're in the `PreVerify` state
+    ///
+    /// # Panics
+    ///
+    /// When called on a `PostVerify` `MustAdapt`
     pub fn unwrap_pre(self) -> A {
         match self {
             Self::PreVerify(a) => a,
@@ -28,6 +37,7 @@ impl<A, B> MustAdapt<A, B> {
         }
     }
 
+    /// Return a Some(&B) in in `PostVerify`, None otherwise
     pub fn as_ref_post(&self) -> Option<&B> {
         match self {
             MustAdapt::PreVerify(_) => None,
@@ -36,12 +46,12 @@ impl<A, B> MustAdapt<A, B> {
     }
 }
 
-/// User facing 'adapt' function for MustAdapt / MustAdaptNested
+/// User facing 'adapt' function for `MustAdapt` / `MustAdaptNested`
 pub trait MustAdaptHelper<A, B> {
     /// Adapt the value in place from `TomlValue::Ok(A)`
-    /// to TomlValue<B>
+    /// to `TomlValue`<B>
     ///
-    /// You use this together with #[tdp(adapt_in_verify]).
+    /// You use this together with #[`tdp(adapt_in_verify`]).
     ///
     /// Return a non-Ok `TomlValueState` to fail the conversion.
     fn adapt<F>(&mut self, map_func: F)

@@ -1,4 +1,4 @@
-//! # Example 05: Custom verification with VerifyIn
+//! # Example 05: Custom verification with `VerifyIn`
 //!
 //! Shows how to implement `VerifyIn<Root>` on the generated `PartialT` struct
 //! to add custom validation logic. Demonstrates:
@@ -70,7 +70,7 @@ min_connections = 10
 "#;
 
     match ServerConfig::tpd_from_toml(toml_ok, FieldMatchMode::Exact, VecMode::Strict) {
-        Ok(config) => println!("Valid config: {:?}", config),
+        Ok(config) => println!("Valid config: {config:?}"),
         Err(e) => eprintln!("{}", e.pretty("server.toml")),
     }
 

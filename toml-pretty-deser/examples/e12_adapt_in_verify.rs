@@ -15,7 +15,7 @@ use toml_pretty_deser::prelude::*;
 #[tpd(root)]
 #[derive(Debug)]
 struct Config {
-    /// Deserializes as a toml_edit::Item (the default for bare adapt_in_verify),
+    /// Deserializes as a `toml_edit::Item` (the default for bare `adapt_in_verify`),
     /// then converted to usize (string length) in verify.
     #[tpd(adapt_in_verify)]
     name_length: usize,

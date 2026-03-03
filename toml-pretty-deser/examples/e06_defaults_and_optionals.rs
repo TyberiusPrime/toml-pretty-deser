@@ -1,7 +1,7 @@
 //! # Example 06: Defaults, optionals, and skip
 //!
 //! Demonstrates `#[tpd(default)]`, `Option<T>` fields, `#[tpd(skip)]`,
-//! and manual `.or()` / `.or_with()` / `.or_default()` in a VerifyIn impl.
+//! and manual `.or()` / `.or_with()` / `.or_default()` in a `VerifyIn` impl.
 
 use toml_pretty_deser::prelude::*;
 
@@ -13,14 +13,14 @@ struct AppConfig {
     /// Optional field: becomes None if missing from TOML
     description: Option<String>,
 
-    /// Default attribute: uses Default::default() (0 for u32) if missing
+    /// Default attribute: uses `Default::default()` (0 for u32) if missing
     #[tpd(default)]
     retries: u32,
 
-    /// We'll set a manual default via .or_with() in verify
+    /// We'll set a manual default via .`or_with()` in verify
     timeout_ms: u64,
 
-    /// We'll set a manual default via .or() in verify
+    /// We'll set a manual default via `.or()` in verify
     log_level: String,
 
     /// Skipped field: not read from TOML, set programmatically

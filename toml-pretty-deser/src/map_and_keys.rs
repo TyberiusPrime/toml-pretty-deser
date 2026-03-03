@@ -39,7 +39,7 @@ impl<K, V> FailableKeys for TomlValue<MapAndKeys<K, V>> {
             for key in &mut value.keys {
                 if let Some(str_key) = key.as_ref() {
                     match callback(&str_key[..]) {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(err) => {
                             key.state = TomlValueState::ValidationFailed {
                                 message: err.message,

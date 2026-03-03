@@ -3,6 +3,7 @@
 ///
 /// If this test fails, run: `python dev/collect_examples.py`
 #[test]
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn manifest_matches_actual_examples() {
     let examples_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
     let manifest_path = examples_dir.join("manifest.txt");
@@ -16,7 +17,7 @@ fn manifest_matches_actual_examples() {
     });
     let mut manifest_entries: Vec<&str> =
         manifest_content.lines().filter(|l| !l.is_empty()).collect();
-    manifest_entries.sort();
+    manifest_entries.sort_unstable();
 
     // Read actual files
     let mut actual_files: Vec<String> = std::fs::read_dir(&examples_dir)

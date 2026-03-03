@@ -46,8 +46,7 @@ impl VerifyIn<TPDRoot> for PartialConfig {
                 // unknown keys (the error lives on plugin_tv, not the inner fields)
                 if let TomlValueState::UnknownKeys(keys) = &mut plugin_tv.state {
                     let doc_link = format!(
-                        "See https://docs.example.com/plugins for allowed keys (plugin #{})",
-                        i
+                        "See https://docs.example.com/plugins for allowed keys (plugin #{i})",
                     );
                     for key in keys {
                         key.help = format!("{}\n{doc_link}", key.help);
@@ -59,7 +58,7 @@ impl VerifyIn<TPDRoot> for PartialConfig {
     }
 }
 
-/// Append a documentation link to the help text of a single TomlValue,
+/// Append a documentation link to the help text of a single `TomlValue`,
 /// if it is in an error state.
 fn amend_help<T>(field: &mut TomlValue<T>, extra: &str) {
     if field.is_ok() {
@@ -95,7 +94,7 @@ colour = "blue"
 "#;
 
     match Config::tpd_from_toml(toml_str, FieldMatchMode::Exact, VecMode::Strict) {
-        Ok(config) => println!("All good: {:?}", config),
+        Ok(config) => println!("All good: {config:?}"),
         Err(e) => {
             println!("Errors with amended help text:\n");
             println!("{}", e.pretty("plugins.toml"));
