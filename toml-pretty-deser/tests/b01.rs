@@ -758,29 +758,29 @@ fn test_tpd_get_tag() {
     use toml_pretty_deser::TomlValue;
 
     // Direct construction of PartialTaggedEnum variants: returns canonical name
-    let kind_a = PartialTaggedEnum::KindA(
-        TomlValue::new_ok(
+    let kind_a = PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant {
+        toml_value: TomlValue::new_ok(
             PartialInnerA {
                 a: TomlValue::new_ok(1u8, 0..1),
                 ..Default::default()
             },
             0..10,
         ),
-        0..5,
-    );
+        tag_span: 0..5,
+    });
     assert_eq!(kind_a.tpd_get_tag(), "KindA");
 
     // KindB is the canonical name regardless of which alias ("B", "D") was used to dispatch
-    let kind_b = PartialTaggedEnum::KindB(
-        TomlValue::new_ok(
+    let kind_b = PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant {
+        toml_value: TomlValue::new_ok(
             PartialInnerB {
                 b: TomlValue::new_ok(2u8, 0..1),
                 ..Default::default()
             },
             0..10,
         ),
-        0..5,
-    );
+        tag_span: 0..5,
+    });
     assert_eq!(kind_b.tpd_get_tag(), "KindB");
 
     let toml = "

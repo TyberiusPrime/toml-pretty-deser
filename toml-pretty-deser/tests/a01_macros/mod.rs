@@ -284,8 +284,8 @@ impl<R> VerifyVisitor<R> for PartialDoubleNestedStruct {
 // #[tpd]
 #[derive(Debug)]
 pub enum PartialTaggedEnum {
-    KindA(TomlValue<PartialInnerA>),
-    KindB(TomlValue<PartialInnerB>),
+    KindA(toml_pretty_deser::PartialTaggedVariant<PartialInnerA>),
+    KindB(toml_pretty_deser::PartialTaggedVariant<PartialInnerB>),
 }
 
 #[derive(Default, Debug)]
@@ -372,7 +372,7 @@ impl Visitor for PartialTaggedEnum {
 
                 match &mut partial_inner.state {
                     TomlValueState::Ok { .. } => {
-                        let visitor = PartialTaggedEnum::KindA(partial_inner);
+                        let visitor = PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
                         TomlValue::new_ok(visitor, helper.span())
                     }
                     TomlValueState::UnknownKeys(unknown_keys) => {
@@ -382,11 +382,11 @@ impl Visitor for PartialTaggedEnum {
                                 "Involving this enum variant.".to_string(),
                             ));
                         }
-                        let visitor = PartialTaggedEnum::KindA(partial_inner);
+                        let visitor = PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
                         TomlValue::new_nested(Some(visitor), helper.span())
                     }
                     _ => {
-                        let visitor = PartialTaggedEnum::KindA(partial_inner);
+                        let visitor = PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
                         TomlValue::new_nested(Some(visitor), helper.span())
                     }
                 }
@@ -396,7 +396,7 @@ impl Visitor for PartialTaggedEnum {
 
                 match &mut partial_inner.state {
                     TomlValueState::Ok { .. } => {
-                        let visitor = PartialTaggedEnum::KindB(partial_inner);
+                        let visitor = PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
                         TomlValue::new_ok(visitor, helper.span())
                     }
                     TomlValueState::UnknownKeys(unknown_keys) => {
@@ -406,11 +406,11 @@ impl Visitor for PartialTaggedEnum {
                                 "Involving this enum variant.".to_string(),
                             ));
                         }
-                        let visitor = PartialTaggedEnum::KindB(partial_inner);
+                        let visitor = PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
                         TomlValue::new_nested(Some(visitor), helper.span())
                     }
                     _ => {
-                        let visitor = PartialTaggedEnum::KindB(partial_inner);
+                        let visitor = PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
                         TomlValue::new_nested(Some(visitor), helper.span())
                     }
                 }
@@ -425,29 +425,29 @@ impl Visitor for PartialTaggedEnum {
 
     fn can_concrete(&self) -> bool {
         match self {
-            PartialTaggedEnum::KindA(toml_value) => toml_value.is_ok(),
-            PartialTaggedEnum::KindB(toml_value) => toml_value.is_ok(),
+            PartialTaggedEnum::KindA(e) => e.toml_value.is_ok(),
+            PartialTaggedEnum::KindB(e) => e.toml_value.is_ok(),
         }
     }
 
     fn v_register_errors(&self, col: &TomlCollector) {
         match self {
-            PartialTaggedEnum::KindA(toml_value) => {
-                toml_value.register_error(col);
+            PartialTaggedEnum::KindA(e) => {
+                e.toml_value.register_error(col);
             }
-            PartialTaggedEnum::KindB(toml_value) => {
-                toml_value.register_error(col);
+            PartialTaggedEnum::KindB(e) => {
+                e.toml_value.register_error(col);
             }
         }
     }
 
     fn into_concrete(self) -> Self::Concrete {
         match self {
-            PartialTaggedEnum::KindA(toml_value) => {
-                TaggedEnum::KindA(toml_value.value.unwrap().into_concrete())
+            PartialTaggedEnum::KindA(e) => {
+                TaggedEnum::KindA(e.toml_value.value.unwrap().into_concrete())
             }
-            PartialTaggedEnum::KindB(toml_value) => {
-                TaggedEnum::KindB(toml_value.value.unwrap().into_concrete())
+            PartialTaggedEnum::KindB(e) => {
+                TaggedEnum::KindB(e.toml_value.value.unwrap().into_concrete())
             }
         }
     }
@@ -755,11 +755,13 @@ impl<R> VerifyVisitor<R> for PartialOptionNested {
 impl<R> VerifyVisitor<R> for PartialTaggedEnum {
     fn vv_validate(mut self, parent: &R, options: &VerifyOptions) -> Self {
         match &mut self {
-            PartialTaggedEnum::KindA(toml_value) => {
-                *toml_value = toml_value.take().tpd_validate(parent, options);
+            PartialTaggedEnum::KindA(e) => {
+                let tv = e.toml_value.take();
+                e.toml_value = tv.tpd_validate(parent, options);
             }
-            PartialTaggedEnum::KindB(toml_value) => {
-                *toml_value = toml_value.take().tpd_validate(parent, options);
+            PartialTaggedEnum::KindB(e) => {
+                let tv = e.toml_value.take();
+                e.toml_value = tv.tpd_validate(parent, options);
             }
         }
         self

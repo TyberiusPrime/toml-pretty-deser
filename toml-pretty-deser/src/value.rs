@@ -523,6 +523,17 @@ impl<T> TomlValue<T> {
     }
 }
 
+/// Holds the two pieces of data stored in each variant of a generated
+/// `PartialTaggedEnum`: the inner [`TomlValue`] and the span of the TOML
+/// tag key, used for error-context annotations.
+///
+/// Every variant of a generated `PartialFoo` enum holds exactly one of these.
+#[derive(Debug, Clone)]
+pub struct PartialTaggedVariant<T> {
+    pub toml_value: TomlValue<T>,
+    pub tag_span: Range<usize>,
+}
+
 /// Trait for providing default values to `TomlValue` when the field is missing.
 ///
 /// For regular `TomlValue<T>`, the default type `D` is `T` itself.

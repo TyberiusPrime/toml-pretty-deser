@@ -638,6 +638,11 @@ fn amend_help<T>(field: &mut TomlValue<T>, extra: &str) {
 (Setting help on non-error-state fields isn't harmful, just superfluous)
 
 
+### Arbitrary further #[attr] on PartialT
+Use e.g. #[tdp(further_attr="enum_dispatch")] to tag the PartialT
+with #[enum_dispatch]
+
+
 ### "the trait bound `InnerStruct:Visitor` is not satisfied on T"
 
 You're likely missing the `#[tpd(nested)]` on your field definition,

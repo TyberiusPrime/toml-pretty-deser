@@ -167,7 +167,8 @@ impl VerifyIn<TPDRoot> for PartialCvPipeline {
                     .enumerate()
                     .filter_map(|(i, tv_step)| {
                         if let Some(step) = tv_step.as_ref() {
-                            if let PartialPipelineStep::Resize(resize, _) = step {
+                            if let PartialPipelineStep::Resize(e) = step {
+                                let resize = &e.toml_value;
                                 if let Some(resize) = resize.as_ref() {
                                     if *resize.width.as_ref().unwrap() == 55 {
                                         return Some((i, tv_step.span()));
