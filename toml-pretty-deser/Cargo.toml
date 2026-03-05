@@ -19,6 +19,7 @@ toml-pretty-deser-macros = { path = "../toml-pretty-deser-macros", version="0.3.
 mutants = "0.0.4"
 indexmap = "2.13.0"
 strsim = "0.11.1"
+unicode-width = "0.2.2"
 
 [dev-dependencies]
 insta = { version = "1.46.3", features = ["yaml"] }

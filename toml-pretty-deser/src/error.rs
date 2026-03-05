@@ -287,7 +287,13 @@ pub(crate) fn pretty_error_message(
                 let labels = vec![Label::new(0..0).with_text(final_message)];
                 Block::new(&idx, labels).expect("can not fail")
             });
-        let block = block.map_code(|c| CodeWidth::new(c, c.len()));
+        let mut prev_empty = false;
+        let block = block.map_code(|s| {
+            let sub = usize::from(core::mem::replace(&mut prev_empty, s.is_empty()));
+            let s = s.replace('\t', "    ");
+            let w = unicode_width::UnicodeWidthStr::width(&*s);
+            CodeWidth::new(s, core::cmp::max(w, 1) - sub)
+        });
         let blockf: String = format!("{block}")
             .lines()
             .skip(1)

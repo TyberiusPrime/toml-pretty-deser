@@ -66,7 +66,7 @@ pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> St
     let closest: Vec<&str> = distances.into_iter().take(3).map(|(_, s)| s).collect();
 
     if closest.is_empty() {
-        "All known keys have been used.".to_string()
+        "All known accepted values have been used.".to_string()
     } else {
         format!("Did you mean: {}?", format_quoted_list(&closest))
     }
