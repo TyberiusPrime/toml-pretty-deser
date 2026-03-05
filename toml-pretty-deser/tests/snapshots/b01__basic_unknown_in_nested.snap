@@ -1,6 +1,6 @@
 ---
 source: toml-pretty-deser/tests/b01.rs
-expression: "DeserError::DeserFailure(errors, inner).pretty(\"test.toml\")"
+expression: "e.pretty(\"test.toml\")"
 ---
 Error 1/3
    ╭─test.toml
@@ -32,4 +32,4 @@ Error 3/3
   ┆              │
   ┆              ╰─────── Unknown key.
 ──╯
-Hint: All known keys have been used.
+Hint: All known accepted values have been used.

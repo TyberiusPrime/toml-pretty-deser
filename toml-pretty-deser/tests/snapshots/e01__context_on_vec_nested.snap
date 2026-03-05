@@ -1,6 +1,5 @@
 ---
 source: toml-pretty-deser/tests/e01.rs
-assertion_line: 417
 expression: pretty
 ---
 Error 1/2
@@ -26,9 +25,9 @@ Error 2/2
 5 │ │
   ┆ │
 6 │ │         [[items]]
-  ┆ │                 ▲
-  ┆ │                 │
-  ┆ ╰─────────────────┴─ In the 'items' list
+  ┆ │                ▲
+  ┆ │                │
+  ┆ ╰────────────────┴─ In the 'items' list
   ┆
 7 │         value = 12
 8 │           label = 300

@@ -10,7 +10,7 @@ Error 1/2
 14 │             kind = 'KindA'
    ┆                    ───┬───┬
    ┆                       │   │
-   ┆                       ╰──── Involving this enum variant.
+   ┆                       ╰───── Involving this enum variant.
    ┆                           │
    ┆                           ╰─ Missing required key: 'a'.
 ───╯

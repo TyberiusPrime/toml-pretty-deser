@@ -1201,7 +1201,9 @@ fn derive_tagged_enum(
         })
         .collect();
 
-    // fill_from_toml tag dispatch match arms
+    // fill_from_toml tag dispatch if-else branches (mode-aware)
+    // Each branch checks the canonical name and all aliases via helper.col.match_mode.matches()
+    // so that AnyCase / UpperLower modes apply to tag values too.
     let tag_match_arms: Vec<TokenStream2> = variant_infos
         .iter()
         .filter(|v| !v.attrs.skip)
@@ -1212,7 +1214,9 @@ fn derive_tagged_enum(
             let aliases = &v.attrs.aliases;
 
             Ok(quote! {
-                #ident_str #(| #aliases)* => {
+                if helper.col.match_mode.matches(tag, #ident_str)
+                    #( || helper.col.match_mode.matches(tag, #aliases) )*
+                {
                     let partial_inner = <#partial_inner as toml_pretty_deser::Visitor>::fill_from_toml(helper);
                     let is_ok = partial_inner.is_ok();
                     let visitor = #partial_name::#ident(toml_pretty_deser::PartialTaggedVariant {
@@ -1356,13 +1360,12 @@ fn derive_tagged_enum(
                 let tag = tag_value.value.as_ref().expect("tag value missing after is_ok check");
                 let tag_span = tag_value.span();
 
-                match tag.as_str() {
-                    #(#tag_match_arms)*
-                    _ => toml_pretty_deser::TomlValue::new_validation_failed(
+                #(#tag_match_arms)else* else {
+                    toml_pretty_deser::TomlValue::new_validation_failed(
                         tag_span,
                         format!("Invalid tag value: '{}'", tag),
                         Some(toml_pretty_deser::suggest_alternatives(tag, &[#(#variant_names),*])),
-                    ),
+                    )
                 }
             }
 
