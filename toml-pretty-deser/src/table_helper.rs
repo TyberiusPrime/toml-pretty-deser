@@ -277,7 +277,8 @@ impl<'a> TomlHelper<'a> {
     #[allow(clippy::manual_let_else)]
     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<MapAndKeys<K, T>>
     where
-        K: From<String> + std::hash::Hash + Eq,
+        K: TryFrom<String> + std::hash::Hash + Eq,
+        <K as TryFrom<String>>::Error: std::fmt::Display,
         T: Visitor + Default,
     {
         // Build set of observed normalized names (keys that matched other fields)
@@ -330,7 +331,17 @@ impl<'a> TomlHelper<'a> {
             let mut helper = TomlHelper::from_item(item, self.col.clone());
             let value_result = T::fill_from_toml(&mut helper);
 
-            result_map.insert(K::from(key_str), value_result);
+            match K::try_from(key_str) {
+                Ok(k) => {
+                    result_map.insert(k, value_result);
+                }
+                Err(e) => {
+                    result_keys.last_mut().unwrap().state =
+                        TomlValueState::ValidationFailed {
+                            message: e.to_string(),
+                        };
+                }
+            }
         }
 
         let span = (first_span.unwrap_or(0..0).start)..(last_span.unwrap_or(0..0).end);

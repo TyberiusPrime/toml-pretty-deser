@@ -1,0 +1,27 @@
+---
+source: toml-pretty-deser/tests/k01.rs
+expression: pretty
+---
+Error 1/2
+  ╭─test.toml
+  ┆
+2 │ [services]
+3 │ 8080 = "http"
+4 │ bad-key = "bad"
+  ┆ ───┬───
+  ┆    │
+  ┆    ╰──────────── not a valid port number: invalid digit found in string
+──╯
+
+Error 2/2
+  ╭─test.toml
+  ┆
+2 │ [services]
+3 │ 8080 = "http"
+4 │ bad-key = "bad"
+5 │ 443 = "https"
+6 │ also-bad = "also bad"
+  ┆ ────┬───
+  ┆     │
+  ┆     ╰───────────────── not a valid port number: invalid digit found in string
+──╯

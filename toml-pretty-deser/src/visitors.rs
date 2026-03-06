@@ -365,9 +365,10 @@ impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyVisitor<R> for Vec<To
 }
 impl<R, T: Visitor + VerifyVisitor<R> + VerifyIn<R>> VerifyIn<R> for Vec<TomlValue<T>> {}
 
-impl<T, K: From<String> + std::hash::Hash + Eq + std::fmt::Debug> Visitor for MapAndKeys<K, T>
+impl<T, K: TryFrom<String> + std::hash::Hash + Eq + std::fmt::Debug> Visitor for MapAndKeys<K, T>
 where
     T: Visitor,
+    <K as TryFrom<String>>::Error: std::fmt::Display,
 {
     type Concrete = IndexMap<K, T::Concrete>;
 
@@ -383,14 +384,26 @@ where
                         .expect("Just queried!")
                         .span()
                         .unwrap_or(0..0);
-                    keys.push(TomlValue::new_ok(key.to_string(), key_span));
-                    let key: K = key.to_string().into();
-                    let mut value_helper = TomlHelper::from_item(value, helper.col.clone());
-                    let deserialized_value = T::fill_from_toml(&mut value_helper);
-                    if !deserialized_value.is_ok() {
-                        all_ok = false;
+                    let key_str = key.to_string();
+                    keys.push(TomlValue::new_ok(key_str.clone(), key_span));
+                    match K::try_from(key_str) {
+                        Ok(k) => {
+                            let mut value_helper =
+                                TomlHelper::from_item(value, helper.col.clone());
+                            let deserialized_value = T::fill_from_toml(&mut value_helper);
+                            if !deserialized_value.is_ok() {
+                                all_ok = false;
+                            }
+                            result.insert(k, deserialized_value);
+                        }
+                        Err(e) => {
+                            keys.last_mut().unwrap().state =
+                                TomlValueState::ValidationFailed {
+                                    message: e.to_string(),
+                                };
+                            all_ok = false;
+                        }
                     }
-                    result.insert(key, deserialized_value);
                 }
                 let result = MapAndKeys { map: result, keys };
                 if all_ok {

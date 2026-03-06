@@ -1,0 +1,13 @@
+---
+source: toml-pretty-deser/tests/k01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+2 │ [services]
+3 │ 0 = "reserved"
+  ┆ ┬
+  ┆ │
+  ┆ ╰────────────── port 0 is reserved
+──╯
