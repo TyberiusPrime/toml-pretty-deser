@@ -26,7 +26,7 @@ impl TryFrom<&str> for TagLabel {
 }
 
 #[derive(Debug, Hash, Eq, PartialEq)]
-struct BString(String);
+pub(crate) struct BString(String);
 //
 // impl From<String> for BString {
 //     fn from(value: String) -> Self {
@@ -43,13 +43,13 @@ impl From<&str> for BString {
 /// Bog-standard nested struct.
 #[tpd(no_verify)]
 #[derive(Debug)]
-pub struct Barcodes {
+pub(crate) struct Barcodes {
     // #[serde(
     //     deserialize_with = "deser::btreemap_iupac_dna_string_from_string",
     //     flatten
     // )]
     #[tpd(absorb_remaining)]
-    pub barcode_to_name: IndexMap<BString, String>,
+    pub(crate) barcode_to_name: IndexMap<BString, String>,
 }
 
 #[tpd(root, no_verify)]

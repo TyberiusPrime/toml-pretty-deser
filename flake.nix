@@ -22,9 +22,7 @@
         #pkgs = nixpkgs.legacyPackages."${system}";
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { inherit system overlays; };
-        # rust = #pkgs.rust-bin.stable."1.92.0".default.override {
-        #   extensions = [ "llvm-tools-preview"  "rust-analyzer"];
-        # };
+        # Nightly toolchain for local dev shell
         rust = pkgs.rust-bin.selectLatestNightlyWith (
           toolchain:
           toolchain.default.override {
@@ -33,15 +31,36 @@
           }
         );
 
+        # Stable toolchain for CI checks (pinned via flake.lock)
+        rustStable = pkgs.rust-bin.stable.latest.default;
+
         # Override the version used in naersk
         naersk-lib = naersk.lib."${system}".override {
           cargo = rust;
           rustc = rust;
         };
 
+        # naersk with stable rust for reproducible CI checks
+        naersk-lib-ci = naersk.lib."${system}".override {
+          cargo = rustStable;
+          rustc = rustStable;
+        };
+
         bacon = pkgs.bacon;
       in
       rec {
+        # `nix flake check` — runs tests and clippy with pinned stable Rust
+        checks = {
+          test = naersk-lib-ci.buildPackage {
+            src = ./.;
+            mode = "test";
+          };
+          clippy = naersk-lib-ci.buildPackage {
+            src = ./.;
+            mode = "clippy";
+          };
+        };
+
         # `nix develop`
         devShell = pkgs.mkShell {
           COMMIT_HASH = self.rev or (pkgs.lib.removeSuffix "-dirty" self.dirtyRev or "unknown-not-in-git");
