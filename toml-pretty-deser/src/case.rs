@@ -72,7 +72,7 @@ pub fn suggest_alternatives<T: AsRef<str>>(current: &str, available: &[T]) -> St
     }
 }
 
-#[must_use] 
+#[must_use]
 #[allow(clippy::missing_panics_doc)]
 pub fn format_quoted_list(items: &[&str]) -> String {
     match items {

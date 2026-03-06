@@ -1,0 +1,11 @@
+---
+source: toml-pretty-deser/tests/k02.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+5 │ [barcodes.-bad]
+  ┆           ──┬─
+  ┆             │
+  ┆             ╰─── tag label must not be empty or start with '-', got "-bad"
+──╯

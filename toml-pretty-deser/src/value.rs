@@ -70,7 +70,9 @@ pub enum TomlValueState {
 impl TomlValueState {
     #[allow(clippy::needless_pass_by_value)] // it's not needless!
     pub fn new_validation_failed(message: impl ToString) -> Self {
-        TomlValueState::ValidationFailed { message: message.to_string() }
+        TomlValueState::ValidationFailed {
+            message: message.to_string(),
+        }
     }
 }
 /// The Result+Option representation of a TOML value that we will have
@@ -111,8 +113,8 @@ impl<T> TomlValue<T> {
             context: None,
         }
     }
-    /// Create a new `TomlValue` in the Ok state with the given value 
-    /// placed at 0..0 - for when you're extending things and don't have a good place 
+    /// Create a new `TomlValue` in the Ok state with the given value
+    /// placed at 0..0 - for when you're extending things and don't have a good place
     /// to tie them to
     #[must_use]
     pub fn new_ok_unplaced(value: T) -> Self {
@@ -485,20 +487,22 @@ impl<T> TomlValue<T> {
     where
         F: FnOnce(&T) -> Result<(), ValidationFailure>,
     {
-        if let TomlValueState::Ok = &self.state { match verification_func(
-            self.value
-                .as_ref()
-                .expect("None value on TomlValueState::Ok"),
-        ) {
-            Ok(()) => {
-                //unchanged
+        if let TomlValueState::Ok = &self.state {
+            match verification_func(
+                self.value
+                    .as_ref()
+                    .expect("None value on TomlValueState::Ok"),
+            ) {
+                Ok(()) => {
+                    //unchanged
+                }
+                Err(ValidationFailure { message, help }) => {
+                    self.value = None;
+                    self.state = TomlValueState::ValidationFailed { message };
+                    self.help = help;
+                }
             }
-            Err(ValidationFailure { message, help }) => {
-                self.value = None;
-                self.state = TomlValueState::ValidationFailed { message };
-                self.help = help;
-            }
-        } } else {
+        } else {
             //unchanged
         }
     }
@@ -514,20 +518,22 @@ impl<T> TomlValue<T> {
     where
         F: FnOnce(&mut T) -> Result<(), ValidationFailure>,
     {
-        if let TomlValueState::Ok = &self.state { match verification_func(
-            self.value
-                .as_mut()
-                .expect("None value on TomlValueState::Ok"),
-        ) {
-            Ok(()) => {
-                //unchanged
+        if let TomlValueState::Ok = &self.state {
+            match verification_func(
+                self.value
+                    .as_mut()
+                    .expect("None value on TomlValueState::Ok"),
+            ) {
+                Ok(()) => {
+                    //unchanged
+                }
+                Err(ValidationFailure { message, help }) => {
+                    self.value = None;
+                    self.state = TomlValueState::ValidationFailed { message };
+                    self.help = help;
+                }
             }
-            Err(ValidationFailure { message, help }) => {
-                self.value = None;
-                self.state = TomlValueState::ValidationFailed { message };
-                self.help = help;
-            }
-        } } else {
+        } else {
             //unchanged
         }
     }

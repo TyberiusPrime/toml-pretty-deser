@@ -17,7 +17,11 @@ struct ServiceConfig {
 }
 
 impl VerifyIn<TPDRoot> for PartialServiceConfig {
-    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
+    fn verify(
+        &mut self,
+        _parent: &TPDRoot,
+        _options: &VerifyOptions,
+    ) -> Result<(), ValidationFailure> {
         self.labels.verify_keys(|key| {
             let first = key.chars().next().unwrap_or('_');
             if !first.is_ascii_lowercase() {

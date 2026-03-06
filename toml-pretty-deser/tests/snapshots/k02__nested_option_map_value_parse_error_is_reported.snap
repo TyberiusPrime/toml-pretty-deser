@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/k02.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+5 │ [barcodes.broken]
+6 │ value = 42
+  ┆         ─┬
+  ┆          │
+  ┆          ╰─ Wrong type: expected string, found integer.
+──╯
+Hint: This value has the wrong type.

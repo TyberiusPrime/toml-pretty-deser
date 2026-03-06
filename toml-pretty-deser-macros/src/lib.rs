@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Delimiter, Group, Punct, Spacing, TokenTree};
 use quote::{format_ident, quote};
 use syn::parse::Parser as _;
-use proc_macro2::{Delimiter, Group, Punct, Spacing, TokenTree};
 use syn::{
     Data, DeriveInput, Fields, GenericArgument, Lit, PathArguments, Type, TypePath,
     parse_macro_input,
@@ -75,7 +75,9 @@ fn parse_macro_attrs(attr_ts: TokenStream2) -> syn::Result<MacroAttrs> {
             let value = meta.value()?;
             let lit: Lit = value.parse()?;
             if let Lit::Str(s) = lit {
-                let inner: TokenStream2 = s.value().parse()
+                let inner: TokenStream2 = s
+                    .value()
+                    .parse()
                     .map_err(|_| syn::Error::new(s.span(), "invalid further_attr token string"))?;
                 let group = Group::new(Delimiter::Bracket, inner);
                 let hash = Punct::new('#', Spacing::Alone);
@@ -128,7 +130,9 @@ fn parse_enum_attrs(attr_ts: TokenStream2) -> syn::Result<EnumMacroAttrs> {
             let value = meta.value()?;
             let lit: Lit = value.parse()?;
             if let Lit::Str(s) = lit {
-                let inner: TokenStream2 = s.value().parse()
+                let inner: TokenStream2 = s
+                    .value()
+                    .parse()
                     .map_err(|_| syn::Error::new(s.span(), "invalid further_attr token string"))?;
                 let group = Group::new(Delimiter::Bracket, inner);
                 let hash = Punct::new('#', Spacing::Alone);
@@ -278,13 +282,14 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
     }
 
     if let Some(AdaptInVerify::Explicit(_)) = &attrs.adapt_in_verify
-        && matches!(attrs.nested, NestedState::Nested | NestedState::Tagged) {
-            return Err(syn::Error::new_spanned(
-                &field.ty,
-                "adapt_in_verify(Type) cannot be combined with nested/tagged; \
+        && matches!(attrs.nested, NestedState::Nested | NestedState::Tagged)
+    {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "adapt_in_verify(Type) cannot be combined with nested/tagged; \
                  use adapt_in_verify (no type arg) with nested instead",
-            ));
-        }
+        ));
+    }
     if attrs.adapt_in_verify.is_some()
         && (attrs.with_fn.is_some() || attrs.skip || attrs.absorb_remaining || attrs.default)
     {
@@ -389,23 +394,24 @@ fn extract_two_generics(args: &PathArguments, context_ty: &Type) -> syn::Result<
 /// Used by the `adapt_in_verify` (Auto) case to find the partial type.
 fn extract_innermost_type(ty: &Type) -> syn::Result<Type> {
     if let Type::Path(TypePath { path, .. }) = ty
-        && let Some(last) = path.segments.last() {
-            if let PathArguments::AngleBracketed(ab) = &last.arguments {
-                if ab.args.len() == 1 {
-                    if let GenericArgument::Type(inner) = &ab.args[0] {
-                        return extract_innermost_type(inner);
-                    }
-                } else if ab.args.len() > 1 {
-                    return Err(syn::Error::new_spanned(
-                        ty,
-                        "adapt_in_verify (without type argument) cannot auto-detect the nested \
-                         type when the wrapper has multiple generic arguments",
-                    ));
+        && let Some(last) = path.segments.last()
+    {
+        if let PathArguments::AngleBracketed(ab) = &last.arguments {
+            if ab.args.len() == 1 {
+                if let GenericArgument::Type(inner) = &ab.args[0] {
+                    return extract_innermost_type(inner);
                 }
+            } else if ab.args.len() > 1 {
+                return Err(syn::Error::new_spanned(
+                    ty,
+                    "adapt_in_verify (without type argument) cannot auto-detect the nested \
+                         type when the wrapper has multiple generic arguments",
+                ));
             }
-            // No generic args (or non-angle-bracketed): this is the innermost type
-            return Ok(ty.clone());
         }
+        // No generic args (or non-angle-bracketed): this is the innermost type
+        return Ok(ty.clone());
+    }
     Err(syn::Error::new_spanned(
         ty,
         "adapt_in_verify (without type argument) requires the field type to be a path type",
@@ -422,15 +428,14 @@ fn partial_type_path(ty: &Type) -> syn::Result<TokenStream2> {
             // Check if this is a wrapper type (Box, etc.) with a single generic argument
             if last.ident == "Box"
                 && let syn::PathArguments::AngleBracketed(args) = &last.arguments
-                    && args.args.len() == 1
-                        && let syn::GenericArgument::Type(inner_ty) = &args.args[0] {
-                            let partial_inner = partial_type_path(inner_ty)?;
-                            let leading_colon = &path.leading_colon;
-                            let prefix_segments = segments.iter().take(segments.len() - 1);
-                            return Ok(
-                                quote! { #leading_colon #(#prefix_segments ::)* Box<#partial_inner> },
-                            );
-                        }
+                && args.args.len() == 1
+                && let syn::GenericArgument::Type(inner_ty) = &args.args[0]
+            {
+                let partial_inner = partial_type_path(inner_ty)?;
+                let leading_colon = &path.leading_colon;
+                let prefix_segments = segments.iter().take(segments.len() - 1);
+                return Ok(quote! { #leading_colon #(#prefix_segments ::)* Box<#partial_inner> });
+            }
             last.ident = format_ident!("Partial{}", last.ident);
         }
         let leading_colon = &path.leading_colon;
@@ -1007,7 +1012,12 @@ fn derive_enum(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<TokenS
     let enum_attrs = parse_enum_attrs(attr_ts)?;
 
     if let Some(tag) = enum_attrs.tag {
-        derive_tagged_enum(input, &tag, &enum_attrs.tag_aliases, &enum_attrs.further_attrs)
+        derive_tagged_enum(
+            input,
+            &tag,
+            &enum_attrs.tag_aliases,
+            &enum_attrs.further_attrs,
+        )
     } else {
         derive_simple_enum(input)
     }

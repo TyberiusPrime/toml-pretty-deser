@@ -1,4 +1,5 @@
-// Tests: IndexMap with a key type backed by TryFrom<String>.
+// Tests: IndexMap with a key type backed by TryFrom<String>, including
+// the Option<IndexMap<K, V>> variant.
 //
 // When TryFrom<String> fails for a key, the library must record a
 // ValidationFailed error on that key's TomlValue and propagate the error up,
@@ -12,10 +13,10 @@ use toml_pretty_deser::prelude::*;
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct Port(u16);
 
-impl TryFrom<String> for Port {
+impl TryFrom<&str> for Port {
     type Error = String;
 
-    fn try_from(s: String) -> Result<Self, Self::Error> {
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         s.parse::<u16>()
             .map_err(|e| format!("not a valid port number: {e}"))
             .and_then(|n| {
@@ -34,6 +35,12 @@ struct PortConfig {
     services: IndexMap<Port, String>,
 }
 
+#[tpd(root, no_verify)]
+#[derive(Debug)]
+struct OptionalPortConfig {
+    services: Option<IndexMap<Port, String>>,
+}
+
 // --- success cases ---
 
 #[test]
@@ -44,8 +51,7 @@ fn valid_port_keys_parse_ok() {
 443 = "https"
 22 = "ssh"
 "#;
-    let config =
-        PortConfig::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict).unwrap();
+    let config = PortConfig::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict).unwrap();
     assert_eq!(config.services.len(), 3);
     assert_eq!(config.services[&Port(8080)], "http");
     assert_eq!(config.services[&Port(443)], "https");
@@ -104,6 +110,50 @@ also-bad = "also bad"
         pretty.matches("not a valid port number").count(),
         2,
         "both invalid keys should be reported, got:\n{pretty}"
+    );
+    insta::assert_snapshot!(pretty);
+}
+
+// --- Option<IndexMap<Port, String>> ---
+
+#[test]
+fn option_map_absent_is_none() {
+    let toml = "";
+    let config =
+        OptionalPortConfig::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict).unwrap();
+    assert!(config.services.is_none());
+}
+
+#[test]
+fn option_map_valid_keys_parse_ok() {
+    let toml = r#"
+[services]
+8080 = "http"
+443 = "https"
+"#;
+    let config =
+        OptionalPortConfig::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict).unwrap();
+    let services = config.services.unwrap();
+    assert_eq!(services.len(), 2);
+    assert_eq!(services[&Port(8080)], "http");
+}
+
+#[test]
+fn option_map_invalid_key_gives_validation_error() {
+    let toml = r#"
+[services]
+8080 = "http"
+not-a-port = "bad"
+"#;
+    let result = OptionalPortConfig::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
+    assert!(
+        result.is_err(),
+        "invalid key inside Option<IndexMap> should fail"
+    );
+    let pretty = result.unwrap_err().pretty("test.toml");
+    assert!(
+        pretty.contains("not a valid port number"),
+        "TryFrom error must be reported even inside Option<IndexMap>, got:\n{pretty}"
     );
     insta::assert_snapshot!(pretty);
 }

@@ -53,11 +53,7 @@ pub trait VerifyIn<Parent> {
     /// # Errors
     /// When the developer wants to replace this value with
     /// a `TomlValue` in failed verification state.
-    fn verify(
-        &mut self,
-        parent: &Parent,
-        options: &VerifyOptions,
-    ) -> Result<(), ValidationFailure>
+    fn verify(&mut self, parent: &Parent, options: &VerifyOptions) -> Result<(), ValidationFailure>
     where
         Self: Sized + Visitor,
     {
@@ -144,9 +140,10 @@ where
             value.v_sync_nested_states();
         }
         if matches!(self.state, TomlValueState::Ok)
-            && !self.value.as_ref().is_some_and(Visitor::can_concrete) {
-                self.state = TomlValueState::Nested;
-            }
+            && !self.value.as_ref().is_some_and(Visitor::can_concrete)
+        {
+            self.state = TomlValueState::Nested;
+        }
     }
 
     /// called by the toml-pretty-deser-macros `fill_from_toml` implementation.
@@ -185,8 +182,10 @@ where
             TomlValueState::Ok => {
                 let span = self.span;
                 let context = self.context;
-                let mut maybe_validated =
-                    self.value.expect("ok, but no value?").vv_validate(parent, options);
+                let mut maybe_validated = self
+                    .value
+                    .expect("ok, but no value?")
+                    .vv_validate(parent, options);
                 let v = maybe_validated.verify(parent, options);
                 maybe_validated.v_sync_nested_states();
                 match (
@@ -225,7 +224,12 @@ where
                 }
             }
             TomlValueState::Nested => {
-                let TomlValue { span, value, context, .. } = self;
+                let TomlValue {
+                    span,
+                    value,
+                    context,
+                    ..
+                } = self;
                 if let Some(value) = value {
                     let mut maybe_validated = value.vv_validate(parent, options);
                     let v = maybe_validated.verify(parent, options);
@@ -279,7 +283,12 @@ where
                 // in verify (e.g. `.or_with()`, skip fields, adapt_in_verify) are
                 // applied.  The UnknownKeys state is preserved because those errors
                 // are still real; only if verify itself fails do we switch state.
-                let TomlValue { span, value, context, .. } = self;
+                let TomlValue {
+                    span,
+                    value,
+                    context,
+                    ..
+                } = self;
                 if let Some(value) = value {
                     let mut maybe_validated = value.vv_validate(parent, options);
                     let v = maybe_validated.verify(parent, options);
@@ -379,8 +388,7 @@ where
                 // building our own error (which already carries self.help directly).
                 if let Some(value) = self.value.as_ref() {
                     let __ctx_help = col.push_help_context_opt(self.help.as_deref());
-                    let __ctx_span =
-                        col.push_context_opt(self.context.as_ref());
+                    let __ctx_span = col.push_context_opt(self.context.as_ref());
                     value.v_register_errors(col);
                     col.pop_context_to(__ctx_span);
                     col.pop_help_context_to(__ctx_help);
@@ -429,8 +437,7 @@ where
                 // (which already carries self.help directly).
                 if let Some(value) = self.value.as_ref() {
                     let __ctx_help = col.push_help_context_opt(self.help.as_deref());
-                    let __ctx_span =
-                        col.push_context_opt(self.context.as_ref());
+                    let __ctx_span = col.push_context_opt(self.context.as_ref());
                     value.v_register_errors(col);
                     col.pop_context_to(__ctx_span);
                     col.pop_help_context_to(__ctx_help);

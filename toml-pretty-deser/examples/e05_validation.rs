@@ -18,7 +18,11 @@ struct ServerConfig {
 }
 
 impl VerifyIn<TPDRoot> for PartialServerConfig {
-    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
+    fn verify(
+        &mut self,
+        _parent: &TPDRoot,
+        _options: &VerifyOptions,
+    ) -> Result<(), ValidationFailure> {
         // Single-field validation: port must be > 1024
         self.port.verify(|p| {
             if *p > 1024 {

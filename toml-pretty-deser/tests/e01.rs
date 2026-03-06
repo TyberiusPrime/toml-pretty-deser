@@ -58,16 +58,17 @@ fn test_help_context_propagates_to_nested_children() {
 
     if let Err(mut e) = result {
         // Post-fail modification: attach documentation URLs to both nesting levels.
-        if let DeserError::DeserFailure(_, ref mut partial) = e &&
-            let Some(root_inner) = partial.value.as_mut() {
-                root_inner
-                    .section
-                    .set_help("See: https://docs.example.com/section");
-                if let Some(section_inner) = root_inner.section.value.as_mut() {
-                    section_inner
-                        .subsection
-                        .set_help("See: https://docs.example.com/subsection");
-                }
+        if let DeserError::DeserFailure(_, ref mut partial) = e
+            && let Some(root_inner) = partial.value.as_mut()
+        {
+            root_inner
+                .section
+                .set_help("See: https://docs.example.com/section");
+            if let Some(section_inner) = root_inner.section.value.as_mut() {
+                section_inner
+                    .subsection
+                    .set_help("See: https://docs.example.com/subsection");
+            }
         }
         // Both help texts must appear; inner (subsection) comes before outer (section)
         // because the context stack is reversed on output (innermost-first).
@@ -104,16 +105,17 @@ fn test_help_context_propagates_to_nested_children_other_error() {
 
     if let Err(mut e) = result {
         // Post-fail modification: attach documentation URLs to both nesting levels.
-        if let DeserError::DeserFailure(_, ref mut partial) = e &&
-            let Some(root_inner) = partial.value.as_mut() {
-                root_inner
-                    .section
-                    .set_help("See: https://docs.example.com/section");
-                if let Some(section_inner) = root_inner.section.value.as_mut() {
-                    section_inner
-                        .subsection
-                        .set_help("See: https://docs.example.com/subsection");
-                }
+        if let DeserError::DeserFailure(_, ref mut partial) = e
+            && let Some(root_inner) = partial.value.as_mut()
+        {
+            root_inner
+                .section
+                .set_help("See: https://docs.example.com/section");
+            if let Some(section_inner) = root_inner.section.value.as_mut() {
+                section_inner
+                    .subsection
+                    .set_help("See: https://docs.example.com/subsection");
+            }
         }
         // Both help texts must appear; inner (subsection) comes before outer (section)
         // because the context stack is reversed on output (innermost-first).
@@ -150,16 +152,17 @@ fn test_help_context_propagates_to_nested_children_other_error2() {
 
     if let Err(mut e) = result {
         // Post-fail modification: attach documentation URLs to both nesting levels.
-        if let DeserError::DeserFailure(_, ref mut partial) = e &&
-            let Some(root_inner) = partial.value.as_mut() {
-                root_inner
-                    .section
-                    .set_help("See: https://docs.example.com/section");
-                if let Some(section_inner) = root_inner.section.value.as_mut() {
-                    section_inner
-                        .subsection
-                        .set_help("See: https://docs.example.com/subsection");
-                }
+        if let DeserError::DeserFailure(_, ref mut partial) = e
+            && let Some(root_inner) = partial.value.as_mut()
+        {
+            root_inner
+                .section
+                .set_help("See: https://docs.example.com/section");
+            if let Some(section_inner) = root_inner.section.value.as_mut() {
+                section_inner
+                    .subsection
+                    .set_help("See: https://docs.example.com/subsection");
+            }
         }
         // Both help texts must appear; inner (subsection) comes before outer (section)
         // because the context stack is reversed on output (innermost-first).
@@ -226,10 +229,11 @@ fn test_custom_state_in_opt_vec_context_propagated() {
     );
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut partial) = e &&
-            let Some(root) = partial.value.as_mut() {
-                // items is Nested (one element has Custom state); set help on it.
-                root.items.set_help("See: https://docs.example.com/items");
+        if let DeserError::DeserFailure(_, ref mut partial) = e
+            && let Some(root) = partial.value.as_mut()
+        {
+            // items is Nested (one element has Custom state); set help on it.
+            root.items.set_help("See: https://docs.example.com/items");
         }
 
         let pretty = e.pretty("test.toml");
@@ -308,9 +312,10 @@ fn test_help_context_option_vec_tagged_enum() {
     assert!(result.is_err(), "should fail: value has wrong type");
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut partial) = e &&
-            let Some(root) = partial.value.as_mut() {
-                root.items.set_help("See: https://docs.example.com/items");
+        if let DeserError::DeserFailure(_, ref mut partial) = e
+            && let Some(root) = partial.value.as_mut()
+        {
+            root.items.set_help("See: https://docs.example.com/items");
         }
 
         let pretty = e.pretty("test.toml");
@@ -338,9 +343,10 @@ fn test_help_context_option_vec_tagged_enum_custom() {
     assert!(result.is_err(), "should fail: value has wrong type");
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut partial) = e &&
-            let Some(root) = partial.value.as_mut() {
-                root.items.set_help("See: https://docs.example.com/items");
+        if let DeserError::DeserFailure(_, ref mut partial) = e
+            && let Some(root) = partial.value.as_mut()
+        {
+            root.items.set_help("See: https://docs.example.com/items");
         }
 
         let pretty = e.pretty("test.toml");
@@ -371,9 +377,10 @@ fn test_help_context_option_vec_tagged_enum_validation_failed() {
     assert!(result.is_err(), "should fail: value 88 is forbidden");
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut partial) = e &&
-            let Some(root) = partial.value.as_mut() {
-                root.items.set_help("See: https://docs.example.com/items");
+        if let DeserError::DeserFailure(_, ref mut partial) = e
+            && let Some(root) = partial.value.as_mut()
+        {
+            root.items.set_help("See: https://docs.example.com/items");
         }
 
         let pretty = e.pretty("test.toml");
@@ -445,11 +452,12 @@ fn test_context_bug() {
 
     assert!(result.is_err(), "should fail: value has wrong type");
 
-    if let Err(e) = result &&
-        let DeserError::DeserFailure(_, ref _partial) = e {
-            let pretty = e.pretty("test.toml");
-            assert!(pretty.contains("Involving this enum variant."));
-            insta::assert_snapshot!(pretty);
+    if let Err(e) = result
+        && let DeserError::DeserFailure(_, ref _partial) = e
+    {
+        let pretty = e.pretty("test.toml");
+        assert!(pretty.contains("Involving this enum variant."));
+        insta::assert_snapshot!(pretty);
     }
 }
 
@@ -492,10 +500,11 @@ fn test_context_on_vec_nested() {
     let result = CtxVecRoot::tpd_from_toml(toml, FieldMatchMode::Exact, VecMode::Strict);
     assert!(result.is_err());
 
-    if let Err(mut e) = result &&
-        let DeserError::DeserFailure(_, ref mut partial) = e {
-            if let Some(root) = partial.value.as_mut() {
-                root.items.set_context("In the 'items' list");
+    if let Err(mut e) = result
+        && let DeserError::DeserFailure(_, ref mut partial) = e
+    {
+        if let Some(root) = partial.value.as_mut() {
+            root.items.set_context("In the 'items' list");
         }
         let pretty = e.pretty("test.toml");
         assert!(

@@ -372,7 +372,11 @@ impl Visitor for PartialTaggedEnum {
 
                 match &mut partial_inner.state {
                     TomlValueState::Ok => {
-                        let visitor = PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
+                        let visitor =
+                            PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant {
+                                toml_value: partial_inner,
+                                tag_span: tag_span.clone(),
+                            });
                         TomlValue::new_ok(visitor, helper.span())
                     }
                     TomlValueState::UnknownKeys(unknown_keys) => {
@@ -382,11 +386,19 @@ impl Visitor for PartialTaggedEnum {
                                 "Involving this enum variant.".to_string(),
                             ));
                         }
-                        let visitor = PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
+                        let visitor =
+                            PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant {
+                                toml_value: partial_inner,
+                                tag_span: tag_span.clone(),
+                            });
                         TomlValue::new_nested(Some(visitor), helper.span())
                     }
                     _ => {
-                        let visitor = PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
+                        let visitor =
+                            PartialTaggedEnum::KindA(toml_pretty_deser::PartialTaggedVariant {
+                                toml_value: partial_inner,
+                                tag_span: tag_span.clone(),
+                            });
                         TomlValue::new_nested(Some(visitor), helper.span())
                     }
                 }
@@ -395,8 +407,12 @@ impl Visitor for PartialTaggedEnum {
                 let mut partial_inner = PartialInnerB::fill_from_toml(helper);
 
                 match &mut partial_inner.state {
-                    TomlValueState::Ok  => {
-                        let visitor = PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
+                    TomlValueState::Ok => {
+                        let visitor =
+                            PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant {
+                                toml_value: partial_inner,
+                                tag_span: tag_span.clone(),
+                            });
                         TomlValue::new_ok(visitor, helper.span())
                     }
                     TomlValueState::UnknownKeys(unknown_keys) => {
@@ -406,11 +422,19 @@ impl Visitor for PartialTaggedEnum {
                                 "Involving this enum variant.".to_string(),
                             ));
                         }
-                        let visitor = PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
+                        let visitor =
+                            PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant {
+                                toml_value: partial_inner,
+                                tag_span: tag_span.clone(),
+                            });
                         TomlValue::new_nested(Some(visitor), helper.span())
                     }
                     _ => {
-                        let visitor = PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant { toml_value: partial_inner, tag_span: tag_span.clone() });
+                        let visitor =
+                            PartialTaggedEnum::KindB(toml_pretty_deser::PartialTaggedVariant {
+                                toml_value: partial_inner,
+                                tag_span: tag_span.clone(),
+                            });
                         TomlValue::new_nested(Some(visitor), helper.span())
                     }
                 }

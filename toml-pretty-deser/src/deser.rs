@@ -51,6 +51,9 @@ where
     if root.is_ok() {
         Ok(root.value.unwrap().into_concrete())
     } else {
-        Err(DeserError::DeserFailure(toml_str.to_string(), Box::new(root)))
+        Err(DeserError::DeserFailure(
+            toml_str.to_string(),
+            Box::new(root),
+        ))
     }
 }

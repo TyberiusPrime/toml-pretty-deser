@@ -29,7 +29,11 @@ struct AppConfig {
 }
 
 impl VerifyIn<TPDRoot> for PartialAppConfig {
-    fn verify(&mut self, _parent: &TPDRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
+    fn verify(
+        &mut self,
+        _parent: &TPDRoot,
+        _options: &VerifyOptions,
+    ) -> Result<(), ValidationFailure> {
         // .or_with(): provide a default via closure if missing
         self.timeout_ms.or_with(|| 5000);
 

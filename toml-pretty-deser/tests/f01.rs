@@ -42,18 +42,32 @@ pub struct BoxTaggedRoot {
 // VerifyIn impls: value == 0 is invalid for both inner types.
 
 impl VerifyIn<PartialBoxTaggedRoot> for PartialPlainInner {
-    fn verify(&mut self, _parent: &PartialBoxTaggedRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
+    fn verify(
+        &mut self,
+        _parent: &PartialBoxTaggedRoot,
+        _options: &VerifyOptions,
+    ) -> Result<(), ValidationFailure> {
         if self.value.value == Some(0) {
-            return Err(ValidationFailure::new("PlainInner: value must not be zero", None));
+            return Err(ValidationFailure::new(
+                "PlainInner: value must not be zero",
+                None,
+            ));
         }
         Ok(())
     }
 }
 
 impl VerifyIn<PartialBoxTaggedRoot> for PartialBoxedInner {
-    fn verify(&mut self, _parent: &PartialBoxTaggedRoot, _options: &VerifyOptions) -> Result<(), ValidationFailure> {
+    fn verify(
+        &mut self,
+        _parent: &PartialBoxTaggedRoot,
+        _options: &VerifyOptions,
+    ) -> Result<(), ValidationFailure> {
         if self.value.value == Some(0) {
-            return Err(ValidationFailure::new("BoxedInner: value must not be zero", None));
+            return Err(ValidationFailure::new(
+                "BoxedInner: value must not be zero",
+                None,
+            ));
         }
         Ok(())
     }

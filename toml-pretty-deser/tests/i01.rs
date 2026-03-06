@@ -83,16 +83,17 @@ fn test_context_on_custom_state_accessible_and_rendered() {
     assert!(result.is_err(), "VerifyIn should mark items as invalid");
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut partial) = e &&
-            let Some(root) = partial.value.as_mut() {
-                // (a) The context annotation set during VerifyIn is stored on
-                // `items.context` and is accessible here, before .pretty() is
-                // called — even though it was set "inside" VerifyIn.
-                assert!(
-                    root.items.context.is_some(),
-                    "context set during VerifyIn should be accessible on the DeserError \
+        if let DeserError::DeserFailure(_, ref mut partial) = e
+            && let Some(root) = partial.value.as_mut()
+        {
+            // (a) The context annotation set during VerifyIn is stored on
+            // `items.context` and is accessible here, before .pretty() is
+            // called — even though it was set "inside" VerifyIn.
+            assert!(
+                root.items.context.is_some(),
+                "context set during VerifyIn should be accessible on the DeserError \
                      before .pretty() is called"
-                );
+            );
         }
 
         let pretty = e.pretty("test.toml");
@@ -165,13 +166,15 @@ impl VerifyIn<TPDRoot> for PartialCvPipeline {
                     .iter()
                     .enumerate()
                     .filter_map(|(i, tv_step)| {
-                        if let Some(step) = tv_step.as_ref() &&
-                            let PartialPipelineStep::Resize(e) = step {
-                                let resize = &e.toml_value;
-                                if let Some(resize) = resize.as_ref() &&
-                                    *resize.width.as_ref().unwrap() == 55 {
-                                        return Some((i, tv_step.span()));
-                                    }
+                        if let Some(step) = tv_step.as_ref()
+                            && let PartialPipelineStep::Resize(e) = step
+                        {
+                            let resize = &e.toml_value;
+                            if let Some(resize) = resize.as_ref()
+                                && *resize.width.as_ref().unwrap() == 55
+                            {
+                                return Some((i, tv_step.span()));
+                            }
                         }
                         None
                     })
@@ -218,21 +221,21 @@ fn test_tagged_enum_context_overwrite_between_deser_and_pretty() {
     let doc_url = "https://docs.example.com/steps/";
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut tv_partial) = e &&
-            let Some(partial) = tv_partial.value.as_mut()
-                && let Some(steps) = partial.transform.value.as_mut()
-            {
-                for tv_step in steps.iter_mut() {
-                    if !tv_step.is_ok()
-                        && let Some(step) = tv_step.value.as_ref()
-                    {
-                        let step_name = step.tpd_get_tag();
-                        tv_step.help = Some(format!("See {doc_url}{step_name}"));
-                        if let Some(context) = tv_step.context.as_mut() {
-                            context.1 = "In this step".to_string();
-                        }
+        if let DeserError::DeserFailure(_, ref mut tv_partial) = e
+            && let Some(partial) = tv_partial.value.as_mut()
+            && let Some(steps) = partial.transform.value.as_mut()
+        {
+            for tv_step in steps.iter_mut() {
+                if !tv_step.is_ok()
+                    && let Some(step) = tv_step.value.as_ref()
+                {
+                    let step_name = step.tpd_get_tag();
+                    tv_step.help = Some(format!("See {doc_url}{step_name}"));
+                    if let Some(context) = tv_step.context.as_mut() {
+                        context.1 = "In this step".to_string();
                     }
                 }
+            }
         }
 
         let pretty = e.pretty("test.toml");
@@ -276,21 +279,21 @@ fn test_tagged_enum_context_overwrite_between_deser_and_pretty_custom() {
     let doc_url = "https://docs.example.com/steps/";
 
     if let Err(mut e) = result {
-        if let DeserError::DeserFailure(_, ref mut tv_partial) = e &&
-            let Some(partial) = tv_partial.value.as_mut()
-                && let Some(steps) = partial.transform.value.as_mut()
-            {
-                for tv_step in steps.iter_mut() {
-                    if !tv_step.is_ok()
-                        && let Some(step) = tv_step.value.as_ref()
-                    {
-                        let step_name = step.tpd_get_tag();
-                        tv_step.help = Some(format!("See {doc_url}{step_name}"));
-                        if let Some(context) = tv_step.context.as_mut() {
-                            context.1 = "In this step!".to_string();
-                        }
+        if let DeserError::DeserFailure(_, ref mut tv_partial) = e
+            && let Some(partial) = tv_partial.value.as_mut()
+            && let Some(steps) = partial.transform.value.as_mut()
+        {
+            for tv_step in steps.iter_mut() {
+                if !tv_step.is_ok()
+                    && let Some(step) = tv_step.value.as_ref()
+                {
+                    let step_name = step.tpd_get_tag();
+                    tv_step.help = Some(format!("See {doc_url}{step_name}"));
+                    if let Some(context) = tv_step.context.as_mut() {
+                        context.1 = "In this step!".to_string();
                     }
                 }
+            }
         }
 
         let pretty = e.pretty("test.toml");

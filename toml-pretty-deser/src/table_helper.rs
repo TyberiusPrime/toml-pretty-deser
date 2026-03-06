@@ -77,9 +77,10 @@ impl<'a> TomlHelper<'a> {
                     let mut last_end = table_heading.end;
                     for item in table {
                         if let Some(item_span) = item.1.span()
-                            && item_span.end > last_end {
-                                last_end = item_span.end;
-                            }
+                            && item_span.end > last_end
+                        {
+                            last_end = item_span.end;
+                        }
                     }
                     last_end..last_end
                 } else {
@@ -277,8 +278,8 @@ impl<'a> TomlHelper<'a> {
     #[allow(clippy::manual_let_else)]
     pub fn absorb_remaining<K, T>(&mut self) -> TomlValue<MapAndKeys<K, T>>
     where
-        K: TryFrom<String> + std::hash::Hash + Eq,
-        <K as TryFrom<String>>::Error: std::fmt::Display,
+        K: for<'k> TryFrom<&'k str> + std::hash::Hash + Eq,
+        for<'k> <K as TryFrom<&'k str>>::Error: std::fmt::Display,
         T: Visitor + Default,
     {
         // Build set of observed normalized names (keys that matched other fields)
@@ -331,15 +332,14 @@ impl<'a> TomlHelper<'a> {
             let mut helper = TomlHelper::from_item(item, self.col.clone());
             let value_result = T::fill_from_toml(&mut helper);
 
-            match K::try_from(key_str) {
+            match K::try_from(key_str.as_str()) {
                 Ok(k) => {
                     result_map.insert(k, value_result);
                 }
                 Err(e) => {
-                    result_keys.last_mut().unwrap().state =
-                        TomlValueState::ValidationFailed {
-                            message: e.to_string(),
-                        };
+                    result_keys.last_mut().unwrap().state = TomlValueState::ValidationFailed {
+                        message: e.to_string(),
+                    };
                 }
             }
         }
