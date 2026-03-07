@@ -204,9 +204,9 @@ impl VerifyIn<TPDRoot> for PartialWithDefaults {
         _parent: &TPDRoot,
         _options: &VerifyOptions,
     ) -> Result<(), ValidationFailure> {
-        self.field = self.field.take().or_default(); // equivalent to #[tpd(default)]
-        self.field = self.field.take().or(435);      // const value
-        self.field = self.field.take().or_with(|| 435); // closure evaluated
+        self.field.or_default(); // equivalent to #[tpd(default)]
+        self.field.or(435);      // const value
+        self.field.or_with(|| 435); // closure evaluated
         Ok(())
     }
 ```
@@ -341,15 +341,19 @@ pub fn adapt_to_upper_case(input: TomlValue<String>) -> TomlValue<String> {
 ```
 
 Adapter functions always see the inner T (precisely: it's `TomlValue`<T>) if used on a Vec<T> or a 
-an `IndexMap`<_, T>
+an `IndexMap`<_, T>. If you want to adapt the keys of an `IndexMap`, you will need a custom type.
 
 ### Custom types
 
 To enable the deserialization of custom types, implement [`Visitor`] for them.
 
-If they have no inner fields to descend into,
-you can use the [`impl_visitor`] macro (see below).
-If they do, plesae read the other Visitor implementation.
+If they have no inner fields to descend into, you can use the [`impl_visitor`]
+macro (see below). If they implement `From<String>` or `TryFrom<String>` (or
+the `&str` equivalents) you can use `impl_visitor_for_from_str` or
+`impl_visitor_for_try_from_str`.
+
+
+If they do, plesae read the other Visitor implementations.
 
 
 ```rust
@@ -386,7 +390,8 @@ usage.
 
 You only need to call it manually when you 
 are relying on `TomlValue.is_ok()` being accurate after possibly setting 
-it's inner values into failed states in your `VerifyIn::verify` function
+it's inner values into failed states in your `VerifyIn::verify` function,
+but before returning from that same function.
 
 
 ### Adapt in `VerifyIn`
@@ -394,7 +399,7 @@ it's inner values into failed states in your `VerifyIn::verify` function
 On occasion, you need the parent to really to perform final validation,
 for example if you wanted to store a lookup into a vec on the parent.
 
-Or you need to adapt into a Wrapped type, like `Rc::RefCell`
+Or you need to adapt into a Wrapped type, like `Rc::RefCell`.
 
 For this, you may tag fields with `#[tpd(adapt_in_verify(type))]`.
 These field get first deserialized into a `MustAdapt::PreVerify(type)`,
@@ -559,7 +564,7 @@ therefore can still be constructed in `VerifyIn` code.
 
 Errors that come from nested containers (structs, Vecs, Maps) are automatically
 propagated, but it can be useful to attach an extra source-location annotation
-so readers know *which* containing element is involved.
+so readers know *which* containing (parent) element is involved.
 
 `TomlValue` supports this via:
 
