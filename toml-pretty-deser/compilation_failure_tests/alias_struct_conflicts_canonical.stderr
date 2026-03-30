@@ -1,0 +1,5 @@
+error: alias "name" on "value" conflicts with canonical name "name"
+ --> compilation_failure_tests/alias_struct_conflicts_canonical.rs:9:5
+  |
+9 |     value: u32,
+  |     ^^^^^

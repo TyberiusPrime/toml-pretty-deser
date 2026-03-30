@@ -1,0 +1,5 @@
+error: alias "x" is listed more than once
+ --> compilation_failure_tests/alias_struct_duplicate.rs:9:5
+  |
+9 |     value: u32,
+  |     ^^^^^

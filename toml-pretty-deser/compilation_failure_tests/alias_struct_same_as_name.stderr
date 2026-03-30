@@ -1,0 +1,5 @@
+error: alias "bar" is the same as the canonical name; remove it
+ --> compilation_failure_tests/alias_struct_same_as_name.rs:8:5
+  |
+8 |     bar: String,
+  |     ^^^

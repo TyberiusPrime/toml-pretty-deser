@@ -1,0 +1,5 @@
+error: alias "Blue" on "Red" conflicts with canonical name "Blue"
+ --> compilation_failure_tests/alias_enum_conflicts_canonical.rs:8:5
+  |
+8 |     Red,
+  |     ^^^

@@ -1,0 +1,5 @@
+error: alias "x" on "b" conflicts with alias "x" of "a"
+  --> compilation_failure_tests/alias_struct_conflicts_alias.rs:10:5
+   |
+10 |     b: u32,
+   |     ^

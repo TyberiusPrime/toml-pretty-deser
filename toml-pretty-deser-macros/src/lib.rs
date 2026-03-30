@@ -513,6 +513,70 @@ fn is_indexmap_type(ty: &Type) -> bool {
 }
 
 // ============================================================================
+// Alias conflict validation
+// ============================================================================
+
+/// Checks that no alias conflicts exist across a set of named items (fields or enum variants).
+///
+/// Errors on:
+/// - alias equal to the item's own canonical name
+/// - same alias listed more than once on the same item
+/// - alias matching another item's canonical name
+/// - alias matching another item's alias
+///
+/// Skipped items must be excluded by the caller.
+fn check_alias_conflicts(items: &[(syn::Ident, &[String])]) -> syn::Result<()> {
+    use std::collections::{HashMap, HashSet};
+
+    // --- Intra-item: alias == canonical or duplicate alias within the same item ---
+    for (ident, aliases) in items {
+        let canonical = ident.to_string();
+        let mut local: HashSet<&str> = HashSet::new();
+        for alias in *aliases {
+            if *alias == canonical {
+                return Err(syn::Error::new(
+                    ident.span(),
+                    format!("alias \"{alias}\" is the same as the canonical name; remove it"),
+                ));
+            }
+            if !local.insert(alias.as_str()) {
+                return Err(syn::Error::new(
+                    ident.span(),
+                    format!("alias \"{alias}\" is listed more than once"),
+                ));
+            }
+        }
+    }
+
+    // --- Cross-item: alias vs. another item's canonical name or alias ---
+    // Map: name -> description of what claimed it first
+    let mut global: HashMap<String, String> = HashMap::new();
+    for (ident, _) in items {
+        let canonical = ident.to_string();
+        global.insert(canonical.clone(), format!("canonical name \"{canonical}\""));
+    }
+    for (ident, aliases) in items {
+        let canonical = ident.to_string();
+        for alias in *aliases {
+            if let Some(conflict) = global.get(alias.as_str()) {
+                return Err(syn::Error::new(
+                    ident.span(),
+                    format!(
+                        "alias \"{alias}\" on \"{canonical}\" conflicts with {conflict}"
+                    ),
+                ));
+            }
+            global.insert(
+                alias.clone(),
+                format!("alias \"{alias}\" of \"{canonical}\""),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+// ============================================================================
 // Struct derivation
 // ============================================================================
 
@@ -579,6 +643,15 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             })
         })
         .collect::<syn::Result<Vec<_>>>()?;
+
+    {
+        let alias_items: Vec<(syn::Ident, &[String])> = field_infos
+            .iter()
+            .filter(|f| !f.attrs.skip)
+            .map(|f| (f.ident.clone(), f.attrs.aliases.as_slice()))
+            .collect();
+        check_alias_conflicts(&alias_items)?;
+    }
 
     let absorb_fields: Vec<&FieldInfo> = field_infos
         .iter()
@@ -1053,6 +1126,15 @@ fn derive_simple_enum(input: &DeriveInput) -> syn::Result<TokenStream2> {
         })
         .collect::<syn::Result<Vec<_>>>()?;
 
+    {
+        let alias_items: Vec<(syn::Ident, &[String])> = variant_infos
+            .iter()
+            .filter(|v| !v.attrs.skip)
+            .map(|v| (v.ident.clone(), v.attrs.aliases.as_slice()))
+            .collect();
+        check_alias_conflicts(&alias_items)?;
+    }
+
     // Generate match arms for string matching
     let match_arms: Vec<TokenStream2> = variant_infos
         .iter()
@@ -1181,6 +1263,15 @@ fn derive_tagged_enum(
             })
         })
         .collect::<syn::Result<Vec<_>>>()?;
+
+    {
+        let alias_items: Vec<(syn::Ident, &[String])> = variant_infos
+            .iter()
+            .filter(|v| !v.attrs.skip)
+            .map(|v| (v.ident.clone(), v.attrs.aliases.as_slice()))
+            .collect();
+        check_alias_conflicts(&alias_items)?;
+    }
 
     // Generate PartialTaggedEnum variants: Variant(PartialTaggedVariant<PartialInner>)
     // The tag_span inside the struct stores the tag value span for error reporting.

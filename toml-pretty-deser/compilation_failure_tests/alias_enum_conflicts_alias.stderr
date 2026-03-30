@@ -1,0 +1,5 @@
+error: alias "primary" on "Blue" conflicts with alias "primary" of "Red"
+  --> compilation_failure_tests/alias_enum_conflicts_alias.rs:10:5
+   |
+10 |     Blue,
+   |     ^^^^
