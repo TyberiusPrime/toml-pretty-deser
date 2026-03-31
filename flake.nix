@@ -23,16 +23,17 @@
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { inherit system overlays; };
         # Nightly toolchain for local dev shell
-        rust = pkgs.rust-bin.selectLatestNightlyWith (
-          toolchain:
-          toolchain.default.override {
-            extensions = [ "rust-analyzer" ];
-            targets = [ "x86_64-unknown-linux-musl" ];
-          }
-        );
+        # rust = pkgs.rust-bin.selectLatestNightlyWith (
+        #   toolchain:
+        #   toolchain.default.override {
+        #     extensions = [ "rust-analyzer" ];
+        #     targets = [ "x86_64-unknown-linux-musl" ];
+        #   }
+        # );
 
         # Stable toolchain for CI checks (pinned via flake.lock)
         rustStable = pkgs.rust-bin.stable.latest.default;
+        rust = rustStable;
 
         # Override the version used in naersk
         naersk-lib = naersk.lib."${system}".override {
