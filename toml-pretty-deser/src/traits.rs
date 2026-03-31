@@ -134,7 +134,9 @@ where
     /// First calls `v_sync_nested_states()` on the inner value so that
     /// child containers update their own state, then transitions this
     /// `TomlValue` from `Ok` to `Nested` if the inner value can no longer
-    /// be concretised (i.e., some descendant is now in an error state).
+    /// be concretised (i.e., some descendant is now in an error state), or
+    /// from `Nested` back to `Ok` if all descendants have been resolved
+    /// (e.g., after iterating an `adapt_in_verify` vec and adapting every element).
     pub fn sync_nested_state(&mut self) {
         if let Some(value) = self.value.as_mut() {
             value.v_sync_nested_states();
@@ -143,6 +145,11 @@ where
             && !self.value.as_ref().is_some_and(Visitor::can_concrete)
         {
             self.state = TomlValueState::Nested;
+        }
+        if matches!(self.state, TomlValueState::Nested)
+            && self.value.as_ref().is_some_and(Visitor::can_concrete)
+        {
+            self.state = TomlValueState::Ok;
         }
     }
 
