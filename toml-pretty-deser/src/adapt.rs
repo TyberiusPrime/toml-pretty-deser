@@ -38,6 +38,14 @@ impl<A, B> MustAdapt<A, B> {
     }
 
     /// Return a Some(&B) in in `PostVerify`, None otherwise
+    pub fn as_ref_pre(&self) -> Option<&A> {
+        match self {
+            MustAdapt::PreVerify(v) => Some(v),
+            MustAdapt::PostVerify(_) => None,
+        }
+    }
+
+    /// Return a Some(&B) in in `PostVerify`, None otherwise
     pub fn as_ref_post(&self) -> Option<&B> {
         match self {
             MustAdapt::PreVerify(_) => None,

@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "toml-pretty-deser"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "codesnake",
  "indexmap",
@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "toml-pretty-deser-macros"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "proc-macro2",
  "quote",
