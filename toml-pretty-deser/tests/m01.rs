@@ -19,7 +19,7 @@ use toml_pretty_deser::prelude::*;
 #[derive(Debug)]
 struct Config {
     /// Required (non-optional) Vec, each element adapted String → PathBuf in verify.
-    #[tpd(adapt_in_verify(String))]
+    #[tpd(adapt_in_verify(String), alias="path")]
     paths: Vec<PathBuf>,
 }
 

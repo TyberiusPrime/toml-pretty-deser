@@ -391,14 +391,13 @@ where
             TomlValueState::ValidationFailed { message } => {
                 // Also traverse inner value: the struct may have nested parse errors
                 // (e.g. when the element was in Nested state before verify fired).
-                // Push self.help/context so those child errors inherit it too; pop before
-                // building our own error (which already carries self.help directly).
+                // Push context so child errors inherit it; do NOT push help — that
+                // would leak the ValidationFailure hint onto sibling errors like
+                // Missing required key.
                 if let Some(value) = self.value.as_ref() {
-                    let __ctx_help = col.push_help_context_opt(self.help.as_deref());
                     let __ctx_span = col.push_context_opt(self.context.as_ref());
                     value.v_register_errors(col);
                     col.pop_context_to(__ctx_span);
-                    col.pop_help_context_to(__ctx_help);
                 }
                 vec![AnnotatedError::placed(
                     self.span.clone(),
