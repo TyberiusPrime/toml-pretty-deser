@@ -674,8 +674,13 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
             if f.attrs.skip {
                 Ok(quote! { #fvis #ident: Option<#ftype> })
             } else if let Some(AdaptInVerify::Explicit(ref intermediate_ty)) = f.attrs.adapt_in_verify {
+                // For Vec<T>, wrap each element individually: Vec<TomlValue<MustAdapt<R, T>>>
+                if let TypeKind::Vector(element_kind) = &f.kind
+                    && let TypeKind::Leaf(element_ty) = element_kind.as_ref()
+                {
+                    Ok(quote! { #fvis #ident: toml_pretty_deser::TomlValue<Vec<toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdapt<#intermediate_ty, #element_ty>>>> })
                 // For Option<Vec<T>>, wrap each element individually: Option<Vec<TomlValue<MustAdapt<R, T>>>>
-                if let TypeKind::Optional(inner_opt) = &f.kind
+                } else if let TypeKind::Optional(inner_opt) = &f.kind
                     && let TypeKind::Vector(element_kind) = inner_opt.as_ref()
                     && let TypeKind::Leaf(element_ty) = element_kind.as_ref()
                 {
@@ -730,6 +735,16 @@ fn derive_struct(input: &DeriveInput, attr_ts: TokenStream2) -> syn::Result<Toke
 
             if let Some(AdaptInVerify::Explicit(ref intermediate_ty)) = f.attrs.adapt_in_verify {
                 let concrete_ty = &f.ty;
+                // For Vec<T>, wrap each element: get Vec<TomlValue<MustAdapt<R, T>>>
+                if let TypeKind::Vector(element_kind) = &f.kind
+                    && let TypeKind::Leaf(element_ty) = element_kind.as_ref()
+                {
+                    return Ok(quote! {
+                        fn #getter_name(&self, helper: &mut toml_pretty_deser::TomlHelper<'_>) -> toml_pretty_deser::TomlValue<Vec<toml_pretty_deser::TomlValue<toml_pretty_deser::MustAdapt<#intermediate_ty, #element_ty>>>> {
+                            helper.get_with_aliases(#field_name_str, #aliases_expr)
+                        }
+                    });
+                }
                 // For Option<Vec<T>>, wrap each element: get Vec<MustAdapt<R, T>>, then into_optional
                 if let TypeKind::Optional(inner_opt) = &f.kind
                     && let TypeKind::Vector(element_kind) = inner_opt.as_ref()
