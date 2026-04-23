@@ -177,10 +177,15 @@ impl<T: Visitor> Visitor for Option<T> {
     #[mutants::skip]
     fn fill_from_toml(helper: &mut TomlHelper<'_>) -> TomlValue<Self> {
         let inner = T::fill_from_toml(helper);
-        match inner.state {
-            TomlValueState::Ok => TomlValue::new_ok(Some(inner.value.unwrap()), helper.span()),
-            TomlValueState::Missing { .. } => unreachable!(),
-            _ => inner.convert_failed_type(),
+        if inner.is_ok() {
+            TomlValue::new_ok(Some(inner.value.unwrap()), helper.span())
+        } else if inner.is_missing() {
+            unreachable!()
+        } else {
+            // Use map_any(Some) rather than convert_failed_type() so that the
+            // inner value is preserved in Nested state, allowing v_register_errors
+            // to traverse into nested errors (e.g. a WrongType inside a Vec).
+            inner.map_any(Some)
         }
     }
 

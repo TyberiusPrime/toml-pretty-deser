@@ -21,6 +21,7 @@ struct Config {
 struct Output {
 
     #[tpd(default, alias = "hello")]
+    #[allow(dead_code)]
     interleave: Option<Vec<String>>,
 
 }
