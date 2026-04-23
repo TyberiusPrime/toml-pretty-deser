@@ -1,0 +1,6 @@
+---
+source: toml-pretty-deser/tests/o01.rs
+assertion_line: 60
+expression: pretty
+---
+

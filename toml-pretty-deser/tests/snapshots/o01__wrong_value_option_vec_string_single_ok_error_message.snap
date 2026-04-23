@@ -1,0 +1,14 @@
+---
+source: toml-pretty-deser/tests/o01.rs
+expression: pretty
+---
+Error 1/1
+  ╭─test.toml
+  ┆
+2 │ [output]
+3 │     interleave = true
+  ┆                  ──┬─
+  ┆                    │
+  ┆                    ╰── Wrong type: expected string, found boolean.
+──╯
+Hint: This value has the wrong type.
