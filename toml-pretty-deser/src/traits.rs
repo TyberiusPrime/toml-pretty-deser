@@ -12,6 +12,7 @@ pub struct VerifyOptions {
 }
 
 /// The error type for `VerifyIn.verify()`
+#[derive(Debug)]
 pub struct ValidationFailure {
     pub message: String,
     pub help: Option<String>,
